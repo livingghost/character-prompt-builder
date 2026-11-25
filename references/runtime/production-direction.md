@@ -164,6 +164,35 @@ affects the result; this introduces no per-word checklist or new approval file.
 
 ## Choose the expression
 
+State the intended emotion directly when it is part of the picture. "The
+character looks happy, with a slight smile" is a valid instruction; it need
+not specify every muscle or replace happiness with a metaphor. Add the
+character's distinctive visible response when the commission or adopted source
+requires it. A source example supplies one possible response under its stated
+conditions, not a universal ear angle, tail position or reaction sequence.
+
+Compose the subject, action, expression, relationships and framing as one
+picture. For a still, select a simultaneous visible state. Keep unshown timing,
+thoughts, intentions, history and causes in their author-facing records, or
+include only the scene premise needed to understand the depiction. A necessary
+premise does not become a fact that the image proves. Supply a comparison
+baseline for "as usual" or "more than normal"; otherwise resolve what appearance
+is actually wanted before requiring that comparison.
+
+A figurative impression may enrich an independently understandable depiction.
+"The character looks happy, with a slight smile, as if a pleasant thought has
+just crossed their mind" has a direct primary expression. The suggested thought
+and timing remain secondary impressions, not facts to certify from the image.
+Remove the figurative clause mentally and check that the main picture remains
+clear. No particular phrase is required or checked by keyword.
+
+Add exclusions when the request, an applicable source, reference role or an
+observed failure supplies their purpose. Do not invent an opposing emotion or
+pose solely to explain the positive one. When correcting a premise, reassess
+the dependent direction, prompt and criteria together. Preserve the intended
+reaction and individuality; neither fewer words nor more geometric details is
+the purpose of that correction.
+
 Work on the depiction the user is commissioning. This document owns that
 creative work from interpretation through revision. Composition resources,
 presets, performance knowledge and interface guides contribute to it when a
@@ -872,7 +901,10 @@ and what would support, contradict or leave it undecided. Preserve permitted
 variation and requested ambiguity. For an individualized performance, state the
 concrete defining relationships and current selection at the precision its
 source establishes, following [Performance Language](../performance-language-specification.md#9-evidence-for-a-performance-judgment).
-A broad emotion label is not an equivalent criterion. Do not turn every
+Where the source requires a particular defining relationship, an emotion label
+alone does not preserve that distinction. Direct emotion words remain valid
+for the intended impression and can accompany its selected visible expression.
+Do not turn every
 incidental pose choice into a permanent trait, or treat a selected form as
 interchangeable with another merely because both express the same emotion.
 A visible depiction, supplied text, measured
@@ -916,6 +948,87 @@ language about a pose or motion leaves open whether a model can realize it.
 Use generation, existing artwork, reference preparation, composition, local
 edits or another supported operation according to the purpose; a longer prompt
 is one repair among several.
+
+Declare each hard criterion's actual `origin` and `observation` once in the
+criterion. The compiler retains these choices with the captured request and
+source bytes; no manual hash or repeated output-medium field is needed.
+
+- `origin: {"kind": "user-request"}` cites the actual commission retained in
+  the work basis, including an expressly accepted choice.
+- `origin: {"kind": "adopted-source", "source": "SOURCE_ID"}` cites an applied
+  source at its selected scope. Read its actual authority, conditions and
+  permitted variation. A source ID alone does not establish adoption.
+- `origin: {"kind": "agent-realization", "decision": "DECISION_ID"}` cites a
+  current selected means and is permitted only for an advisory criterion.
+
+Approval of a communicated concept covers the choices actually presented.
+Later details added to a task-local definition remain authored realization
+unless the request or an adopted source independently requires them. Keep that
+distinction when a criterion refers to the definition as a whole.
+
+The observation's `scope` states what the criterion evaluates. Use `observable`
+for content directly supported by its `evidence`, `impression` for an apparent
+emotion or mood, `sequence` for ordering, `duration` for elapsed time, or
+`comparison` with `baseline: "SOURCE_ID"` for a comparison against an applied
+source. `context-only`, `author-only` and `unresolved` retain their limitations
+and cannot be hard result criteria. Optional `decision: "DECISION_ID"` names
+the particular direction decision being assessed, not every decision that
+helps achieve the goal. Preparation derives the medium from `artifact` and
+checks it against the criterion's existing `evidence`.
+
+For example, when a happy expression is actually requested:
+
+```json
+{
+  "id": "happy-expression",
+  "strength": "hard",
+  "text": "The requested happy expression is readable.",
+  "evidence": "image",
+  "origin": {"kind": "user-request"},
+  "observation": {"scope": "impression"}
+}
+```
+
+An unrequested ear angle chosen to realize that happiness remains advisory.
+Do not stamp every criterion as `user-request` to satisfy validation. The
+validator follows declared authority and references; the author must compare
+the criterion's actual meaning with its cited original.
+
+An ordinary decision's executable instructions are its `visible` carrier.
+Where another role matters, set `representation.role` on that decision:
+
+| Role | Selected input and review scope |
+| --- | --- |
+| `visible` | Direct primary depiction, carried by the actual expression and executable instructions. This is the ordinary role when no representation override is needed. |
+| `secondary-figurative` | A secondary impression, with `representation.primary` naming an independently resolved visible decision. Its assertion is an impression and its importance is secondary. Its literal content cannot be a hard criterion. |
+| `context-only` | Necessary scene premise included for understanding. It is not hard proof of an unshown fact. |
+| `author-only` | Retained privately in the direction; omitted from consumer directives. Keep it out of the separately authored prompt and media too. |
+| `unresolved` | An undecided representation. Completing preparation waits for the author to resolve this selected decision. |
+
+These declarations apply to selected decisions, not every word or every fact
+in a source. Keep source-only material at its existing owner when no selected
+direction is needed. A secondary impression may help a required happy
+expression: bind the criterion to the primary expression when naming a
+particular decision, and keep the figurative thought out of literal proof.
+
+Image artifacts ordinarily use `single-still`. Set `direction.image_format`
+to `multi-panel` for an intentionally ordered panel image. A hard `sequence`
+criterion then uses image evidence; a single still cannot supply it. Video uses
+motion evidence, audio uses audio evidence, and authored text uses text evidence
+at its own scope. Text and JSON can explicitly state a narrative interval such
+as "waited ten minutes"; text evidence establishes that statement, not a measured
+playback duration. Measured playback duration requires motion or audio evidence.
+Panels do not establish elapsed time by themselves. Assess a visible time label
+as observable content when the label is the requirement. Sound requires actual
+audio evidence, including an audio stream when the artifact is video. Use the existing
+`action_slice` when a still needs a particular phase, and retain its unverified
+before/after facts outside the visible requirement.
+
+Preparation checks these declared relationships through
+`scripts/production_expression.py`. It reports the exact criterion or decision
+and a repair action. It neither scans emotion words and metaphors nor certifies
+meaning, aesthetic quality or actual approval. Saved evidence remains unchanged;
+new authoring resolves an unsupported requirement at its responsible source.
 
 ### Keep authoring context out of consumer instructions
 

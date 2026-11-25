@@ -9,6 +9,7 @@ import copy
 import datetime
 import json
 import os
+import re
 import secrets
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from typing import Any, Callable, TextIO
 
 import execution_contract as c
 import execution_routes
+from knowledge_documents import DocumentReader, SECTION_ID_PATTERN, record_path
 from cli_invocation import python_argv, shown
 from route_reading_output import TextReadingOutput
 
@@ -24,7 +26,7 @@ DEFAULT_PAGE_BYTES = 16384
 MAX_AUTO_PAGE_BYTES = 262144
 INDEX_SOURCE_STATES = {
     'pending': 'No source bytes have been delivered in this snapshot.',
-    'partial': 'Some exact source ranges have been delivered; remaining ranges are required.',
+    'partial': 'Some selected body bytes have been delivered; the remaining bytes are required.',
     'delivered': 'This snapshot has complete delivery evidence for this source.',
     'known': 'An explicitly selected complete reading supplies unchanged selected source content in this context.',
 }
@@ -280,7 +282,8 @@ class ReadingSourcesChanged(ValueError):
         self.changes = changes
         self.actions = actions or {}
         self.required_action = 'Read the current complete material for the requested operation and select its issued reading key.'
-        names = ', '.join(str(row.get('path') or row.get('resource') or row.get('id') or row['kind'])
+        names = ', '.join(str(row.get('document_id') or row.get('path') or row.get('resource')
+                             or row.get('id') or row['kind'])
                           for row in changes)
         super().__init__(message + (': ' + names if names else ''))
 
@@ -365,36 +368,39 @@ def _invocation_conflict(args: argparse.Namespace, message: str) -> ReadingInvoc
 
 def source_changes(previous: dict, current: dict, *, required_only: bool = False,
                    include_model: bool = True) -> list[dict]:
-    """Compare acquired source identities, retaining each affected owner."""
+    """Compare complete section content and independently selected source owners."""
     changes = []
-    for field, key, label in (('documents', 'path', 'document'), ('resources', 'resource', 'resource')):
-        before = ({row['path']: row for row in previous.get(field, [])}
-                  if field == 'documents' else previous.get(field, {}))
-        after = ({row['path']: row for row in current.get(field, [])}
-                 if field == 'documents' else current.get(field, {}))
-        for name in sorted(set(after) if required_only else set(before) | set(after)):
-            old, new = before.get(name), after.get(name)
-            if field == 'documents' and old is not None and new is not None:
-                missing = _uncovered_ranges([(item['start'], item['end']) for item in new['ranges']],
-                                            [(item['start'], item['end']) for item in old['ranges']])
-                if (old['sha256'] == new['sha256'] and old['size'] == new['size']
-                        and (not missing if required_only else old['ranges'] == new['ranges'])):
-                    continue
-                changes.append({'kind': label, key: name,
-                                'change': 'modified' if old['sha256'] != new['sha256'] else 'scope-expanded' if missing else 'scope-changed',
-                                'before': old['sha256'], 'after': new['sha256'],
-                                'required_ranges': new['ranges'],
-                                'missing_ranges': [{'start': start, 'end': end} for start, end in missing]})
-            elif old != new:
-                changes.append({'kind': label, key: name,
-                                'change': 'added' if name not in before else 'removed' if name not in after else 'modified',
-                                'before': old['sha256'] if field == 'documents' and old else old,
-                                'after': new['sha256'] if field == 'documents' and new else new,
-                                **({'required_ranges': new['ranges']} if field == 'documents' and new else {})})
-    before = set(previous.get('features', [])); after = set(current.get('features', []))
-    for name in sorted(after - before if required_only else before ^ after):
+    before = {row['document_id']: row for row in previous.get('documents', [])}
+    after = {row['document_id']: row for row in current.get('documents', [])}
+    for name in sorted(set(after) if required_only else set(before) | set(after)):
+        old, new = before.get(name), after.get(name)
+        old_sections = {row['section_id']: row for row in (old or {}).get('sections', [])}
+        new_sections = {row['section_id']: row for row in (new or {}).get('sections', [])}
+        changed = [identifier for identifier in
+                   sorted(set(new_sections) if required_only else set(old_sections) | set(new_sections))
+                   if old_sections.get(identifier) != new_sections.get(identifier)]
+        reordered = not required_only and not changed and list(old_sections) != list(new_sections)
+        if not changed and not reordered:
+            continue
+        missing = [identifier for identifier in new_sections if identifier not in old_sections]
+        changes.append({'kind': 'document', 'document_id': name,
+            'change': ('added' if old is None else 'removed' if new is None else 'reordered' if reordered else
+                       'scope-expanded' if missing and all(old_sections.get(key) == value
+                           for key, value in new_sections.items() if key in old_sections) else 'modified'),
+            'before': (old or {}).get('sections'), 'after': (new or {}).get('sections'),
+            'required_sections': list(new_sections.values()), 'changed_sections': changed,
+            'missing_sections': missing})
+    before_resources, after_resources = previous.get('resources', {}), current.get('resources', {})
+    for name in sorted(set(after_resources) if required_only else set(before_resources) | set(after_resources)):
+        old, new = before_resources.get(name), after_resources.get(name)
+        if old != new:
+            changes.append({'kind': 'resource', 'resource': name,
+                'change': 'added' if name not in before_resources else 'removed' if name not in after_resources else 'modified',
+                'before': old, 'after': new})
+    before_features = set(previous.get('features', [])); after_features = set(current.get('features', []))
+    for name in sorted(after_features - before_features if required_only else before_features ^ after_features):
         changes.append({'kind': 'feature', 'id': name,
-                        'change': 'added' if name in after else 'removed'})
+                        'change': 'added' if name in after_features else 'removed'})
     if include_model and previous.get('model') != current.get('model'):
         changes.append({'kind': 'model', 'id': (current.get('model') or previous.get('model') or {}).get('id'),
                         'before': previous.get('model'), 'after': current.get('model')})
@@ -490,17 +496,24 @@ def _live_resource_reader():
 
 
 def _knowledge_requirements(manifest: dict) -> dict[str, bool]:
-    """Select reading material from declared changes, never from prompt words.
+    """Select knowledge for the current decisions, never from prompt words.
 
     Exact request, target, source and permission validators keep their own
     effect-boundary responsibilities. This selection only defers instructions
-    for decisions that the current retained amendment does not make.
+    for decisions that the current stage or retained amendment does not make.
+    Definition establishes source meaning and dictionary-backed terminology;
+    depiction constructs the picture; the writing guide serves its rendition
+    and final request inspection. An
+    explicitly selected model still supplies its complete guidance card.
     """
     scope = manifest.get('authoring_scope') or {}
     profiles = set(scope.get('profiles') or [])
-    if (scope.get('composition') != 'amend' or scope.get('change_scope') is None
-            or not profiles or 'target-change' in scope.get('conditions', [])
+    if (not scope or 'target-change' in scope.get('conditions', [])
             or 'unknown-sources' in scope.get('conditions', [])):
+        return {'writing': True, 'model': True}
+    if scope.get('change_scope') is None:
+        return {'writing': scope.get('stage') in {'rendition', 'prepare'}, 'model': True}
+    if not profiles:
         return {'writing': True, 'model': True}
     limited = profiles.issubset({'amend-controls', 'amend-recording'})
     return {'writing': not limited,
@@ -712,99 +725,39 @@ def _body_identity(metadata: dict) -> str:
     return c.content_id(metadata)
 
 
-def _document_body(document: dict, start: int, end: int, raw: bytes, sections: list[dict]) -> dict:
-    return {'kind': 'document', 'path': document['path'], 'source_sha256': document['sha256'],
-            'source_size': document['size'], 'source_start': start, 'source_end': end,
-            'sha256': c.digest(raw), 'sections': [
-                {key: section[key] for key in ('anchor', 'start', 'end', 'sha256')}
-                for section in sections if start <= section['start'] and section['end'] <= end]}
+def _document_body(document_id: str, section) -> dict:
+    return {'kind': 'document-section', 'document_id': document_id, **section.metadata()}
 
 
-def _section_identity(section: dict) -> tuple:
-    """Name unchanged complete section content independently of its position."""
-    return section['anchor'], section['end'] - section['start'], section['sha256']
-
-
-def _document_part(metadata: dict, start: int, end: int, raw: bytes) -> dict:
-    result = {**metadata, 'source_start': start, 'source_end': end,
-              'size': len(raw), 'sha256': c.digest(raw)}
-    if 'sections' in metadata:
-        result['sections'] = [section for section in metadata['sections']
-                              if start <= section['start'] and section['end'] <= end]
-    return result
-
-
-def _validate_sections(metadata: dict) -> None:
-    """Section evidence partitions a delivered body; a body hash also stands alone."""
-    if 'sections' not in metadata:
-        return
-    sections = metadata['sections']
-    if not isinstance(sections, list) or not sections:
-        raise ValueError('reading document sections must cover its complete body')
-    reach, anchors = metadata['source_start'], set()
-    for section in sections:
-        c.exact(section, {'anchor', 'start', 'end', 'sha256'}, 'delivered section')
-        c.text(section['anchor'], 'delivered section anchor'); c.sha(section['sha256'])
-        if (type(section['start']) is not int or type(section['end']) is not int
-                or section['start'] != reach or not reach <= section['end'] <= metadata['source_end']
-                or section['anchor'] in anchors):
-            raise ValueError('reading document sections must partition its exact source range')
-        reach = section['end']
-        anchors.add(section['anchor'])
-    if reach != metadata['source_end']:
-        raise ValueError('reading document sections do not cover its complete body')
-    if len(sections) == 1 and sections[0]['sha256'] != metadata['sha256']:
-        raise ValueError('reading document section differs from its complete body')
-
-
-def _section_content_available(metadata: dict, issuance: dict, ledger: Path) -> bool:
-    """Verify finer section evidence against the complete retained body bytes.
-
-    A missing or damaged body narrows the available reuse evidence; it never
-    prevents a new complete read. Whole-body and same-edition range evidence
-    keep their own content identities without inventing unknown section hashes.
-    """
-    if metadata.get('kind') != 'document' or not metadata.get('sections'):
+def _section_content_available(metadata: dict, issuance: dict, ledger: Path, *, read_body=None) -> bool:
+    """Confirm the retained complete section bytes before same-context reuse."""
+    if metadata.get('kind') != 'document-section':
         return False
     snapshot = issuance['delivery']['snapshot']
     try:
         folder = (_snapshot_dir(ledger, snapshot) if snapshot is not None
                   else ledger.parent / 'reading-content')
-        raw = c.object_read(folder, metadata['sha256'])
-        if len(raw) != metadata['size']:
-            return False
-        return all(c.digest(raw[section['start'] - metadata['source_start']:
-                                section['end'] - metadata['source_start']]) == section['sha256']
-                   for section in metadata['sections'])
+        acquire = read_body or c.object_read
+        return len(acquire(folder, metadata['sha256'])) == metadata['size']
     except (ValueError, OSError):
         return False
 
 
 def _store_document_content(folder: Path, acquired: list[tuple[dict, bytes]], required: list[dict]) -> None:
-    """Retain each known complete body with its owning delivery snapshot."""
+    """Retain each selected complete section with its owning delivery snapshot."""
+    actual = {_body_identity(meta): raw for meta, raw in acquired}
     for body in required:
-        if body['kind'] != 'document':
+        if body['kind'] != 'document-section':
             continue
-        for metadata, raw in acquired:
-            if metadata['kind'] != 'document' or any(body[field] != metadata[field]
-                    for field in ('path', 'source_sha256', 'source_size')):
-                continue
-            if metadata['source_start'] <= body['source_start'] <= body['source_end'] <= metadata['source_end']:
-                part = raw[body['source_start'] - metadata['source_start']:
-                           body['source_end'] - metadata['source_start']]
-                if len(part) != body['size'] or c.digest(part) != body['sha256']:
-                    raise ValueError('retained reading body differs from its acquired source bytes')
-                path = c.local(folder, 'objects/' + body['sha256'], exists=False)
-                if path.exists():
-                    # Newly acquired exact source bytes can restore damaged
-                    # evidence. This storage does not issue or extend delivery.
-                    if c.read(path) != part:
-                        c.atomic(path, part, replace=True)
-                else:
-                    c.object_store(folder, part)
-                break
+        raw = actual.get(_body_identity(body))
+        if raw is None or len(raw) != body['size'] or c.digest(raw) != body['sha256']:
+            raise ValueError('retained reading section differs from its acquired body')
+        path = c.local(folder, 'objects/' + body['sha256'], exists=False)
+        if path.exists():
+            if c.read(path) != raw:
+                c.atomic(path, raw, replace=True)
         else:
-            raise ValueError('retained reading body has no acquired source interval')
+            c.object_store(folder, raw)
 
 
 def _reuse_provenance(available: dict, body: dict) -> dict:
@@ -813,6 +766,7 @@ def _reuse_provenance(available: dict, body: dict) -> dict:
 
 
 def _uncovered_ranges(required: list[tuple[int, int]], available: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Find unshown byte intervals within one immutable section or resource body."""
     missing = []
     for start, end in _merged_ranges(required):
         reach = start
@@ -828,58 +782,33 @@ def _uncovered_ranges(required: list[tuple[int, int]], available: list[tuple[int
 
 
 def _body_covers(known: dict, required: dict) -> bool:
-    if known.get('kind') != 'document' or required.get('kind') != 'document':
-        return known == required
-    if known.get('path') != required.get('path'):
-        return False
-    same_source = all(known.get(field) == required.get(field)
-                      for field in ('source_sha256', 'source_size'))
-    if same_source and known['source_start'] <= required['source_start'] <= required['source_end'] <= known['source_end']:
-        if (known['source_start'], known['source_end']) == (required['source_start'], required['source_end']):
-            return known['sha256'] == required['sha256'] and known['size'] == required['size']
-        return True
-    # A complete body is itself content evidence even when it has no finer
-    # section index. It never proves a different source or a partial body.
-    if known['sha256'] == required['sha256'] and known['size'] == required['size']:
-        return True
-    if not known.get('sections') or not required.get('sections'):
-        return False
-    available = {_section_identity(section) for section in known['sections']}
-    return all(_section_identity(section) in available for section in required['sections'])
+    """A complete retained unit proves only that exact selected unit."""
+    return known == required
 
 
 def _validate_body_scope(manifest: dict, metadata: list[dict]) -> None:
-    """Require exactly the complete bodies named by this operation's manifest."""
-    required = {('document', item['path']): item for item in manifest['documents']}
+    """Require one complete body for every selected knowledge unit."""
+    required = {('document-section', document['document_id'], section['section_id']): section
+                for document in manifest['documents'] for section in document['sections']}
     required.update({('resource', name): value for name, value in manifest['resources'].items()
                      if value['status'] == 'present'})
     if manifest['model'] is not None:
         required[('model', 'model-guidance/' + manifest['model']['id'])] = manifest['model']
     seen = set()
-    document_ranges = {}
     for item in metadata:
         kind = item.get('kind')
-        identity = (kind, item.get('resource') if kind == 'resource' else item.get('path'))
-        if identity not in required or (kind != 'document' and identity in seen):
+        identity = (('document-section', item.get('document_id'), item.get('section_id'))
+                    if kind == 'document-section' else
+                    (kind, item.get('resource') if kind == 'resource' else item.get('path')))
+        if identity not in required or identity in seen:
             raise ValueError('reading delivery body differs from its required source scope')
         seen.add(identity)
         expected = required[identity]
         if type(item.get('size')) is not int or item['size'] < 0:
             raise ValueError('reading delivery body has an invalid byte size')
-        if kind == 'document':
-            c.exact(item, {'kind', 'path', 'sha256', 'size', 'source_sha256', 'source_size',
-                           'source_start', 'source_end'} | ({'sections'} if 'sections' in item else set()),
-                    'delivered document')
-            start, end = item['source_start'], item['source_end']
-            valid = (item['source_sha256'] == expected['sha256'] and item['source_size'] == expected['size']
-                     and type(start) is int and type(end) is int
-                     and 0 <= start <= end <= expected['size'] and end - start == item['size'])
-            selected = [(part['start'], part['end']) for part in expected['ranges']]
-            valid = valid and not _uncovered_ranges([(start, end)], selected)
-            exact = [part for part in expected['ranges'] if (part['start'], part['end']) == (start, end)]
-            valid = valid and (not exact or item['sha256'] == exact[0]['sha256'])
-            _validate_sections(item)
-            document_ranges.setdefault(item['path'], []).append((start, end))
+        if kind == 'document-section':
+            c.exact(item, {'kind', 'document_id', 'section_id', 'sha256', 'size'}, 'delivered section')
+            valid = all(item[key] == expected[key] for key in ('section_id', 'sha256', 'size'))
         elif kind == 'resource':
             c.exact(item, {'kind', 'resource', 'status', 'source_pack', 'path', 'sha256',
                            'source_sha256', 'dialect', 'size'}, 'delivered resource')
@@ -896,12 +825,6 @@ def _validate_body_scope(manifest: dict, metadata: list[dict]) -> None:
             raise ValueError('reading delivery body differs from its manifest')
     if seen != set(required):
         raise ValueError('reading delivery does not cover all required bodies')
-    for document in manifest['documents']:
-        actual = document_ranges.get(document['path'], [])
-        selected = [(part['start'], part['end']) for part in document['ranges']]
-        if (_uncovered_ranges(selected, actual) or
-                sum(end - start for start, end in actual) != sum(end - start for start, end in _merged_ranges(actual))):
-            raise ValueError('reading delivery does not cover the exact required document ranges')
 
 
 def _validate_delivery(row: dict) -> None:
@@ -939,6 +862,12 @@ def _known_bodies(keys: list[str], ledger: Path) -> tuple[list[str], list[dict]]
         return [], []
     rows = _issuance_index(ledger_rows(ledger))
     known, bodies = [], {}
+    contents = {}
+    def read_body(folder: Path, digest: str) -> bytes:
+        identity = (folder, digest)
+        if identity not in contents:
+            contents[identity] = c.object_read(folder, digest)
+        return contents[identity]
     for key in dict.fromkeys(keys):
         digest = c.digest(_hex(key, 32, 'reading key').encode('ascii'))
         row = rows.get(digest)
@@ -948,92 +877,34 @@ def _known_bodies(keys: list[str], ledger: Path) -> tuple[list[str], list[dict]]
         for item in row['delivery']['bodies']:
             bodies[_body_identity(item['body'])] = {
                 'body': item['body'], 'origin': item['origin'], 'reused_from': row['key_sha256'],
-                'section_content_available': _section_content_available(item['body'], row, ledger)}
+                'section_content_available': _section_content_available(item['body'], row, ledger,
+                                                                         read_body=read_body)}
     return sorted(known), list(bodies.values())
 
 
 def _reuse_acquired(acquired: list[tuple[dict, bytes]], available: list[dict]) -> tuple[list, list, list]:
-    """Partition current requirements at complete known source boundaries.
-
-    A whole source can prove selected sections. Unchanged section content can
-    retain that witness when unrelated source edits move its byte offsets.
-    Only missing intervals are delivered; every reused part names its complete
-    issuance and current source bytes. No ledger is selected implicitly.
-    """
+    """Reuse complete explicitly known section identities and unchanged bytes."""
+    indexed = {_body_identity(item['body']): item for item in available
+               if item['body']['kind'] != 'document-section' or item['section_content_available']}
     required, reused, pending = [], [], []
     for metadata, raw in acquired:
-        base = dict(metadata, size=len(raw))
-        if metadata['kind'] != 'document' or not raw:
-            found = next((item for item in available if item['body'] == base), None)
-            required.append(base)
-            if found is None:
-                pending.append((base, raw))
-            else:
-                reused.append(_reuse_provenance(found, base))
-            continue
-        low, high = base['source_start'], base['source_end']
-        candidates = []
-        for item in available:
-            known = item['body']
-            if known['kind'] != 'document' or known['path'] != base['path']:
-                continue
-            if all(known[field] == base[field] for field in ('source_sha256', 'source_size')):
-                start, end = max(low, known['source_start']), min(high, known['source_end'])
-                if start < end:
-                    candidates.append((start, end, item))
-            elif known['sha256'] == base['sha256'] and known['size'] == base['size']:
-                candidates.append((low, high, item))
-            elif item['section_content_available']:
-                indexed = {_section_identity(section) for section in known['sections']}
-                candidates.extend((section['start'], section['end'], item) for section in base.get('sections', [])
-                                  if _section_identity(section) in indexed)
-        cuts = sorted({low, high, *(start for start, _, _ in candidates),
-                       *(end for _, end, _ in candidates)})
-        parts = []
-        for start, end in zip(cuts, cuts[1:]):
-            piece = raw[start - low:end - low]
-            part = _document_part(base, start, end, piece)
-            found = next((item for first, last, item in candidates
-                          if first <= start and end <= last and _body_covers(item['body'], part)), None)
-            # Adjacent sections with the same delivery witness remain one
-            # body. Section evidence stays distinct from transport chunking.
-            if parts and parts[-1][2] == found:
-                parts[-1] = (parts[-1][0], end, found)
-            else:
-                parts.append((start, end, found))
-        for start, end, found in parts:
-            piece = raw[start - low:end - low]
-            part = _document_part(base, start, end, piece)
-            required.append(part)
-            if found is None:
-                pending.append((part, piece))
-            else:
-                reused.append(_reuse_provenance(found, part))
+        body = dict(metadata, size=len(raw))
+        required.append(body)
+        found = indexed.get(_body_identity(body))
+        if found is None:
+            pending.append((body, raw))
+        else:
+            reused.append(_reuse_provenance(found, body))
     return required, reused, pending
 
 
-def _current_body_ranges(acquired: list[tuple[dict, bytes]], required: list[dict]) -> bool:
-    """Verify every selected or reused subrange against the newly acquired bytes."""
-    for selected in required:
-        matched = False
-        for metadata, raw in acquired:
-            complete = dict(metadata, size=len(raw))
-            if selected['kind'] != 'document':
-                matched = selected == complete
-            elif (all(complete.get(field) == selected.get(field)
-                      for field in ('path', 'source_sha256', 'source_size'))
-                  and _body_covers(complete, selected)):
-                start = selected['source_start'] - complete['source_start']
-                end = selected['source_end'] - complete['source_start']
-                matched = (selected['size'] == end - start and c.digest(raw[start:end]) == selected['sha256'])
-                if matched and 'sections' in selected:
-                    matched = selected['sections'] == [section for section in complete['sections']
-                        if selected['source_start'] <= section['start'] and section['end'] <= selected['source_end']]
-            if matched:
-                break
-        if not matched:
-            return False
-    return True
+def _current_bodies(acquired: list[tuple[dict, bytes]], required: list[dict]) -> bool:
+    """Match each required unit to its newly acquired complete body bytes."""
+    actual = {_body_identity(dict(metadata, size=len(raw))): raw for metadata, raw in acquired}
+    if set(actual) != {_body_identity(body) for body in required}:
+        return False
+    return all(len(actual[_body_identity(body)]) == body['size']
+               and c.digest(actual[_body_identity(body)]) == body['sha256'] for body in required)
 
 
 def _issuance_index(rows: list[dict]) -> dict[str, dict]:
@@ -1047,29 +918,25 @@ def _issuance_index(rows: list[dict]) -> dict[str, dict]:
 
 
 def _check_reused_bodies(snapshot: dict, ledger: Path) -> None:
-    """Recheck issuance provenance without treating saved pages as known content."""
+    """Recheck complete issuance and retained bytes for each reused section."""
     rows = _issuance_index(ledger_rows(ledger)) if snapshot['reused_bodies'] else {}
-    verified_sections = set()
+    source_bodies = {}
     for item in snapshot['reused_bodies']:
         key = item['reused_from']
         if key not in snapshot['known_readings'] or key not in rows:
             raise ValueError('same-context body has no complete source issuance')
-        available = {_body_identity(previous['body']): previous
-                     for previous in rows[key]['delivery']['bodies']}
+        if key not in source_bodies:
+            source_bodies[key] = {_body_identity(previous['body']): previous
+                                  for previous in rows[key]['delivery']['bodies']}
+        available = source_bodies[key]
         previous = available.get(_body_identity(item['source_body']))
         if (previous is None or previous['origin'] != item['origin'] or
                 not _body_covers(previous['body'], item['body'])):
             raise ValueError('same-context body differs from its complete source issuance')
-        before, after = previous['body'], item['body']
-        if (before['kind'] == 'document'
-                and any(before[field] != after[field] for field in ('source_sha256', 'source_size'))
-                and (before['sha256'], before['size']) != (after['sha256'], after['size'])):
-            evidence = (key, _body_identity(before))
-            if evidence not in verified_sections:
-                if not _section_content_available(before, rows[key], ledger):
-                    raise ValueError('same-context section content is unavailable; start the current reading again '
-                                     'to redeliver the required source bodies')
-                verified_sections.add(evidence)
+        if (item['body']['kind'] == 'document-section'
+                and not _section_content_available(item['body'], rows[key], ledger)):
+            raise ValueError('same-context section content is unavailable; start the current reading again '
+                             'to redeliver the required section bodies')
     selected = [item['body'] for item in snapshot['reused_bodies']] + snapshot['bodies']
     if sorted(map(_body_identity, selected)) != sorted(map(_body_identity, snapshot['required_bodies'])):
         raise ValueError('reading snapshot does not cover its required bodies')
@@ -1092,21 +959,25 @@ def _validate_manifest(value: dict[str, Any]) -> None:
         raise ValueError('reading documents must be a nonempty array')
     seen = set()
     for item in documents:
-        c.exact(item, {'path', 'sha256', 'size', 'ranges'}, 'reading document')
-        c.local(ROOT, item['path'], exists=False); c.sha(item['sha256'])
-        if type(item['size']) is not int or item['size'] < 0 or not isinstance(item['ranges'], list) or not item['ranges']:
-            raise ValueError('reading document needs its source size and selected ranges')
-        end = 0
-        for selected in item['ranges']:
-            c.exact(selected, {'start', 'end', 'sha256'}, 'reading document range')
-            c.sha(selected['sha256'])
-            if (type(selected['start']) is not int or type(selected['end']) is not int
-                    or not end <= selected['start'] <= selected['end'] <= item['size']):
-                raise ValueError('reading document has an invalid or overlapping source range')
-            end = selected['end']
-        if item['path'] in seen:
+        c.exact(item, {'document_id', 'sections'}, 'reading document')
+        identifier = item['document_id']
+        record_path(identifier)
+        if identifier in seen:
             raise ValueError('duplicate reading document')
-        seen.add(item['path'])
+        seen.add(identifier)
+        sections = item['sections']
+        if not isinstance(sections, list) or not sections:
+            raise ValueError('reading document needs complete selected sections')
+        section_ids = set()
+        for section in sections:
+            c.exact(section, {'section_id', 'sha256', 'size'}, 'reading section')
+            name = section['section_id']
+            if (not isinstance(name, str) or not re.fullmatch(SECTION_ID_PATTERN, name)
+                    or name in section_ids):
+                raise ValueError('reading section ID is invalid or duplicated')
+            section_ids.add(name); c.sha(section['sha256'])
+            if type(section['size']) is not int or section['size'] <= 0:
+                raise ValueError('reading section needs its complete body size')
     _validate_resources(value)
 
 
@@ -1116,7 +987,8 @@ def capture(route: str, features: list[str] | None = None, *, execution: str, ro
             authoring_scope: dict | None = None,
             model: str | None = None, service: str | None = None, model_record: dict | None = None,
             model_file: Path | None = None,
-            read_source: Callable[[str], bytes] | None = None) -> tuple[dict, list[tuple[dict, bytes]]]:
+            read_source: Callable[[str], bytes] | None = None,
+            document_reader: DocumentReader | None = None) -> tuple[dict, list[tuple[dict, bytes]]]:
     if model_file is not None:
         if model is not None or model_record is not None:
             raise ValueError('select one catalog model or acquired model file')
@@ -1134,22 +1006,16 @@ def capture(route: str, features: list[str] | None = None, *, execution: str, ro
     if service is not None and model_record is None:
         raise ValueError('a service selection requires a selected model')
     read_once = _read_once(root, read_source)
+    documents = document_reader or DocumentReader(read_once)
     resolved = execution_routes.resolve(route, features, operation=operation, execution=execution,
                                         root=root, read_source=read_once, scope=scope, source_kind=source_kind,
-                                        authoring_scope=authoring_scope)
+                                        authoring_scope=authoring_scope, document_reader=documents)
     bodies = []
     for entry in resolved['reads']:
-        raw = read_once(entry['path'])
-        raw.decode('utf-8')
-        if c.digest(raw) != entry['sha256']:
-            raise ValueError('document changed while reading: ' + entry['path'])
-        # Adjacent required sections share one exact source interval. Their
-        # individual boundaries and reasons remain in the manifest/index; a
-        # body never crosses an unselected gap.
-        sections = execution_routes.document_sections(raw)
-        for start, end in _merged_ranges([(part['start'], part['end']) for part in entry['ranges']]):
-            body = raw[start:end]
-            bodies.append((_document_body(entry, start, end, body, sections), body))
+        document = documents.acquire(entry['document_id'])
+        for selected in entry['sections']:
+            section = document.section(selected['section_id'])
+            bodies.append((_document_body(document.document_id, section), section.raw))
     manifest = {'route': resolved['route'], 'operation': resolved['operation'], 'execution': resolved['execution'],
                 'scope': resolved['scope'], 'source_kind': resolved['source_kind'], 'features': resolved['features'],
                 **({'authoring_scope': resolved['authoring_scope']} if 'authoring_scope' in resolved else {}),
@@ -1210,11 +1076,6 @@ def _begin_output(stream: TextIO, body: list[dict], metadata: dict) -> None:
     stream.flush()
 
 
-def _visible_body_metadata(metadata: dict) -> dict:
-    """Keep section witnesses in the record and index, not on every text page."""
-    return {key: value for key, value in metadata.items() if key != 'sections'}
-
-
 def _finish_output(stream: TextIO, result: dict) -> None:
     visible = {key: value for key, value in result.items() if key not in {'body', 'metadata', 'issued', 'delivered'}}
     if result.get('mode') in {'all', 'section'}:
@@ -1262,7 +1123,7 @@ def issue(route: str, features: list[str] | None = None, *, execution: str, root
     manifest, bodies = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution, model=model,
                                service=service, model_file=model_file, model_record=model_record,
                                scope=scope, source_kind=source_kind, authoring_scope=authoring_scope)
-    _begin_output(stream, [{'metadata': _visible_body_metadata(meta), 'text': raw.decode('utf-8')}
+    _begin_output(stream, [{'metadata': meta, 'text': raw.decode('utf-8')}
                            for meta, raw in bodies], manifest)
     try:
         current, _ = capture(route, features, root=root, dialect=dialect, operation=operation, execution=execution,
@@ -1327,6 +1188,7 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
     row = _find_row(record, ledgers if ledgers is not None else ledger_candidates(studio=studio, package_root=package_root))
     selected_features = features if features is not None else record['features']
     read_source = _read_once(root, read_source)
+    documents = DocumentReader(read_source)
     selected_operation = operation or record['operation']
     selected_authoring = authoring_scope if authoring_scope is not None else record.get('authoring_scope')
     if selected_operation in {'adopt', 'withdraw'}:
@@ -1335,26 +1197,21 @@ def require_route_reading(record: Any, *, root: Path = ROOT, ledgers: list[Path]
     expected = execution_routes.resolve(record['route'], selected_features,
                                         operation=selected_operation, scope=scope, source_kind=source_kind,
                                         execution=execution if execution is not None else record['execution'],
-                                        root=root, read_source=read_source, authoring_scope=selected_authoring)
+                                        root=root, read_source=read_source, authoring_scope=selected_authoring,
+                                        document_reader=documents)
     current, bodies = capture(record['route'], selected_features, root=root,
                               operation=expected['operation'], execution=expected['execution'],
                               scope=expected['scope'], source_kind=expected['source_kind'],
                               authoring_scope=selected_authoring,
                               dialect=bound_dialect(record) if 'prompt-dialect' in expected['features'] else None,
-                              resource_reader=resource_reader, read_source=read_source)
+                              resource_reader=resource_reader, read_source=read_source,
+                              document_reader=documents)
     changes = source_changes(record, current, required_only=True, include_model=False)
     if changes:
         missing_features = any(change['kind'] == 'feature' for change in changes)
         message = ('reading features do not cover the execution features' if missing_features else
                    'reading documents do not cover the current operation and execution; read their complete contract')
         raise ReadingSourcesChanged(changes, message)
-    current_paths = {item['path'] for item in current['documents']}
-    for document in record['documents']:
-        if document['path'] in current_paths:
-            raw = read_source(document['path'])
-            for selected in document['ranges']:
-                if c.digest(raw[selected['start']:selected['end']]) != selected['sha256']:
-                    raise ValueError('reading source range differs from the current exact bytes: ' + document['path'])
     if _knowledge_requirements(current)['writing']:
         _require_dialect(record, bodies, dialect)
     if model_record is not None and _knowledge_requirements({'authoring_scope': selected_authoring})['model']:
@@ -1457,14 +1314,51 @@ def _cursor(ledger: Path, cursor: str) -> tuple[Path, dict, dict]:
     return folder, snapshot, receipt
 
 
-def _position(snapshot: dict, offset: int) -> tuple[int, int]:
-    for index, meta in enumerate(snapshot['bodies']):
-        if offset < meta['size']:
-            return index, offset
-        offset -= meta['size']
-    if offset:
-        raise ValueError('reading cursor exceeds the snapshot')
-    return len(snapshot['bodies']), 0
+def _position_value(snapshot: dict, position: dict) -> tuple[int, int]:
+    """Validate a cursor within one immutable body, then normalize its boundary."""
+    c.exact(position, {'body', 'offset'}, 'reading position')
+    index, offset = position['body'], position['offset']
+    if (type(index) is not int or type(offset) is not int or index < 0 or offset < 0
+            or index > len(snapshot['bodies'])):
+        raise ValueError('reading position is outside its section bodies')
+    if index == len(snapshot['bodies']):
+        if offset:
+            raise ValueError('reading position is beyond its final body')
+        return index, 0
+    if offset > snapshot['bodies'][index]['size']:
+        raise ValueError('reading position exceeds its section body')
+    while index < len(snapshot['bodies']) and offset == snapshot['bodies'][index]['size']:
+        index, offset = index + 1, 0
+    return index, offset
+
+
+def _position_data(position: tuple[int, int]) -> dict:
+    return {'body': position[0], 'offset': position[1]}
+
+
+def _span_size(snapshot: dict, start: tuple[int, int], end: tuple[int, int]) -> int:
+    """Count transport bytes across an ordered sequence of complete units."""
+    if start > end:
+        raise ValueError('reading transport span is reversed')
+    if start[0] == end[0]:
+        return end[1] - start[1]
+    return (snapshot['bodies'][start[0]]['size'] - start[1]
+            + sum(body['size'] for body in snapshot['bodies'][start[0] + 1:end[0]]) + end[1])
+
+
+def _pending_span(snapshot: dict, coverage: dict) -> tuple[tuple[int, int], tuple[int, int]]:
+    missing = coverage['missing']
+    if not missing:
+        final = (len(snapshot['bodies']), 0)
+        return final, final
+    first = missing[0]
+    start = (first['body'], first['start'])
+    end = _position_value(snapshot, {'body': first['body'], 'offset': first['end']})
+    for item in missing[1:]:
+        if (item['body'], item['start']) != end:
+            break
+        end = _position_value(snapshot, {'body': item['body'], 'offset': item['end']})
+    return start, end
 
 
 def _publish_page(path: Path, value: dict) -> None:
@@ -1483,6 +1377,7 @@ def _remember_page(folder: Path, snapshot: str, page: str) -> None:
 
 
 def _merged_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Combine overlapping delivered chunks within one body only."""
     merged = []
     for start, end in sorted(ranges):
         if start == end:
@@ -1495,22 +1390,25 @@ def _merged_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
 
 
 def snapshot_coverage(folder: Path, snapshot: dict) -> dict:
-    """Read exact delivered ranges once for navigation, completion and recovery."""
+    """Verify and combine delivered intervals within each immutable body."""
     sid = c.content_id(snapshot)
-    total, bodies = 0, {}
-    for metadata in snapshot['bodies']:
-        bodies[_body_identity(metadata)] = (total, metadata)
-        total += metadata['size']
-    pages, intervals = [], []
+    bodies = {_body_identity(metadata): (number, metadata)
+              for number, metadata in enumerate(snapshot['bodies'])}
+    intervals = {number: [] for number in range(len(snapshot['bodies']))}
+    pages = []
     for path in (folder / 'pages').glob('*.json'):
         page = c.load(path)
         if c.content_id(page) != path.stem or page['snapshot'] != sid:
             raise ValueError('reading page address mismatch')
-        start, end = page['start'], page['end']
-        if type(start) is not int or type(end) is not int or not 0 <= start <= end <= total:
-            raise ValueError('reading page has an invalid delivered range')
-        if 'page_bytes' in page and (type(page['page_bytes']) is not int or page['page_bytes'] < 4):
-            raise ValueError('reading page has an invalid source-byte budget')
+        c.exact(page, {'snapshot', 'from', 'to', 'ranges', 'page_bytes'}
+                | ({'section'} if 'section' in page else set())
+                | ({'index'} if 'index' in page else set())
+                | ({'replay_until'} if 'replay_until' in page else set()), 'reading page')
+        start, end = _position_value(snapshot, page['from']), _position_value(snapshot, page['to'])
+        if start > end or type(page['page_bytes']) is not int or page['page_bytes'] < 4:
+            raise ValueError('reading page has an invalid delivery or byte budget')
+        if 'replay_until' in page and _position_value(snapshot, page['replay_until']) < end:
+            raise ValueError('reading replay ends before its delivered page')
         reach = start
         for item in page['ranges']:
             metadata = {key: value for key, value in item.items()
@@ -1518,26 +1416,27 @@ def snapshot_coverage(folder: Path, snapshot: dict) -> dict:
             match = bodies.get(_body_identity(metadata))
             if match is None or item['snapshot'] != sid:
                 raise ValueError('reading page differs from its source scope')
-            offset, source = match
+            number, body = match
             low, high = item['start'], item['end']
             if (type(low) is not int or type(high) is not int
-                    or not 0 <= low <= high <= source['size']
-                    or item['total'] != source['size'] or offset + low != reach):
-                raise ValueError('reading page has an invalid source range')
-            reach = offset + high
+                    or not 0 <= low < high <= body['size']
+                    or item['total'] != body['size'] or (number, low) != reach):
+                raise ValueError('reading page has an invalid section-local range')
+            intervals[number].append((low, high))
+            reach = _position_value(snapshot, {'body': number, 'offset': high})
         if reach != end:
-            raise ValueError('reading page does not contain its declared source bytes')
+            raise ValueError('reading page does not contain its declared body bytes')
+        if page.get('index') and page['ranges']:
+            raise ValueError('reading navigation cannot declare delivered bytes')
         pages.append((path.stem, page))
-        intervals.append((start, end))
-    covered = _merged_ranges(intervals)
-    missing, reach = [], 0
-    for start, end in covered:
-        if start > reach:
-            missing.append((reach, start))
-        reach = end
-    if reach < total:
-        missing.append((reach, total))
-    delivered = sum(end - start for start, end in covered)
+    covered, missing, delivered = {}, [], 0
+    for number, body in enumerate(snapshot['bodies']):
+        ranges = _merged_ranges(intervals[number])
+        covered[_body_identity(body)] = ranges
+        delivered += sum(end - start for start, end in ranges)
+        missing.extend({'body': number, 'start': start, 'end': end}
+                       for start, end in _uncovered_ranges([(0, body['size'])], ranges))
+    total = sum(body['size'] for body in snapshot['bodies'])
     return {'pages': pages, 'covered': covered, 'missing': missing,
             'total_bytes': total, 'delivered_bytes': delivered,
             'remaining_bytes': total - delivered}
@@ -1588,27 +1487,39 @@ def _json_headings(raw: bytes, metadata: dict) -> list[tuple[int, str, int]]:
     return headings
 
 
+def _source_selector(metadata: dict) -> str:
+    if metadata['kind'] == 'document-section':
+        return metadata['document_id']
+    if metadata['kind'] == 'resource':
+        return 'resource:' + metadata['resource']
+    return 'model:' + metadata['id']
+
+
 def _sections(folder: Path, snapshot: dict, read_body=None) -> list[dict]:
-    """Partition every pending body exactly; headings select delivery, not scope."""
-    required = {_body_identity(metadata): number
-                for number, metadata in enumerate(snapshot['required_bodies'], 1)}
+    """Navigate complete stable section identities and explicit non-document units."""
     read_body = read_body or (lambda digest: c.object_read(folder, digest))
-    result, offset = [], 0
-    for metadata in snapshot['bodies']:
-        raw = read_body(metadata['sha256'])
-        if len(raw) != metadata['size']:
-            raise ValueError('reading source size differs from its snapshot')
-        source = str(required[_body_identity(metadata)])
-        headings = (execution_routes.markdown_headings(raw) if metadata['kind'] == 'document'
-                    else _json_headings(raw, metadata))
-        if not headings or headings[0][0] > 0:
-            headings.insert(0, (0, 'Source opening' if headings else 'Complete source', 0))
-        for number, (start, heading, level) in enumerate(headings, 1):
-            end = headings[number][0] if number < len(headings) else len(raw)
-            result.append({'selector': source + '.' + str(number), 'source': source,
-                           'heading': heading, 'level': level, 'start': start, 'end': end,
-                           'low': offset + start, 'high': offset + end})
-        offset += len(raw)
+    result = []
+    for number, metadata in enumerate(snapshot['bodies']):
+        source = _source_selector(metadata)
+        if metadata['kind'] == 'document-section':
+            parts = [{'selector': source + '#' + metadata['section_id'],
+                      'section_id': metadata['section_id'], 'document_id': metadata['document_id'],
+                      'start': 0, 'end': metadata['size']}]
+        else:
+            raw = read_body(metadata['sha256'])
+            if len(raw) != metadata['size']:
+                raise ValueError('reading body size differs from its snapshot')
+            headings = _json_headings(raw, metadata)
+            if not headings or headings[0][0] > 0:
+                headings.insert(0, (0, 'Source opening' if headings else 'Complete source', 0))
+            parts = [{'selector': source + '#' + str(index + 1),
+                      'heading': heading, 'level': level, 'start': start,
+                      'end': headings[index + 1][0] if index + 1 < len(headings) else len(raw)}
+                     for index, (start, heading, level) in enumerate(headings)]
+        for part in parts:
+            result.append({**part, 'source': source, 'body': number,
+                'from': {'body': number, 'offset': part['start']},
+                'to': _position_data(_position_value(snapshot, {'body': number, 'offset': part['end']}))})
     return result
 
 
@@ -1618,85 +1529,74 @@ def _section_scope(sections: list[dict], selector: str) -> dict:
         return exact[0]
     source = [row for row in sections if row['source'] == selector]
     if source:
-        return {'selector': selector, 'source': selector, 'heading': 'Complete source', 'level': 0,
-                'start': 0, 'end': source[-1]['end'], 'low': source[0]['low'], 'high': source[-1]['high']}
+        return {'selector': selector, 'source': selector, 'from': source[0]['from'], 'to': source[-1]['to']}
     raise ValueError('unknown pending source or section: ' + selector +
                      '; open the snapshot index and select an exact returned selector')
 
 
-def _remaining_in(low: int, high: int, missing: list[tuple[int, int]]) -> int:
-    return sum(max(0, min(high, end) - max(low, start)) for start, end in missing)
+def _remaining_in(number: int, low: int, high: int, missing: list[dict]) -> int:
+    return sum(max(0, min(high, item['end']) - max(low, item['start']))
+               for item in missing if item['body'] == number)
 
 
 def _navigation(snapshot: dict, coverage: dict, sections: list[dict],
                 index_source: str | None = None) -> tuple[list[dict], dict[str, str]]:
-    """Show required ranges once; expand a whole source's headings on request.
-
-    Explicit section requirements remain visible in the initial index. A whole
-    source is one requirement, so its internal headings are navigation detail.
-    Reasons are shared by ID without shortening any selected contract.
-    """
+    """Group exact required sections under their document and source identities."""
     known = {_body_identity(item['body']): item for item in snapshot['reused_bodies']}
+    grouped = {}
+    for metadata in snapshot['required_bodies']:
+        grouped.setdefault(_source_selector(metadata), []).append(metadata)
     sources, reasons = [], {}
-    def reason_ids(values: list[str]) -> list[str]:
+    def reason_ids(values):
         result = []
         for value in dict.fromkeys(values):
             identifier = next((key for key, text in reasons.items() if text == value), None)
             if identifier is None:
-                identifier = str(len(reasons) + 1)
-                reasons[identifier] = value
+                identifier = str(len(reasons) + 1); reasons[identifier] = value
             result.append(identifier)
         return result
-    for number, metadata in enumerate(snapshot['required_bodies'], 1):
-        source = str(number)
+    for source, bodies in grouped.items():
         if index_source is not None and index_source != source:
             continue
-        rows = [row for row in sections if row['source'] == source]
-        state = 'known' if _body_identity(metadata) in known else 'delivered'
-        if state == 'known':
-            rows = [{'selector': None, 'heading': section['anchor'],
-                     'start': section['start'] - metadata['source_start'],
-                     'end': section['end'] - metadata['source_start'], 'low': 0, 'high': 0}
-                    for section in metadata.get('sections', [])]
-        remaining = sum(_remaining_in(row['low'], row['high'], coverage['missing']) for row in rows)
-        if remaining:
-            state = 'pending' if remaining == metadata['size'] else 'partial'
-        selected_by = snapshot.get('read_owners', {}).get(metadata.get('path'),
-                        ['selected:' + metadata['kind']])
-        scope = [item for item in snapshot.get('section_owners', {}).get(metadata.get('path'), [])
-                 if item['start'] < metadata.get('source_end', metadata['size'])
-                 and metadata.get('source_start', 0) < item['end']]
-        source_reasons = list(dict.fromkeys(item['reason'] for item in scope)) or [
-            'Complete selected ' + metadata['kind'] + ' guidance is required for this target.']
-        expanded = index_source is not None or any(item['anchor'] is not None for item in scope)
-        visible = []
-        for row in rows if expanded else []:
-            low = metadata.get('source_start', 0) + row['start']
-            high = metadata.get('source_start', 0) + row['end']
-            selected_reasons = [item['reason'] for item in scope if item['start'] < high and low < item['end']]
-            identity = next((section for section in metadata.get('sections', [])
-                             if (section['start'], section['end']) == (low, high)), None)
-            visible.append({'selector': row['selector'], 'heading': row['heading'],
-                            'bytes': row['end'] - row['start'],
-                            'selection_reason_ids': reason_ids(selected_reasons or source_reasons),
-                            **({'anchor': identity['anchor'], 'content_sha256': identity['sha256']}
-                               if identity is not None else {}),
-                            **({'source_start': low, 'source_end': high} if metadata['kind'] == 'document' else {}),
-                            'remaining_bytes': _remaining_in(row['low'], row['high'], coverage['missing'])})
-        witness = known.get(_body_identity(metadata))
-        sources.append({'selector': None if state == 'known' else source, **metadata, 'selected_by': selected_by,
-                        'selection_reason_ids': reason_ids(source_reasons),
-                        'selection_scope': ('complete-source' if not scope or any(item['anchor'] is None for item in scope)
-                                            else 'selected-sections'),
-                        'state': state, 'remaining_bytes': remaining,
-                        **({'reuse': {'reading_key_sha256': witness['reused_from'],
-                                     'origin': witness['origin'],
-                                     'source_sha256': witness['source_body'].get('source_sha256'),
-                                     'source_start': witness['source_body'].get('source_start'),
-                                     'source_end': witness['source_body'].get('source_end')}}
-                           if witness is not None else {}),
-                        'section_count': len(rows), 'sections_expanded': expanded,
-                        'sections': visible})
+        document = bodies[0]['kind'] == 'document-section'
+        scope = snapshot.get('section_owners', {}).get(source, []) if document else []
+        selected_by = snapshot.get('read_owners', {}).get(source, ['selected:' + bodies[0]['kind']])
+        fallback = ['Complete selected ' + bodies[0]['kind'] + ' guidance is required for this target.']
+        source_reasons = list(dict.fromkeys(item['reason'] for item in scope)) or fallback
+        complete = not scope or all(item['whole_source'] for item in scope)
+        expanded = index_source is not None or not complete
+        visible, states, remaining = [], [], 0
+        for metadata in bodies:
+            witness = known.get(_body_identity(metadata))
+            rows = [row for row in sections if row['source'] == source and
+                    (not document or row.get('section_id') == metadata['section_id'])]
+            missing = sum(_remaining_in(row['body'], row['start'], row['end'], coverage['missing']) for row in rows)
+            remaining += missing
+            state = ('known' if witness is not None else 'pending' if missing == metadata['size'] else
+                     'partial' if missing else 'delivered')
+            states.append(state)
+            choices = [item['reason'] for item in scope
+                       if item['section_id'] == metadata.get('section_id')] or source_reasons
+            if document:
+                visible.append({'selector': None if witness is not None else source + '#' + metadata['section_id'],
+                    'section_id': metadata['section_id'], 'bytes': metadata['size'],
+                    'content_sha256': metadata['sha256'], 'selection_reason_ids': reason_ids(choices),
+                    'state': state, 'remaining_bytes': missing,
+                    **({'reuse': {'reading_key_sha256': witness['reused_from'], 'origin': witness['origin']}}
+                       if witness is not None else {})})
+            else:
+                visible.extend({'selector': row['selector'], 'heading': row['heading'],
+                    'bytes': row['end'] - row['start'], 'selection_reason_ids': reason_ids(choices),
+                    'remaining_bytes': _remaining_in(row['body'], row['start'], row['end'], coverage['missing'])}
+                    for row in rows)
+        state = states[0] if len(set(states)) == 1 else 'partial'
+        metadata = ({'kind': 'document', 'document_id': source, 'size': sum(body['size'] for body in bodies)}
+                    if document else bodies[0])
+        sources.append({'selector': None if state == 'known' else source, **metadata,
+            'selected_by': selected_by, 'selection_reason_ids': reason_ids(source_reasons),
+            'selection_scope': 'complete-source' if complete else 'selected-sections',
+            'state': state, 'remaining_bytes': remaining, 'section_count': len(visible),
+            'sections_expanded': expanded, 'sections': visible if expanded else []})
     if index_source is not None and not sources:
         raise ValueError('unknown source index selector: ' + index_source
                          + '; open the snapshot index and choose a source selector')
@@ -1708,7 +1608,7 @@ def _selection_summary(snapshot: dict) -> dict:
     reused = {_body_identity(item['body']) for item in snapshot['reused_bodies']}
     owners = {}
     for body in snapshot['required_bodies']:
-        selected = snapshot.get('read_owners', {}).get(body.get('path'), ['selected:' + body['kind']])
+        selected = snapshot.get('read_owners', {}).get(body.get('document_id', body.get('path')), ['selected:' + body['kind']])
         for owner in selected:
             row = owners.setdefault(owner, {'selected_bytes': 0, 'reused_bytes': 0})
             row['selected_bytes'] += body['size']
@@ -1721,7 +1621,7 @@ def _selection_summary(snapshot: dict) -> dict:
             'change_scope': scope.get('change_scope'), 'profiles': scope.get('profiles', []),
             'by_selection': owners,
             'attribution': 'A source can have several selection owners; owner totals overlap and must not be added.',
-            'fresh_context': 'Read every selected current range; a saved receipt supplies no knowledge to a fresh context.'}
+            'fresh_context': 'Read every selected current section body; a saved receipt supplies no knowledge to a fresh context.'}
 
 
 def _record_delivery(result: dict, snapshot: dict, body: list[dict], *, new_snapshot: bool,
@@ -1756,7 +1656,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
               publish_record: bool = False, navigation: bool = False,
               snapshot_id: str | None = None, section: str | None = None,
               index_source: str | None = None) -> dict:
-    """Index or deliver exact source ranges; only complete coverage issues a record."""
+    """Index or deliver exact section bodies; only complete coverage issues a record."""
     page_bytes, page_sizing = page_budget(page_bytes, host_page_bytes)
     if reading_context is not None:
         _hex(reading_context, 32, 'reading context')
@@ -1765,7 +1665,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     if navigation and (cursor is not None or section is not None):
         raise ValueError('choose a snapshot index or a delivery action')
     if index_source is not None and (not navigation or snapshot_id is None):
-        raise ValueError('a source heading index requires --snapshot ID --index-source SELECTOR and delivers no body')
+        raise ValueError('a source section index requires --snapshot ID --index-source SELECTOR and delivers no body')
     if cursor is not None and (snapshot_id is not None or section is not None):
         raise ValueError('a page cursor fixes its source selection; use --snapshot with --section to choose another')
     stream = sys.stdout if stream is None else stream
@@ -1777,13 +1677,14 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
             raise ValueError('a route is required to start reading')
         ledger_rows(ledger)
         read_source = _read_once(root)
+        documents = DocumentReader(read_source)
         manifest, acquired = capture(route, features, root=root, dialect=dialect, operation=operation,
                                     execution=execution, model=model, service=service, model_file=model_file,
                                     scope=scope, source_kind=source_kind, authoring_scope=authoring_scope,
-                                    read_source=read_source)
+                                    read_source=read_source, document_reader=documents)
         resolved = execution_routes.resolve(route, features, operation=operation, execution=execution,
                                             root=root, read_source=read_source, scope=scope, source_kind=source_kind,
-                                            authoring_scope=authoring_scope)
+                                            authoring_scope=authoring_scope, document_reader=documents)
         automatic_keys = _context_keys(ledger, reading_context, root)
         context_keys = list(dict.fromkeys([*automatic_keys, *(known_reading_keys or [])]))
         known, available = _known_bodies(context_keys, ledger)
@@ -1808,7 +1709,7 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         folder.mkdir(parents=True)
         c.atomic(folder / 'snapshot.json', c.encoded(snapshot))
         for meta, raw in pending_bodies:
-            if meta['kind'] != 'document':
+            if meta['kind'] != 'document-section':
                 c.object_store(folder, raw)
         _store_document_content(folder, acquired, required)
     else:
@@ -1835,35 +1736,38 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     coverage = snapshot_coverage(folder, snapshot)
     total = coverage['total_bytes']
     read_body = _read_once(folder, lambda digest: c.object_read(folder, digest))
-    sections = _sections(folder, snapshot, read_body)
-    navigation_rows = _navigation(snapshot, coverage, sections, index_source) if navigation else None
     selection = section if section is not None else (previous or {}).get('section')
+    sections = _sections(folder, snapshot, read_body) if navigation or selection is not None else []
+    navigation_rows = _navigation(snapshot, coverage, sections, index_source) if navigation else None
     selected = _section_scope(sections, selection) if selection is not None else None
     if previous is not None and previous.get('index'):
         raise ValueError('an index has no delivered source page; use its actions.next or --all action')
     if navigation:
-        start, limit = 0, 0
+        start = limit = (0, 0)
     elif replay:
-        start, limit = previous['start'], previous.get('replay_until', previous['end'])
-    elif previous is not None and previous.get('replay_until', previous['end']) > previous['end']:
-        start, limit = previous['end'], previous['replay_until']
+        start = _position_value(snapshot, previous['from'])
+        limit = _position_value(snapshot, previous.get('replay_until', previous['to']))
+    elif previous is not None and _position_value(snapshot, previous.get('replay_until', previous['to'])) > _position_value(snapshot, previous['to']):
+        start = _position_value(snapshot, previous['to'])
+        limit = _position_value(snapshot, previous['replay_until'])
     elif selected is not None:
-        start = selected['low'] if previous is None else previous['end']
-        limit = selected['high']
+        start = _position_value(snapshot, selected['from'] if previous is None else previous['to'])
+        limit = _position_value(snapshot, selected['to'])
         if start >= limit:
             raise ValueError('selected section is complete; use its actions.next or --all action for the remaining required scope')
     else:
-        start, limit = coverage['missing'][0] if coverage['missing'] else (total, total)
-    index, offset = _position(snapshot, start)
+        start, limit = _pending_span(snapshot, coverage)
+    index, offset = start
     budget, end = page_bytes, start
     ranges, body = [], []
-    pending = {'snapshot': sid, 'start': start, 'end': start, 'ranges': [], 'page_bytes': page_bytes}
+    pending = {'snapshot': sid, 'from': _position_data(start), 'to': _position_data(start),
+               'ranges': [], 'page_bytes': page_bytes}
     if selected is not None:
         pending['section'] = selection
     if navigation:
         pending['index'] = True
-    if replay or (previous is not None and previous.get('replay_until', previous['end']) > previous['end']):
-        pending['replay_until'] = limit
+    if replay or (previous is not None and _position_value(snapshot, previous.get('replay_until', previous['to'])) > _position_value(snapshot, previous['to'])):
+        pending['replay_until'] = _position_data(limit)
     pending_id = c.content_id(pending)
     _publish_page(folder / 'pages' / (pending_id + '.json'), pending)
     _remember_page(folder, sid, pending_id)
@@ -1871,8 +1775,8 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         meta = snapshot['bodies'][index]
         raw = read_body(meta['sha256'])
         if len(raw) != meta['size']:
-            raise ValueError('reading source size differs from its snapshot')
-        stop = min(len(raw), offset + budget, offset + limit - end)
+            raise ValueError('reading body size differs from its snapshot')
+        stop = min(len(raw), offset + budget, limit[1] if index == limit[0] else len(raw))
         while stop > offset and stop < len(raw) and raw[stop] & 0xC0 == 0x80:
             stop -= 1
         if stop == offset and offset < len(raw):
@@ -1880,15 +1784,11 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         segment = raw[offset:stop]
         header = {**meta, 'snapshot': sid, 'start': offset, 'end': stop, 'total': len(raw)}
         ranges.append(header)
-        body.append({'metadata': _visible_body_metadata(header), 'text': segment.decode('utf-8')})
-        end += len(segment)
+        body.append({'metadata': header, 'text': segment.decode('utf-8')})
         budget -= len(segment)
-        if stop == len(raw):
-            index += 1
-            offset = 0
-        else:
-            offset = stop
-    page = {**pending, 'end': end, 'ranges': ranges}
+        end = _position_value(snapshot, {'body': index, 'offset': stop})
+        index, offset = end
+    page = {**pending, 'to': _position_data(end), 'ranges': ranges}
     page_id = c.content_id(page)
     metadata = {key: snapshot['manifest'][key] for key in ('route', 'operation', 'execution', 'scope', 'source_kind', 'features', 'model')}
     if snapshot['manifest'].get('authoring_scope') is not None:
@@ -1898,14 +1798,14 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
     result = {'ok': True, 'snapshot': sid, 'cursor': sid + ':' + page_id,
               'mode': 'index' if navigation else 'section' if selected is not None else 'all',
               'body': body, 'delivered': ranges, 'metadata': metadata,
-              'section': ({key: selected[key] for key in ('selector', 'heading', 'start', 'end')}
+              'section': ({key: selected[key] for key in ('selector', 'document_id', 'section_id', 'heading') if key in selected}
                           if selected is not None else None),
               'reading': None, 'context_reuse': None,
               'reading_context': reading_context, 'page_sizing': page_sizing,
               'reuse_selection': {'automatic_readings': snapshot.get('automatic_readings', 0),
                   'selected_readings': len(snapshot['context_keys']),
                   'reason': ('Complete readings explicitly associated with this uninterrupted context; '
-                             'only unchanged current required ranges are reused.' if reading_context else
+                             'only unchanged current required section bodies are reused.' if reading_context else
                              'Only explicitly selected --known-reading values; no saved context is inferred.')},
               'same_context_required': bool(snapshot['context_keys'] or coverage['delivered_bytes'])}
     # Navigation never contributes delivered bytes. Actual text is flushed
@@ -1918,12 +1818,12 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
         reused_bytes = sum(item['body']['size'] for item in snapshot['reused_bodies'])
         result['remaining_bytes'] = coverage['remaining_bytes']
         result['progress'] = {key: coverage[key] for key in ('total_bytes', 'delivered_bytes', 'remaining_bytes')}
-        result['progress'].update(page_start=start, page_end=end,
+        result['progress'].update(page_from=_position_data(start), page_to=_position_data(end),
             required_bytes=total + reused_bytes, reused_bytes=reused_bytes,
             fresh_context_bytes=total + reused_bytes, same_context_new_bytes=total,
             required_bodies=len(snapshot['required_bodies']), reused_bodies=len(snapshot['reused_bodies']),
-            section_remaining_bytes=selected['high'] - end if selected is not None else None,
-            replay_remaining_bytes=max(0, pending.get('replay_until', end) - end))
+            section_remaining_bytes=_span_size(snapshot, end, _position_value(snapshot, selected['to'])) if selected is not None else None,
+            replay_remaining_bytes=_span_size(snapshot, end, _position_value(snapshot, pending['replay_until'])) if 'replay_until' in pending else 0)
         result['actions'] = _reading_actions(result, ledger=ledger, studio=studio, page_bytes=page_bytes,
                                             acquired=(folder, snapshot, page), coverage=coverage, sections=sections)
         result['selection_summary'] = _selection_summary(snapshot)
@@ -1936,9 +1836,9 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                 'reason': 'Append --section and an exact source or section selector from this index; only source bodies count toward delivery.'}
             result['source_navigation'] = {
                 'action_ref': '#/actions/index', 'append': ['--index-source', 'SELECTOR'],
-                'reason': 'Append --index-source and a source selector to actions.index.argv to inspect its internal headings; this delivers no body and issues no reading.'}
+                'reason': 'Append --index-source and a source selector to actions.index.argv to inspect its declared sections; this delivers no body and issues no reading.'}
         if (not navigation and not coverage['remaining_bytes']
-                and (selected is None or end == selected['high'])
+                and (selected is None or end == _position_value(snapshot, selected['to']))
                 and not result['progress']['replay_remaining_bytes']):
             current, acquired = capture(snapshot['manifest']['route'], snapshot['manifest']['features'], root=root,
                                  dialect=bound_dialect(snapshot['manifest']), operation=snapshot['manifest']['operation'],
@@ -1948,7 +1848,10 @@ def read_page(*, route: str | None = None, features: list[str] | None = None,
                                  model=(snapshot['manifest']['model'] or {}).get('id') if snapshot['model_file'] is None else None,
                                  model_file=Path(snapshot['model_file']) if snapshot['model_file'] is not None else None,
                                  service=(snapshot['manifest']['model'] or {}).get('service'))
-            if current != snapshot['manifest'] or not _current_body_ranges(acquired, snapshot['required_bodies']):
+            # The immutable snapshot retains the author's selected presentation
+            # order through issuance. A new read can reuse completed unchanged
+            # section bodies after an author reorders them.
+            if current != snapshot['manifest'] or not _current_bodies(acquired, snapshot['required_bodies']):
                 raise ReadingSourcesChanged(source_changes(snapshot['manifest'], current),
                     'sources changed during reading; start a new read',
                     actions={'restart': result['actions']['restart']})
@@ -2039,7 +1942,7 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
         help='With --choices, bind the issued key to that exact unchanged draft after complete delivery; '
              'generated authoring actions select this automatically. Changed authored content is never overwritten.')
     parser.add_argument('--view', choices=['json', 'text'], default='json',
-        help='json returns the complete response (default); text displays every original body with source ranges '
+        help='json returns the complete response (default); text displays every original body with section-local byte ranges '
              'and short continuation controls, retaining the complete JSON in a new response file.')
     parser.add_argument('--response-dir', type=Path,
         help='Directory for new response files with --view text; defaults to reading-responses beside the reading ledger. '
@@ -2072,13 +1975,13 @@ def add_read_arguments(parser: argparse.ArgumentParser) -> None:
     delivery.add_argument('--all', action='store_true',
                           help='Explicitly deliver all still-required source bytes in bounded pages; indexes issue no reading')
     delivery.add_argument('--section', metavar='SELECTOR',
-                          help='With --snapshot, deliver the exact source or heading selector from its index; complete coverage is still required')
+                          help='With --snapshot, deliver the exact source or section selector from its index; complete coverage is still required')
     delivery.add_argument('--index-source', metavar='SELECTOR',
-                          help='With --snapshot, expand one source heading index without delivery; '
+                          help='With --snapshot, expand one source section index without delivery; '
                                'selection_reason_ids resolve in selection_reasons; progress compares fresh-context and reused bytes')
     parser.add_argument('--known-reading', action='append', default=[], metavar='KEY',
                         help='Complete reading still known in this context; repeat to reuse unchanged selected sections '
-                             'even when unrelated edits move their offsets, and deliver only missing current bodies; omit in a fresh context')
+                             'after unrelated content or section order changes, and deliver missing complete bodies; omit in a fresh context')
     parser.add_argument('--reading-ledger', type=Path,
                         help='Reading ledger for the selected Studio or explicit continuation context')
     _add_runtime_arguments(parser)
@@ -2090,7 +1993,7 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
     """Build executable next actions from the delivered snapshot's own context."""
     folder, snapshot, page = acquired or _cursor(ledger, result['cursor'])
     coverage = coverage if coverage is not None else snapshot_coverage(folder, snapshot)
-    sections = sections if sections is not None else _sections(folder, snapshot)
+    sections = sections if sections is not None else (_sections(folder, snapshot) if 'section' in page else [])
     base = python_argv(ROOT / 'scripts' / 'execution_routes.py', 'read',
                        '--reading-ledger', str(ledger.absolute()), '--page-bytes', str(page_bytes))
     if studio is not None:
@@ -2106,9 +2009,11 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
     sid = c.content_id(snapshot)
     actions = {'continue': None, 'next': None, 'replay': None}
     if not page.get('index'):
-        remaining = page.get('replay_until', page['end']) - page['end']
+        position = _position_value(snapshot, page['to'])
+        remaining = _span_size(snapshot, position, _position_value(snapshot, page.get('replay_until', page['to'])))
         if not remaining:
-            remaining = (_section_scope(sections, page['section'])['high'] - page['end']
+            remaining = (_span_size(snapshot, position, _position_value(snapshot,
+                         _section_scope(sections, page['section'])['to']))
                          if 'section' in page else coverage['remaining_bytes'])
         if remaining:
             actions['continue'] = action('--continue', result['cursor'],
@@ -2119,7 +2024,7 @@ def _reading_actions(result: dict, *, ledger: Path, studio: Path | None, page_by
     if coverage['missing'] and actions['continue'] is None:
         actions['next'] = action('--snapshot', sid, '--all',
             reason='Read the complete remaining required scope in bounded pages in the same live model context; '
-                   'individual heading selection is optional through actions.index.')
+                   'individual section selection is optional through actions.index.')
     actions['index'] = action('--snapshot', sid,
         reason='Inspect required sources, selected sections, shared selection reasons and exact remaining coverage without issuing a reading.')
     actions['all'] = action('--snapshot', sid, '--all',
@@ -2271,7 +2176,7 @@ def _read_command(args: argparse.Namespace, parser: argparse.ArgumentParser, *, 
     if args.section is not None and args.snapshot_id is None:
         raise ValueError('--section requires --snapshot ID from the source index; begin with read ROUTE and its actual task selections')
     if args.index_source is not None and args.snapshot_id is None:
-        raise ValueError('--index-source requires --snapshot ID from the source index; it expands headings and delivers no body')
+        raise ValueError('--index-source requires --snapshot ID from the source index; it expands sections and delivers no body')
     if args.all and (args.cursor is not None or args.replay is not None):
         raise ValueError('a cursor fixes its delivery selection; use --snapshot ID --all to select all remaining bytes')
     if args.bind_choices and args.choices is None:
@@ -2374,7 +2279,7 @@ def main() -> int:
         row = require_route_reading(c.load(args.record), studio=args.root, package_root=args.record.parent)
         print(json.dumps({'ok': True, 'route': row['route'], 'operation': row['operation'],
                           'execution': row['execution'], 'scope': row['scope'], 'source_kind': row['source_kind'],
-                          'evidence': 'complete selected source-range delivery'}, indent=2))
+                          'evidence': 'complete selected section-body delivery'}, indent=2))
         return 0
     except (ValueError, OSError) as exc:
         print(json.dumps({'ok': False, 'error': str(exc),

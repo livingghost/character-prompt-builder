@@ -1,0 +1,4 @@
+## Composition boundary
+
+The composed prompt includes selected knowledge relevant to the current image intent and permitted output. It does not dump every catalog facet into the prompt. If the agent modifies an explicit user anchor or omits a selected load-bearing element because of a host or downstream constraint, disclose the modification separately under `Modifications` with the actual reason and without reproducing restricted detail.
+

@@ -1,0 +1,13 @@
+#### Retain source and carrier evidence
+
+Production preparation preserves the original source images and the actual
+prepared carriers in the run. The review draft exposes both, with their
+source assignments and transformations, so later review can inspect the same
+pixels after live files move. A prepared run checks its saved bytes and current
+execution authority when it sends; a new preparation resolves its selected
+source eligibility. Use the recorded
+submission evidence to establish which prepared media reached the target.
+
+For prompt-artifacts, SVG-bundle, or no-reference delivery, never claim that model-visible attachments were sent. An unsupported target or missing selected transport is an explicit failure rather than silent reference omission. Targets and their observed limits are resolved from actual model records rather than fixed service names in this procedure.
+
+Run `python scripts/reference_delivery_smoke_test.py` and the existing reference runtime tests. They test mappings and transport contracts, not whether a generator actually follows them.

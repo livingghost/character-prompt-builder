@@ -8,15 +8,13 @@ import json
 import tempfile
 from collections import Counter
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
-from execution_contract import atomic, sha256_file
+from execution_contract import atomic, digest, local, sha256_file
 from integration_contract import (
     content_hash,
-    installed_contract_set_sha256,
     profile_hash,
     validate_capabilities,
-    validate_envelope,
 )
 from package_metadata import (
     LICENSE_ID,
@@ -45,6 +43,7 @@ def dump_json(path: Path, data: Any) -> None:
 # of written. The generation is the same either way, which is what makes the
 # comparison meaningful.
 _CAPTURED: dict[Path, str] | None = None
+_REMOVED: set[Path] = set()
 
 
 def write_text_atomic(path: Path, text: str) -> None:
@@ -60,6 +59,7 @@ REPOSITORY_GUIDE_TEMPLATE = "hosts/shared/repository-guide.md.template"
 # same document under two names. Two templates would drift, and the drift would
 # be invisible to whichever host reads only one of them.
 REPOSITORY_GUIDES = ("AGENTS.md", "CLAUDE.md")
+REPOSITORY_GUIDE_MAX_BYTES = 32000
 
 
 def rebuild_repository_guides() -> list[str]:
@@ -67,9 +67,46 @@ def rebuild_repository_guides() -> list[str]:
     rendered = template.format(
         name=PACKAGE_NAME, version=PACKAGE_VERSION, description=PACKAGE_DESCRIPTION
     )
+    if len(rendered.encode("utf-8")) > REPOSITORY_GUIDE_MAX_BYTES:
+        raise ValueError("repository guides exceed 32000 bytes; preserve their requirements when editing the template")
     for relative in REPOSITORY_GUIDES:
         write_text_atomic(ROOT / relative, rendered)
     return list(REPOSITORY_GUIDES)
+
+
+def rebuild_knowledge_documents() -> list[str]:
+    """Render human and host documents from their authoritative section records."""
+    from knowledge_document_build import generated_documents
+
+    outputs, obsolete = generated_documents(ROOT)
+    for relative, raw in outputs.items():
+        write_text_atomic(ROOT / relative, raw.decode("utf-8"))
+    for relative in obsolete:
+        path = local(ROOT, relative, exists=False)
+        if _CAPTURED is not None:
+            _REMOVED.add(path)
+        else:
+            path.unlink()
+    return sorted(outputs)
+
+
+def manifest_file_records(files: Iterable[Path]) -> list[dict]:
+    """Describe the generated tree, including captured outputs and removals."""
+    paths = set(files) - _REMOVED
+    if _CAPTURED is not None:
+        paths.update(_CAPTURED)
+    paths.discard(ROOT / "MANIFEST.json")
+    records = []
+    for path in sorted(paths, key=lambda value: value.relative_to(ROOT).as_posix()):
+        captured = _CAPTURED.get(path) if _CAPTURED is not None else None
+        if captured is None:
+            size, sha256 = path.stat().st_size, sha256_file(path)
+        else:
+            raw = captured.encode("utf-8")
+            size, sha256 = len(raw), digest(raw)
+        records.append({"path": path.relative_to(ROOT).as_posix(),
+                        "bytes": size, "sha256": sha256})
+    return records
 
 
 def rebuild_host_manifests() -> dict[str, Any]:
@@ -94,11 +131,11 @@ def rebuild_implementation_index() -> list[str]:
 
 
 def rebuild_integration_capabilities() -> dict[str, Any]:
-    """Finalize the capability manifest before release hashing.
+    """Derive and validate capability declarations from their authored fields.
 
-    Each produced profile is checked by sealing an envelope for it in memory;
-    the protocol's envelope template is a source file with placeholder hashes
-    and is never rewritten here.
+    Generation needs no already sealed installation. validate_integration.py
+    checks each produced profile against the completed public contract and
+    actual payloads during repository and release validation.
     """
 
     path = ROOT / "config" / "integration-capabilities.json"
@@ -125,31 +162,6 @@ def rebuild_integration_capabilities() -> dict[str, Any]:
             "finalized integration capability manifest is invalid: "
             + "; ".join(report.get("errors", []))
         )
-    for row in interfaces["produces"]:
-        envelope = {
-            "artifact_type": "interchange-envelope",
-            "envelope_id": "IE-" + row["profile"].upper(),
-            "contract_set_sha256": installed_contract_set_sha256(),
-            "contract_profile": row["profile"],
-            "profile_sha256": row["profile_sha256"],
-            "origin": {"capability_manifest_sha256": value["manifest_sha256"]},
-            "payload": {
-                "artifact_type": row["artifact_types"][0],
-                "artifact_id": "self-check",
-                "media_type": "application/json",
-                "sha256": "0" * 64,
-            },
-            "required_features": list(row["required_features"]),
-            "optional_features": [],
-            "extensions": {},
-        }
-        envelope["envelope_sha256"] = content_hash(envelope, "envelope_sha256")
-        envelope_report = validate_envelope(envelope, capabilities=value, direction="produces")
-        if not envelope_report.get("ok"):
-            raise RuntimeError(
-                f"an envelope sealed for the produced profile {row['profile']} is invalid: "
-                + "; ".join(envelope_report.get("errors", []))
-            )
     dump_json(path, value)
     return value
 
@@ -219,6 +231,7 @@ Use `python scripts/catalog_cli.py inspect <record-id>` for the complete canonic
 
 def main(argv: Sequence[str] | None = None) -> int:
     global _CAPTURED
+    _REMOVED.clear()
     parser = _operation_context.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
@@ -228,8 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     from catalog_api import canonical_domain, catalog_stats, configure_pack_runtime, load_entries, load_pack_catalog, record_tier
     from runtime_paths import PackSettings
-    if arguments.check:
-        _CAPTURED = {}
+    _CAPTURED = {} if arguments.check else None
     metadata = load_package_metadata(ROOT)
     with tempfile.TemporaryDirectory(prefix="cpb-metadata-") as temp:
         temp_root = Path(temp)
@@ -288,6 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         rebuild_host_manifests()
         rebuild_repository_guides()
         rebuild_integration_capabilities()
+        rebuild_knowledge_documents()
         rebuild_implementation_index()
 
         files = iter_release_files(
@@ -295,14 +308,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             metadata.release_include,
             exclude_names=metadata.release_exclude_names,
         )
-        file_records = [
-            {
-                "path": path.relative_to(ROOT).as_posix(),
-                "bytes": path.stat().st_size,
-                "sha256": sha256_file(path),
-            }
-            for path in sorted(files, key=lambda value: value.relative_to(ROOT).as_posix())
-        ]
+        file_records = manifest_file_records(files)
         manifest = {
             "package": PACKAGE_NAME,
             "version": PACKAGE_VERSION,
@@ -347,11 +353,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if _CAPTURED is not None:
             captured = _CAPTURED
             _CAPTURED = None
-            stale = sorted(
+            stale = sorted({
                 path.relative_to(ROOT).as_posix()
                 for path, text in captured.items()
-                if not path.is_file() or path.read_text(encoding="utf-8") != text
-            )
+                if not path.is_file() or path.read_bytes() != text.encode("utf-8")
+            } | {path.relative_to(ROOT).as_posix() for path in _REMOVED})
             print(json.dumps({
                 "ok": not stale,
                 "generated_artifacts": len(captured),

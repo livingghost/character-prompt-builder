@@ -1,0 +1,92 @@
+## Reference Selection and materialization
+
+A finalized Reference Selection governs the scene's state-aware subjects. A Reference Use Plan owns each pack source's semantic and technical authority. A plan item assigned to a state-aware subject must match its selected source, subject and intended influence. Other subjects and scene references retain their ordinary scopes. The plan preserves story range, graph hashes, visible-feature requirements and excluded state.
+
+Use the existing source owner to prepare one set:
+
+- For pack sources, execute the reviewed Reference Use Plan with `reference_runtime.py execute --reference-selection`. The executor retains direct state references beside its pack rows.
+- For a selection containing only supplied files or adopted Studio sources, use `prepare_generation_references.py --state-selection-file`.
+- Append ordinary references for stateless subjects or the scene with `--studio-selection-file` and `--studio`, or `--supplied-selection-file`, on either executor.
+
+For current Studio canon, use [Studio Canon References](studio-canon-references.md) to populate the exact source and proof from an adopted slot. No image pack registration is required.
+
+Pack rows keep plan order. Direct state rows follow in selection order, then additional ordinary rows in their authored order. State-scoped rows match that selected subsequence exactly. A generic row cannot name a state-managed subject or discard the state scope of its selected source. Each state row preserves `subject_id`, optional `subject_uses`, `binding_id`, `covers`, `intended_influence`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`.
+
+For state-aware A and stateless B, add B's accepted face and outfit choices without a B state context:
+
+```sh
+python scripts/reference_runtime.py execute --plan reference-use-plan.json \
+  --reference-selection selection-a.json --studio STUDIO \
+  --studio-selection-file choices-b.json --output-dir reference-package
+```
+
+[Studio canon references](studio-canon-references.md) defines the ordered choices. Both source owners retain their original IDs, hashes and adoption evidence.
+
+Build a finalized selection after confirming the exact sources and influences used by its state-aware subjects:
+
+```bash
+python scripts/select_state_references.py \
+  --bindings state-aware-reference-bindings.json \
+  --selection-id <selection-id> \
+  --identity-contract identity-contract.json \
+  --state-snapshot state-snapshot.json \
+  --story-order <story-order> \
+  --required-feature <required-visible-feature> \
+  --out reference-selection.json \
+  --state-file PACK_STATE_JSON \
+  --cache-dir CATALOG_CACHE \
+  --managed-root MANAGED_PACKS \
+  --pack-root ADDITIONAL_PACK_ROOT
+```
+
+For several state-aware characters, retain their independently finalized selections:
+
+```bash
+python scripts/select_state_references.py \
+  --selection selection-a.json --selection selection-b.json \
+  --selection-id SEL-SHARED-SCENE --out reference-selection.json
+```
+
+`subjects[]` contains each `subject_id`, identity, era, appearance and snapshot
+hashes, story order and required state features. Every selected row names its
+subject. Coverage and unresolved requirements are evaluated per subject.
+`--reference-order-file` optionally supplies the complete ordered list of
+`{"subject_id":"A","binding_id":"BIND-A"}` pairs. Input order remains stable
+when no order is authored. `--limit` is an explicit logical selection limit;
+there is no fixed aesthetic quota.
+
+The Production Specification's subjects with `state_snapshot_ref` are its
+state-aware cast. Other subjects can remain stateless. In production authoring,
+`authoring.documents.state_graphs` accepts selected lineage roots and an explicit
+inventory of artifact paths:
+
+```json
+{"lineages": ["state/selected-lineage.json"],
+ "artifacts": ["state/species.json", "state/individual.json", "state/identity.json",
+               "state/snapshot.json", "state/context.json", "state/projection.json", "state/render.json"]}
+```
+
+The selected lineages already own their node commitments. The state owner
+resolves their exact dependency closure from the supplied files, including
+optional era, form, appearance and visual authority nodes when declared. A
+missing or changed node fails with its required type and hash; no nearby file is
+substituted and no state is inferred. Unused inventory nodes do not enter the
+graph. Paths follow the authoring input's source resolution.
+
+For an explicit compiled file outside authoring, use `state_protocol.py
+acquire-graphs` with repeated `--lineage` and `--artifact`, `--production-spec`,
+optional `--reference-selection`, and `--out state-graphs.json`. The output is the
+complete validated graph array accepted by `generation.state_graphs` or
+`--state-graphs-file`. A complete authored array is also accepted. The executable
+state-aware pilot writes `generated/state-graphs.json`.
+
+The builder checks every graph's schema, hash, ownership, chronology, morphology
+and projection edges. Graphs cover the state-aware subjects exactly once and
+agree with the common scene context and render decisions. The existing primary
+lineage must occur exactly once. Both builders derive its lineage and snapshot
+from that graph; supplied scalar values must match. The package commits the complete array and
+`state_graphs_sha256`; verification repeats the graph checks. A second character's
+invalid graph cannot borrow the first character's valid hash or feature coverage.
+
+Pass the same state selection and pack runtime into reference materialization and the state-aware Generation Package builder. A change to authority, source, influence, state graph, or visible requirement requires a newly reviewed plan and selection.
+

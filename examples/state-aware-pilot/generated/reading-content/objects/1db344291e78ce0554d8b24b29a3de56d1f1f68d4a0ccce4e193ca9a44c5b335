@@ -1,0 +1,43 @@
+### Start an existing-image edit
+
+For a generated candidate without an accepted Studio slot, reopen its saved
+input with `--from-run RUN --operation amend` and the actual `--request-file`.
+Create that draft first and declare the actual `--retain` and `--change` owners.
+Follow its current inspection and reading actions for the selected source,
+target and stage, including additional material required as those choices change.
+Select its image file from `derived_from.source_run.input_reuse.captured_outputs`;
+[retained output selection](#keep-branches-and-reopen-completed-work) describes
+the source acquisition and reference owners. Bind that image as the task's
+`accepted-source` and `scene` reference, and declare the change and preservation
+under [the semantic edit contract](semantic-instruction-edit.md#author-and-bind-the-task).
+This task source needs no Studio slot acceptance or canonical adoption. Keep
+the existing review findings and the other results. A prepared result's later
+edit belongs to an explicit [work revision](production-work-plan.md#revise-the-result-or-items);
+creating a draft alone does not replace the plan's prepared run.
+
+To change depicted content of an accepted Studio image, select the image by its
+Studio character and slot:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation amend --request-file request.txt --route generation --execution dispatcher --edit-character CHARACTER --edit-slot SLOT --new-task "Replace the background of the accepted image." --out-dir work/edit
+```
+
+Use `--execution external` for a host call. The draft selects the image with
+its exact slot acceptance as the scene reference and the applied `accepted-source`,
+writes an editable edit plan beside the choices and carries the applicable
+Production Specification, controls and validation selection of the run that
+produced the image, including every subject and its explicit mapping. Sheet
+adoption is not required; an applicable adopted identity keeps its separate
+canonical proof. What changes and stays, the instruction text, criteria and
+result destination remain unanswered and are reported together. The result may
+use the source slot or a deliberately different slot. Follow
+[Semantic instruction editing](semantic-instruction-edit.md#start-from-the-accepted-image)
+for the complete flow.
+
+When the target differs from the source run's prepared request, the next action
+uses `retarget` with that parent run. Supply its actual reason. Reopened choices
+are assessed again, including edits that restore the original target.
+The saved context identifies its source, so the build can continue from the
+choices file without reconstructing the source command or choosing a new generated output path. Preserve the context
+beside its choices. Inspect the emitted request before preparing or sending it.
+

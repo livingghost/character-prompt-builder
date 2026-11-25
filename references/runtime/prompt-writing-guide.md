@@ -406,6 +406,16 @@ When the task is to test whether a term, placement, weight, LoRA strength, or ne
 
 ## Read the rendition back before it is sent
 
+Read the main subject, action, expression, relationships and framing as a
+single depiction. Keep its intended emotion direct. Check that unshown timing,
+internal knowledge and intentions, unsupported comparisons and other senses
+have not become literal image requirements. Necessary scene premises and
+secondary figurative impressions may remain when the primary depiction stands
+without them. Check exclusions against the request, applied source roles or an
+observed failure. When a premise is corrected, revise its direction and review
+criteria with the wording. A detailed coherent rendition and a concise coherent
+rendition are both valid; neither length supplies the missing judgment.
+
 Inspect the exact rendition with the selected parser. Structural checks locate broken delimiters, malformed weights, invalid conditioning clauses, unsupported channels and declared length violations. The report also retains dictionary and dialect evidence for the author's reading.
 
 This inspection supplies the exact positive and negative channels, controls,

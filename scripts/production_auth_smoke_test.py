@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 import dispatch_runtime as dispatch
 import execution_contract as c
+import execution_target
 import execution_lifecycle as accounting
 import production_case_fixtures as cases
 import production_compiler as compiler
@@ -294,7 +295,14 @@ class ProductionAuthenticationTests(unittest.TestCase):
 
     def test_saved_value_executes_without_key_environment_or_service_input_names(self):
         target = c.load(workflow.run_dir(self.root, self.run) / 'execution-target.json')
-        self.assertEqual(target['offering']['service'], SERVICE)
+        self.assertNotIn('offering', target)
+        self.assertEqual(target['selected_service'], SERVICE)
+        self.assertIs(execution_target.offering(target), target['model']['offerings'][0])
+        import production_workspace
+        import request_validation
+        knowledge = production_workspace._saved_knowledge(self.root, workflow.read_run(self.root, self.run))
+        self.assertEqual(request_validation.pointer(target, knowledge['target']['offering_pointer']),
+                         execution_target.offering(target))
         self.assertNotIn('env_var', target['service']['auth'])
         with patch.dict(os.environ, {'CPB_HOME': str(self.home)}, clear=True):
             selection = self.set_key('synthetic-directly-stored-key')

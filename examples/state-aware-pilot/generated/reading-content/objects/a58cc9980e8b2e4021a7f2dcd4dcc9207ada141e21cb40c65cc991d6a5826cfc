@@ -1,0 +1,45 @@
+## Verification and host forwarding
+
+Verify and export the committed generation input:
+
+```bash
+python scripts/verify_generation_payload.py \
+  generation-package.json \
+  --studio-root STUDIO \
+  --prompt-out verified-prompt.txt \
+  --negative-out verified-negative.txt \
+  --native-negative-out verified-native-negative.txt \
+  --payload-out verified-generation-input.json \
+  --target MODEL_ID \
+  --state-file PACK_STATE_JSON \
+  --cache-dir CATALOG_CACHE \
+  --managed-root MANAGED_PACKS \
+  --pack-root ADDITIONAL_PACK_ROOT
+```
+
+The verifier output retains the complete positive prompt, authored negative text, all three transport records with their availability and hashes, the complete `prepared_reference_set` and `prepared_reference_set_sha256`, its embedded canonical Reference Use Plan and plan hash, its nested Surface and Lighting Plan and hash, and the optional finalized reference-selection origin tied to State Lineage. It does not replace those objects with an abbreviated inventory.
+
+- A relative package or output path is below `--studio-root STUDIO`; an absolute path needs no root.
+- Each output (`--prompt-out`, `--negative-out`, `--native-negative-out`, `--payload-out`) must be a new file; an existing one is refused with `OUTPUT_ALREADY_EXISTS`.
+- A text output holds the verified text byte for byte, with no added newline.
+- A failure prints the common diagnostics and exits with the status its codes select, 2 for an input defect (synthetic, trimmed):
+
+```json
+{"ok": false, "diagnostics": [{"code": "OUTPUT_ALREADY_EXISTS", "phase": "output", "file": "vp.txt",
+  "message": "--prompt-out names an existing file, which is kept: vp.txt",
+  "required_action": "Choose a new --prompt-out.", "option": "--prompt-out"}]}
+```
+
+For every ordered prepared-reference row, preserve the complete source identity and source hash, bounded authority, intended influence, `subject_uses`, exact model-facing transport path, media type and transport hash, deterministic derivation, precedence, and, when state-aware, `binding_id`, `covers`, `review_dimensions`, `unsupported_or_occluded_state`, and `unsupported_assumptions`. Verification reopens current active-pack source bytes and every committed package-relative carrier byte; it also validates the optional board and its panel/source/transport hashes separately from the board hash. A pack-backed activated reference still requires its non-null embedded plan, while a supplied-file-only selection remains on the plan-null path.
+
+The output also retains `negative_transport_mode`, the exact mode-specific `negative_transport_instruction`, negative provenance, Production Specification plus hash, State Lineage plus hash, verified parameters, and `generation_input_sha256`. That generation-input hash commits the prompts and selected rendition, parameters, Production Specification, State Lineage and selection lineage, and the complete prepared-reference-set commitment as one immutable generation input. Mutating authority, selection scope, source bytes, prepared transport, board, parameter, or lineage requires rebuilding and reverifying the package.
+
+Require all assertions to be true:
+
+- `forward_verified_prompt_transport`;
+- `forward_verified_negative_transport`;
+- `forward_ordered_reference_transports`;
+- `do_not_reconstruct_from_chat`.
+
+Those four true assertions together with the verifier's structured `host_forwarding` object are the complete forwarding contract. The adapter must not supplement them from the sparse brief, chat history, source directories, adjacent files, or remembered model behavior.
+

@@ -1,0 +1,11 @@
+#### Select a Production Specification
+
+When a Production Specification is selected, its contract's `scaffold` links to
+`production_spec.py draft --help`, the existing template and the actual
+`subjects` item schema. The draft command starts one subject from the selected
+model and explicit subject, domain, brief, render intent and continuity choices;
+extend the subject array for the commissioned scene. The template also supports
+an explicitly subject-free scene. Select the resulting file at
+`authoring.documents.production_spec`; `choices.target` owns its published
+`target_model`. The scaffold leaves the character definition to its author.
+

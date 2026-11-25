@@ -1,0 +1,21 @@
+##### Preserve reading scope and evidence
+
+The actions retain the selected environment's Python, installed script, absolute
+reading ledger, Studio when present, byte budget and exact pack runtime, including
+additional discovery roots. A snapshot fixes the route, operation, execution, destination, source kind,
+features, model, prompt family and explicit same-context sources. A page cursor
+also fixes its delivery selection. `--reading-ledger` selects the ledger.
+Otherwise an explicit `CPB_READS_LEDGER` takes priority, followed by the specified
+or current Studio's ledger, then the configured home ledger.
+
+The reader preserves every required byte and issues a reading only after complete
+coverage and a fresh check of actual documents, resources and selected-model
+contents. Its record and ledger retain each required section's identity, exact
+body hash and size, and the original issuance witness of every reused body,
+together with its complete delivery coverage and operation scope. A required
+body change during reading names the changed owners and
+provides `actions.restart`, which opens a new current index. A new reading checks
+its ledger before publishing an index or source body. Following a document link,
+viewing a section index or retaining a file path alone does not deliver that
+source's contents.
+

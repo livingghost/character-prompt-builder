@@ -131,18 +131,29 @@ class RecordedObservationTests(unittest.TestCase):
 
     def test_recorded_evidence_survives_removal_of_source_studio(self):
         import shutil
+        descriptor = self.source['prepared']['implementation']
+        pins = observation._read_object(self.source['objects'][descriptor['sha256']])
+        self.assertEqual((c.digest(pins), len(pins)), (descriptor['sha256'], descriptor['size']))
         shutil.rmtree(self.root)
         derived = observation._derive(self.source)
         self.assertEqual(derived['outcome'], 'completed')
+        incomplete = copy.deepcopy(self.source)
+        del incomplete['objects'][descriptor['sha256']]
+        with self.assertRaisesRegex(ValueError, 'EVIDENCE_SNAPSHOT_MISSING'):
+            observation._derive(incomplete)
 
     def test_observation_reads_only_formal_evidence(self):
         import shutil
+        import read_context
         import production_operations as workflow
         import production_store as store
         rows=store.event_rows(self.root,self.run)
         claim=workflow.find(rows,'dispatch-claim')
         shutil.rmtree(self.root/claim['data']['journal'])
-        source=observation.capture(self.root,self.run)
+        with read_context.public_call():
+            workflow.read_run(self.root, self.run)
+            with patch.object(c, 'object_read', side_effect=AssertionError('already acquired object read again')):
+                source=observation.capture(self.root,self.run)
         self.assertEqual(source['journal'],self.source['journal'])
         self.assertEqual(sorted(source['journal']),['answer.json','request-contract.json','request.json','transport-outcome.json'])
         self.assertEqual(observation._derive(source)['outcome'],'completed')

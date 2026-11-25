@@ -1,0 +1,52 @@
+### Keep branches and reopen completed work
+
+Select `draft-inputs --from-run RUN --operation compose|amend --out-dir DIRECTORY`
+for the current work. Supply the actual changed request with `--request-file FILE`.
+The saved source catalog keeps original identity bytes, subject assignments,
+selectors and scoped authority available, including information acquired through
+a reference or state graph. The agent applies the sources relevant to this
+candidate and retains the requirements the current request relies on.
+
+Both operations seed the draft with the selected candidate's meaningful authored
+content, editable documents and current source applications. `amend` starts from
+the actual selected baseline and retains its identity source boundary and the
+choices outside the declared change. `compose` owns a fresh current source
+selection, with the previous candidate available for comparison. The
+request determines which relationships to retain or reconsider; a property name
+does not determine the operation. Follow [Authoring work](authoring-work.md) for
+the candidate and its exact change contract. Resolve the proposed construction
+within delegated authority and ask only for necessary authorial decisions.
+
+The same boundary applies while opening a draft. If constructor choices such
+as `--apply-source` would add an identity source to an `amend`, drafting refuses
+before publishing the directory or opening new work. Its compose action retains
+the selected task or run and the supplied request, source, target, stage and
+runtime arguments. The saved source defines the retained boundary; constructor
+arguments cannot redefine it.
+
+To continue the current edits in a new compose, select their choices directly:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO \
+  --choices work/amend/choices.json --out-dir work/new-compose
+```
+
+`--choices` selects this compose operation; it needs no content-reuse switch.
+The current request, prompt bytes, parameters, document field selectors,
+direction, criteria, recording choices and target carry into independent
+editable files. The selected reading and authoring stage remain visible for
+their current applicability checks. The original saved run remains comparison
+evidence. Current source owners produce the new identity inventory and dependent
+bindings; a historical derived witness alone never activates an old reference.
+Current grants are checked against their actual operation and scope. Execution
+claims and run-specific decisions remain with the runs that own them.
+
+| Intended change | Operation |
+| --- | --- |
+| Change prompt wording, pose, expression or controls while retaining identity evidence | `amend` |
+| Reorder the same reference uses with the same bytes, subjects, scope and authority | `amend` |
+| Add, remove or replace an identity source | New `compose` |
+| Change identity selectors, subjects, reference authority or accepted proof | New `compose` |
+| Add or remove an environment or prop source with no identity effect | `amend` |
+| Generate another result from the exact prepared input | `repeat` |
+

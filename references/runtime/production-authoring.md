@@ -349,7 +349,7 @@ from the task. An omitted operation uses the route's declared default, shown by
 
 `config/execution-routes.json` owns the complete required section sets and each
 selection reason for the actual operation, execution and selected features.
-The complete original documents remain available. Selecting a heading for
+The complete original documents remain available. Selecting a section for
 delivery does not alter the required set or authorize an omitted operation.
 
 The editable work's stage selects complete original sections for the judgment
@@ -496,16 +496,16 @@ python scripts/execution_routes.py read reference-artifacts --operation author -
 
 This explicit command starts with a required-source index, with `mode: "index"`, an empty
 `body`, and `reading: null`. It reports the selected operation, execution, destination, source kind,
-features and model; each source's exact content hash, full byte size, required
-ranges and selection owners. A whole-source requirement is shown once;
-its `section_count` reports internal navigation headings without expanding them.
-Explicit required sections remain visible in `sections`, with original source
-offsets and `selection_reason_ids` referring to the complete explanations in
+features and model; each required document's stable ID, selected body byte count
+and selection owners. A whole-document requirement is shown once;
+its `section_count` reports declared sections without expanding them.
+Explicit required sections remain visible in `sections`, with stable `section_id`,
+`content_sha256`, `bytes` and `selection_reason_ids` referring to the complete explanations in
 the top-level `selection_reasons` map. Source rows use those same reason IDs.
 `sections_expanded` distinguishes an expanded section list from a whole-source
 overview. Shared reasons are printed once, so the applicable
 contract can be inspected before delivery. `progress.required_bytes` measures the complete
-selected material, while `remaining_bytes` excludes source ranges already
+selected material, while `remaining_bytes` excludes section bytes already
 delivered in this snapshot and explicitly known complete bodies. Navigation
 establishes no source delivery and issues no reading key, even when an earlier
 same-context reading supplies every required body. `selection_scope` distinguishes
@@ -542,14 +542,16 @@ ordinary image creation does not select that correction. Preparation and executi
 receive the complete [diagnostic-handling contract](production-diagnostic-navigation.md).
 Consult the linked global code catalog when resolving the reported failure.
 The declared section sets retain the prerequisites, authority, constraints,
-exceptions and recovery required for that operation and destination. Headings
-then guide navigation within those required bytes; selecting a heading in the
+exceptions and recovery required for that operation and destination. Stable section IDs
+guide navigation within those required bodies; selecting a section in the
 index never removes other required sections.
 
 ##### Choose a source range
 
-The index supplies an exact `selector` for each source range available to read
-and each expanded heading. To inspect a whole source's headings, append
+The index supplies an exact `selector` for each available source and section.
+A document uses its logical `document_id`; its sections use
+`document_id#section_id`, independently of their order or headings.
+To inspect a whole document's declared sections, append
 `--index-source SELECTOR` to `actions.index.argv`, as `source_navigation` describes.
 This returns `mode: "index"` with the chosen `index_source`, no source body and no
 reading. It leaves the complete required scope unchanged. An explicitly `known`
@@ -557,8 +559,9 @@ source has a null selector; if its text is no longer
 available, start a fresh index without that known-reading assertion. Use its
 `section_selection.argv` plus `--section SELECTOR` to read that choice, or execute
 `actions.next` to begin the complete remaining scope in bounded pages. A source selector
-reads that complete indexed source range; a heading selector reads its exact
-byte segment up to the next heading within that range. Markdown headings inside fenced examples are not sections.
+reads every required section of that document; a section selector reads its
+complete authored body. Display headings and fenced examples are body content
+and do not create additional knowledge sections.
 Writing-guide sections, dialect records and model offering cards have their own
 exact JSON segments, including the source opening and closing bytes.
 
@@ -588,18 +591,20 @@ python scripts/execution_routes.py read reference-artifacts --operation author -
 ```
 
 The default `--view json` response is one JSON object. Read its `body` entries in order. Each
-entry contains exact source text in `text` and its kind, path, hash and byte range
-in `metadata`. A document body binds the complete original source with
-`source_sha256` and `source_size`, and its delivered interval with `source_start`,
-`source_end`, `sha256` and `size`. Page `start` and `end` are offsets within that
-body; adding `source_start` gives the original document offsets. Top-level `metadata` identifies the selected scope. `progress`
+entry contains exact source text in `text` and its complete body identity in
+`metadata`. A knowledge body has kind `document-section` and binds its
+`document_id`, `section_id`, `sha256` and `size`. Its page `start` and `end` are
+UTF-8 byte offsets inside that section body. Resource and model bodies keep
+their own exact source metadata. Top-level `metadata` identifies the selected
+scope. Page continuation retains a body and an offset within it, rather than a
+position in a generated Markdown document. `progress`
 reports required, reused, delivered and remaining source bytes; section and replay
 progress also report the bytes left in that selected delivery. Source text and
 control fields are separate, so text inside a document cannot become an action.
 
 For an agent-facing display, add `--view text` to the same public read action.
 It displays every original `body[].text` character with its actual line breaks,
-source path and original byte range. It retains the complete JSON response in
+document and section identity and the byte range inside each body. It retains the complete JSON response in
 the returned `response_file`, including full source metadata, selection reasons
 and every alternate action. The default directory is `reading-responses` beside
 the ledger; `--response-dir DIRECTORY` selects another directory. Each call,
@@ -613,7 +618,7 @@ The text view's final `READING CONTROL` supplies one `next_action`, the current
 byte counts, the issued `reading` and `choices_binding`. Read the whole body
 before executing that next action. It preserves the display and response
 directory without repeating every alternate command. The index displays all
-selected source ranges and their complete selection reasons. Warnings and
+selected sections and their complete selection reasons. Warnings and
 diagnostics remain visible; an error or failed binding displays every repair
 control. Ordinary command errors and non-JSON stderr remain visible as well.
 Use the structured actions in the retained JSON when exact machine parsing is
@@ -636,8 +641,8 @@ output does not prove that the host displayed every byte.
 Follow `actions.continue` while the selected section or full delivery has another
 page. When a section ends, `actions.continue` becomes `null`; if required material
 remains, `actions.next` or the index's `actions.all` reads the complete remaining scope in
-bounded pages. Choosing another individual heading through the index is optional;
-ordinary continuation need not step through small headings one at a time.
+bounded pages. Choosing another individual section through the index is optional;
+ordinary continuation need not step through small sections one at a time.
 A null continuation alone does not establish completion. Completion is a non-null
 `reading`, containing the issued `reading.key`, `reading.record` path and
 `reading.record_absolute` location.
@@ -672,12 +677,13 @@ or current Studio's ledger, then the configured home ledger.
 
 The reader preserves every required byte and issues a reading only after complete
 coverage and a fresh check of actual documents, resources and selected-model
-contents. Its record and ledger retain whole-source hashes and the original issuance
-witness of every reused interval, together with exact required ranges and
-operation scope. A source change during reading names the changed owners and
+contents. Its record and ledger retain each required section's identity, exact
+body hash and size, and the original issuance witness of every reused body,
+together with its complete delivery coverage and operation scope. A required
+body change during reading names the changed owners and
 provides `actions.restart`, which opens a new current index. A new reading checks
 its ledger before publishing an index or source body. Following a document link,
-viewing a heading index or retaining a file path alone does not deliver that
+viewing a section index or retaining a file path alone does not deliver that
 source's contents.
 
 ##### Reuse complete knowledge in this context
@@ -710,9 +716,9 @@ context was declared. Explicit keys remain available for individual repair and
 inspection. The reader compares exact source kind,
 path, content and resource/model scope, together with the original delivery
 witness, then delivers every missing or changed required range. Document
-deliveries retain each completely covered section's anchor, original byte range
+deliveries retain each completely covered section's stable ID, original byte range
 and content hash. When another part of that document changes or moves the
-section, matching path, anchor and complete content identify the same known
+section, matching path, section ID and complete content identify the same known
 section at its current range. A matching heading or a hash without complete
 delivery evidence supplies no knowledge. For reuse of a subsection from a changed
 document edition, the reader also verifies the retained bytes of the complete

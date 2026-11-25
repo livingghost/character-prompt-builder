@@ -255,6 +255,13 @@ present in the relevant span; the mode's existence alone places the contrast in 
 
 ## 5. Keep feeling, display, perception and inference separate
 
+Use direct emotion words for the intended visible impression. "Looks happy"
+does not claim to prove a hidden mental state and need not be replaced by a
+list of facial or appendage angles. Preserve explicitly adopted individual
+distinctions alongside that phrase when needed. A possible cue or example is
+one realization within its stated conditions and permitted variation; it
+becomes a requirement only through actual instruction or adoption.
+
 Distinguish four things:
 
 - what is felt or proposed internally;
@@ -302,6 +309,14 @@ Each medium selects differently:
 - Comics and screen work stage sequences with spatial, task and prop continuity.
 - A single image establishes the selected visible configuration. When a changing response
   matters, choose the depicted instant and keep its gestures compatible; a still may suggest duration.
+
+For a single image, apparent timing or an "as if" comparison may remain a
+secondary impression only when the primary subject, reaction and composition
+stand independently. Review that visible reaction. Do not demand proof that a
+thought occurred, an ear moved before a smile, or a feeling was unconscious.
+Keep those facts with the author or choose a sequence-capable medium when their
+order itself is commissioned. Necessary scene premises may still guide the
+renderer without becoming image-verifiable facts.
 
 Carry the selected realization into the actual words, performance instructions or model input at
 the specificity the source and present task require. If an individual's expression depends on

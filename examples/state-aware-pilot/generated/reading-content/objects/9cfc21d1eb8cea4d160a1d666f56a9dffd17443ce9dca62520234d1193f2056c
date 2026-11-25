@@ -1,0 +1,101 @@
+## Choose the current source and its influence
+
+Keep the source choice separate from the state it may control. An adopted front
+view may establish identity without prescribing today's clothing, expression or
+lighting. Record the allowed influence, visible features, excluded state, story
+range and review dimensions. The author decides those values.
+
+This synthetic scope declares an identity anchor, not a current-clothing reference:
+
+```json
+{
+  "binding_id": "identity-front",
+  "role": "identity",
+  "effective_story_range": {"from_order": 0, "to_order": null},
+  "visibly_supported_state": ["identity-anchor"],
+  "unsupported_or_occluded_state": ["current-clothing"],
+  "intended_influence": ["identity"],
+  "unsupported_assumptions": ["Do not infer current clothing from the identity reference."],
+  "review_dimensions": ["identity"]
+}
+```
+
+Save the reviewed scope in `scope.json`. Supply the actual finalized identity
+contract and state snapshot; add era and appearance contracts when the snapshot
+binds them. The following reads IDs and hashes from the adopted slot and those
+contracts. It neither adopts a candidate nor fills in a missing state decision.
+
+```sh
+python scripts/studio_reference.py --studio STUDIO --character hero --slot canon.primary bind \
+  --scope scope.json --identity-contract identity-contract.json \
+  --state-snapshot state-snapshot.json --out identity-binding.json
+
+python scripts/select_state_references.py --binding identity-binding.json \
+  --selection-id scene-identity --identity-contract identity-contract.json \
+  --state-snapshot state-snapshot.json --story-order 20 \
+  --required-feature identity-anchor --out reference-selection.json
+
+python scripts/prepare_generation_references.py --state-selection-file reference-selection.json \
+  --model MODEL_ID --output-dir prepared-references --out prepared-reference-set.json
+```
+
+Repeat `--binding` to select several separately finalized binding files. Selection
+uses the supplied graph hashes and story range; an out-of-range source cannot
+satisfy the required features. Pass the same pack-runtime arguments used to choose
+the model into selection and materialization. Feed the resulting prepared set into
+the normal state-aware task, then inspect `check` and `prepare` before authorizing
+`execute`. See [State-Aware Series](state-aware-series.md) for the complete state graph.
+
+To inspect the current source without a state scope:
+
+```sh
+python scripts/studio_reference.py --studio STUDIO --character hero --slot canon.primary source --out source.json
+```
+
+The source contains `studio_root`, `studio_id`, `character`, `sheet`, `slot`,
+`artifact_id`, `acceptance_sha256`, `proof_sha256`, the exact image path, media type
+and SHA-256. Matching pixels alone do not identify the owner or adoption. A new
+adoption of the same pixels is a different reference.
+
+An accepted Studio scene can be edited without adopting it as character-sheet
+artwork. Select its current slot acceptance explicitly:
+
+```sh
+python scripts/studio_reference.py --studio STUDIO --character hero --slot episode.opening accepted-source --out scene-source.json
+```
+
+This source has kind `studio-accepted-image` and names the Studio, character,
+current slot, immutable iteration ID, original image path and SHA-256, and the
+exact acceptance and proof hashes. The proof keeps the original recording slot,
+acceptance receipt, retained image and the producing run's candidate and
+selection evidence when present. Preparation and a new send verify the current
+slot acceptance and both the retained and accepted image copies. A later slot
+decision does not change a package's archived proof or its recoverable result.
+
+Slot acceptance grants no canonical identity authority. An edit that also uses
+an adopted character identity retains that `studio-artifact` source separately,
+with its actual adoption and subject scope. The ordinary edit shortcut selects
+these sources through [Instruction editing](semantic-instruction-edit.md#start-from-the-accepted-image).
+An arbitrary key in the sheet's artwork registry is not a panel declaration;
+the resolved layout and its explicit aliases own character-panel requirements.
+
+A refusal of `source` or `bind` writes no output file and prints
+`{"ok": false, "diagnostics": [...]}` with the exit status its codes select in
+[Production diagnostics](production-diagnostic-navigation.md#exit-codes). For a synthetic
+Production adoption whose adoption record was deleted, `source` exits 2 and
+prints (trimmed, with the run, candidate and authorization digests written as
+RUN, CANDIDATE and AUTHORIZATION):
+
+```json
+{"ok": false, "diagnostics": [{"code": "ADOPTION_RECORD_CORRUPT", "phase": "adoption-integrity",
+  "file": "characters/robot/adoptions/it-0001.json",
+  "message": "The adoption record characters/robot/adoptions/it-0001.json is missing.",
+  "required_action": "Repeat the completed adoption with production_workflow.py adopt --run RUN --claim CLAIM. It writes this record again from the adoption result the run recorded and does not adopt the image again."}]}
+```
+
+Identity influence uses the existing explicit Studio identity approval and work
+character decision. An adopted crop or externally imported image without that
+identity authority is not automatically promoted to an identity anchor. Its
+allowed nonidentity uses remain available. Adopt or declare identity through the
+existing workflow; do not relabel the file as canon to bypass it.
+

@@ -1,0 +1,24 @@
+#### Select execution-specific inputs
+
+The `authoring.documents` guide derives `execution_inputs` from the current
+ProductionTask schema and selected execution branch. Its
+`permitted_generation_documents` and `not_permitted_generation_documents` name
+that branch's allowed and excluded document keys. A document's guide reports
+`execution_input.permitted_as_generation_document`. Use that scope for external
+execution as well: a known document key alone does not make it an execution
+input. Applicable research and source evidence keep their existing source
+owners; the selected route and content still require their own checks.
+
+The `authoring.generation` guide uses the same execution-specific schema for
+inline fields. For external execution, compiled `production_spec` and
+`state_graphs` belong to their `authoring.documents` selectors; an inline
+`generation.brief` is not permitted. Dispatcher inputs keep their declared
+inline fields. Inspect reports an excluded field at its actual editable owner
+before compilation, without deleting it or moving the author's meaning.
+
+`artifact_type` belongs only to contracts that declare that discriminator.
+Inspect the selected document's permitted keys rather than copying fields from
+another kind. `owner-direction.json` is not a reserved artifact type: an original
+commission may be prose or structured data, with its source role and locator in
+the task. The task's production direction has its own declared schema.
+

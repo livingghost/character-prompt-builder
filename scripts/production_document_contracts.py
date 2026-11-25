@@ -106,7 +106,7 @@ _CONTRACTS = {
     'choices': _contract(
         'references/runtime/production-authoring.md#use-the-delivered-knowledge',
         'scripts/production_inputs.py:compile_choices', schema='schemas/authoring/production-input-draft.schema.json',
-        scope='task-context', remaining='The choices schema describes selectors. check --choices reads each selected current file and validates the complete task.'),
+        scope='task-context', remaining='The choices schema describes selectors. check --choices reads each selected current file and validates the complete task, including criterion origin and observation scope, applied comparison sources and the selected representation roles.'),
     'image_input': _contract(
         'references/runtime/production-external-inputs.md#edit-the-request-and-media-choices',
         'scripts/image_input.py:validate', schema='schemas/authoring/image-input-plan.schema.json',

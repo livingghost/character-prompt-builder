@@ -1,0 +1,49 @@
+## Preserve accepted variation at its declared scope
+
+An author's allowed range for the depiction belongs in
+`direction.source_allowances`. Each entry names its unique `id`, applied approval
+`source`, source `locator`, `author`, `scope`, `allowance`, `limits`, and affected
+task `criteria`. The approval source is an applied task source. The allowance
+has its own identity and authority, independently of a particular staging choice.
+The criteria's hard/advisory status remains in force.
+
+Use task scope for an allowance limited to this work task. Synthetic entry:
+
+```json
+{
+  "id": "natural-fabric-folds",
+  "source": "author-direction",
+  "locator": "wardrobe allowances",
+  "author": "request owner",
+  "scope": {"kind": "task", "task_id": "outfit-study"},
+  "allowance": "Fabric folds may change with the declared arm pose.",
+  "limits": ["Keep the adopted garment color and closure structure."],
+  "criteria": ["wardrobe-fidelity"]
+}
+```
+
+For reuse across tasks, use `scope` with `kind: source`, an applied `source`
+ID, and that source file's exact `sha256`. That source also belongs to the current
+applied sources. Task checking and preparation both verify the captured bytes. A changed source requires
+reassessment before the allowance applies again. The source owner may be an
+appearance contract, an adopted image, or another explicit production source.
+The agent interprets the author's stated range; a hash establishes which
+source the allowance concerns.
+
+Carry applicable entries into the next task and its review criteria. Task
+scope cannot cross into another work task. Source scope can cross tasks only
+with the same declared source bytes and an applied approval source. The review
+uses the original allowance and limits, while consumer output retains only
+the selected expressive instructions. A matching hash does not grade an image
+or promote a candidate to canon.
+
+Keep changed expression, pose, natural crop and approved wardrobe variation
+separate from identity drift. Assess unwanted old clothing, source-state
+leakage, broken contacts and anatomy against their own declared criteria.
+
+An owner's decision to use a particular reviewed candidate despite a recorded
+departure or uncertainty belongs in the selection's `owner_acceptance`, under
+[Production execution](production-adoption.md#select-a-reviewed-result-and-finish).
+It leaves the criteria and observed verdicts intact. It neither establishes a
+new allowed range for future work nor changes canonical identity.
+

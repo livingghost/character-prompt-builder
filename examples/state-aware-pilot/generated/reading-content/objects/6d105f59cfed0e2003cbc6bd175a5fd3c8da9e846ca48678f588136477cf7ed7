@@ -1,0 +1,43 @@
+## Bind the actual transport
+
+The following prepared-set commands apply to reference-runtime and Generation Package delivery.
+An external request binds the same logical rows to its declared field paths and upload evidence.
+
+After rendering or copying the actual transports, the reference preparation runtime derives their actual attachment mapping. For multi-image input, identical committed transport hashes and media types share one attachment. Logical reference rows retain their distinct sources, adoption, roles and subject uses. For a single-board input, every logical reference points to attachment 1 and its exact panel rectangle in pixels from the top-left, and a board with several source panels consumes one model image slot in total. Source hashes, transport hashes, roles and panel rectangles must agree with the prepared set.
+
+The map is authoring input for the agent. Interpret its subject assignments, scopes and precedence into the selected depiction using [Prompt Composition](prompt-composition.md#prompt-assembly-and-review). Internal keys, numeric priorities and request field paths stay in the binding record. Identify delivered images by their actual order and use a panel location when necessary. A source panel identifies evidence; it does not prescribe the output layout.
+
+```sh
+python scripts/reference_delivery.py --prepared-set WORK/prepared.json
+```
+
+Pass the complete prepared-set document, not the raw array of selected source rows. Relative carrier paths resolve from the prepared-set file's parent by default. Use `--package-root WORK` only when those paths intentionally use another base. The inspector accepts the same selected pack runtime as preparation: supply `--state-file STATE --cache-dir CACHE --managed-root MANAGED` together, with any applicable `--pack-root ROOT` values.
+
+This inspection validates the complete prepared set and returns `bindings` with attachment positions, scopes and subject assignments. It submits and mutates nothing. Normal preparation uses the same functions through `prepare_generation_references.py` and `reference_runtime.py`. Review the authored prompt against those bindings and the actual attachments before packaging.
+
+Inspect the committed carrier at its delivered size as well as the original
+source. Confirm that the needed face, marking, seam or other evidence remains
+readable after panel selection, rasterization, board assembly or resizing.
+Compare each reference-use instruction with the actual attachment position,
+subject and visible region. Check that the intended output attributes agree
+with both the source scopes and the current target. A hash and panel rectangle
+establish which bytes and region are bound; the agent establishes their visual
+suitability. Read the complete prompt and delivered carriers as one request:
+identify the present situation, relevant source attributes and their intended
+uses from what the model receives. Supply a necessary scene premise in text
+when those carriers do not establish it. Source records, earlier conversations
+and authoring decisions retain their own information; their existence alone
+does not deliver that information with the images. Compare the receiving-input
+reading with the intended depiction before accepting the assignment. Carry a
+material coverage limit into the existing direction and review criteria, and
+choose a clearer authorized source or transport when the requested result
+requires that evidence.
+
+For an external request, inspect the same mapping from its declared image field paths:
+
+```sh
+python scripts/reference_delivery.py --image-input-plan image-input.json --studio STUDIO
+```
+
+This reads an existing prepared origin when the plan names one. Each binding records its exact request field, such as `["images",0,"uri"]`, for transport verification. External image numbers follow the actual array positions within each native media field shape; independent named media slots retain their declared field order. A prepared origin supplies the board region for each logical reference. Different sources may share one external field when they use the same verified carrier and uploaded value; their individual roles and scopes remain recorded. Author the reference instructions using the image positions and controls the target actually receives. Preparation verifies the exact request, image mapping and source bytes; the agent reviews whether the received prompt and media convey the assigned uses.
+

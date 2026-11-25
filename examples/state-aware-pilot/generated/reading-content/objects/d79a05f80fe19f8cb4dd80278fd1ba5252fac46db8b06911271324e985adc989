@@ -1,0 +1,61 @@
+### Acquire a Production source
+
+Write one public ProductionTask source row in the Studio, then run the action
+returned by `authoring_guide.source_acquisition`. For example, this synthetic
+`work/input/design-source.json` selects the actual definition of subject A:
+
+```json
+{
+  "id": "design",
+  "path": "inputs/design.json",
+  "role": "identity-contract",
+  "disposition": "applied",
+  "locator": "The adopted identity and selected body design",
+  "reason": "These properties define subject A for this image.",
+  "identity": {"subject_ids": ["A"], "selectors": ["/identity", "/parts"]}
+}
+```
+
+```bash
+python scripts/production_workflow.py acquire-source --root STUDIO --choices work/input/choices.json --source-row work/input/design-source.json --view summary
+```
+
+The source file and descriptor are Studio-relative. The operation acquires
+the original bytes, validates the role, pointers and subject selection, retains
+the complete description in the acquired origin and derives applications,
+subject assignments and selected source files. Its `source-acquired` result
+names `choices_file`, `basis_file`, `projected_source`, unresolved matters and
+the next inspection command. `changed: false` means the same selected input
+already produced the current acquisition. Reacquisition updates that source's
+owned selection without silently dropping unrelated applications or subjects.
+A refused acquisition leaves the prior draft usable. Saved runs and their
+evidence remain unchanged.
+
+For an `amend` draft, acquisition compares the complete proposed identity
+selection with the retained evidence before publishing. Adding or removing an
+identity source, replacing its bytes, or changing its subjects, selectors or
+authority requires a new `compose` draft. The diagnostic preserves the proposed
+candidate, including the newly acquired bytes, outside the original draft. Its
+`repair_action.argv` starts a compose from that exact candidate through
+`draft-inputs --choices`; execute that action once to continue the change.
+The original draft stays available for its existing source selection. An
+excluded acquired source uses its retained bytes and needs no live original.
+
+A source without identity coverage uses the same row without `identity`.
+Select its actual role, locator, disposition and reason. Use
+`source_requirements` in the draft or input guide to see required, applied and
+missing roles. Each missing role has a complete row example and acquisition
+action. A `considered-not-used` row does not satisfy an applied-role requirement.
+
+Edit the descriptor and reacquire when its Production metadata changes.
+`task.sources` and the selected source files are derived views. A projection
+diagnostic distinguishes missing origin metadata, undeclared identity and
+inconsistent applications from an invalid criterion binding. It names the
+acquired origin, applications, subjects, projected identity, dropped fields
+and `repair_owner`; follow its `repair_action` instead of editing a field the
+next projection replaces.
+
+The complete current ProductionTask path remains available through
+`draft-inputs --task FILE`. Initial `draft-inputs --route ROUTE --operation compose`
+creates the current editable scaffold without requiring an earlier run.
+

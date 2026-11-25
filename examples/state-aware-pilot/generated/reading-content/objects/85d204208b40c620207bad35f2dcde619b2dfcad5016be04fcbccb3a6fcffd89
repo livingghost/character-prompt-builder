@@ -1,0 +1,108 @@
+## Save or execute the same work
+
+For saving or execution, use [Production authoring](production-authoring.md).
+`draft-inputs --operation compose|amend` exposes the same authoring work through
+the Studio's editable choices. Supply a changed commission with
+`--request-file FILE`. Continuing the same commission can use its saved request.
+The registered work goal names the task for navigation; the actual request is
+retained for production and review. Source applications determine the active
+sources projected into the saved task.
+
+The Studio stores the acquired basis in `work-basis.json` and the actual
+candidate in `choices.json` with its selected editable files. `context.json`
+records those locations. Acquire or update the request and source material
+through the same context command, selecting the basis file explicitly:
+
+```bash
+python scripts/authoring_work.py context STUDIO/work/draft/work-basis.json --basis-only \
+  --request request.txt --source character=definition.md \
+  --application "character=character#" --subject lead=character
+```
+
+This changes the acquired basis and derives its hashes while retaining the
+candidate's editing sources. Use the Studio's `inspect-inputs --choices FILE`
+to inspect their combined current work. `draft-inputs --apply-source ID` can
+apply an already acquired source when starting a saved branch. Use this same
+acquisition and application operation for a separately authored adaptation.
+
+The saved choices also retain the current authoring stage. Use
+`production_workflow.py stage-inputs --root STUDIO --choices work/draft/choices.json --stage STAGE`
+to select `definition`, `depiction`, `rendition` or `prepare` as described in
+[Read the current stage](production-workflow.md#read-the-current-stage).
+Continue these same source files and actual candidate at every stage. A new
+stage changes required knowledge and current editing guidance; it neither
+replaces the acquired basis nor grants a completed judgment. After compaction,
+inspect the saved choices and read the current stage's originals again before
+continuing its decisions.
+
+Use the Studio's [current-work comparison](production-authoring.md#keep-branches-and-reopen-completed-work)
+to read several saved editable candidates through this same owner:
+
+```bash
+python scripts/production_workflow.py compare-inputs --root STUDIO \
+  --choices work/first-draft/choices.json --choices work/second-draft/choices.json
+```
+
+It resolves the current delivery and selected documents, including task-local
+definition edits, before calling the common comparison. The intermediate view
+keeps the source choices and saved history intact.
+
+When the compiler materializes a JSON sub-selection, the compiled task source's
+`path` names the selected JSON. Its derived `origin: {path, sha256}` identifies
+the complete acquired original. The source's `applications` is the public
+selection contract, derived from the common basis: each entry contains its
+`id`, original JSON `pointer`, assigned `subjects` and `requirement` boolean.
+The projector orders applications by application ID and assigned subjects by
+subject ID. These derived orders remain stable when the basis is saved and read
+again. One application produces its value itself; several produce an array of
+their values in that canonical application order. An authored sequence remains
+an array within the selected source value.
+
+The snapshot checks the complete original's hash and verifies the ordered
+applications and projected content against the acquired basis. Acquiring an exported
+task restores each application's pointer, subject assignments and requirement
+individually. Two characters using different parts of one original therefore
+retain their separate applications. Canonical identity metadata keeps the
+authority of its adopted definition. The compiler derives these files and
+bindings; update the common applications or acquire changed material through
+the context command.
+
+For a task-local definition derived from the currently selected Production
+Specification, `source.definition_owner` identifies
+`{document: "production_spec", subject_id: ID}`. The compiler derives this
+relationship so that task reacquisition restores the actual editable subject.
+Changes to that subject's identity or its removal update the applied definition
+and subject relationships. A composition that retains an earlier definition
+as independent acquired material uses that source's ownership. Canonical and
+external definitions likewise keep their own owners.
+
+Save the actual authored revision or prepare its exact model input. Follow
+[Production workflow](production-workflow.md) for the requested operation and
+its completion. Previous revisions retain their requests, source evidence and
+results; the current candidate receives the choices selected for this work.
+
+A public ProductionTask selects the acquired basis with `work_basis`, a path to
+that actual basis JSON. The input compiler supplies this path for normal saved
+work. When authoring a task directly, acquire its basis through the same core
+commands and extract its actual basis:
+
+```bash
+python scripts/authoring_work.py extract work.json --basis --out STUDIO/work/basis.json
+```
+
+Select `work/basis.json` as the task's `work_basis`. This extraction is an
+intermediate artifact. Draft inspection allows unfinished context;
+completed checks, saving and preparation require the actual request, applicable
+character definitions and consistent applications. They capture the current
+delivery and selected documents, then check the task sources and current
+Production Specification against those acquired selections. Correct a missing
+request or definition at its owner; correct a differing application or document
+at the actual selection that owns it.
+
+The editable structure follows
+[`authoring-work.schema.json`](../../schemas/authoring/authoring-work.schema.json).
+Use `python scripts/authoring_work.py --help` and a command's `--help` for its
+exact arguments and diagnostics.
+
+[`test_authoring_work.py`](../../scripts/test_authoring_work.py) exercises actual
+composition, exact changes, source selection and completed candidate export.

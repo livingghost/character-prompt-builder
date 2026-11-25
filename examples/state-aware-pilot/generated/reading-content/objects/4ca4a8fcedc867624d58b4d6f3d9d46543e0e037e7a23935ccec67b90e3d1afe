@@ -1,0 +1,6 @@
+# Exact reference delivery
+
+Read this when preparing or inspecting model-facing reference attachments. Package dispatch uses one committed prepared reference set.
+Image inputs use the common original-file mapping described in [Semantic instruction editing](semantic-instruction-edit.md).
+Dispatcher and external requests retain the same source bytes, subject assignments, order and authority.
+

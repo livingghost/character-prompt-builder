@@ -1,0 +1,15 @@
+##### Rebuild knowledge in a fresh context
+
+A new agent, compacted conversation or lost source context opens the index for the
+operation now needed with `--fresh-context`, without the previous
+`--reading-context` or any `--known-reading` selections. Use
+`actions.restart` (also referenced by `context_reuse.fresh_context`) or the fresh-context action in
+Studio status. Restart retains the selected task scope and existing authoring
+files while making no assertion of retained knowledge. Continue the work's saved
+choices and current phase; a fresh context need not repeat completed production
+operations. A ledger, partial pages or historical key alone never supply knowledge.
+An incomplete reading cannot contribute known bodies. A saved page continuation
+requires its explicit original context. When a plan is inspected in a different
+declared context, its reading action restarts the current source selection;
+previously delivered pages are not skipped on that new context's behalf.
+

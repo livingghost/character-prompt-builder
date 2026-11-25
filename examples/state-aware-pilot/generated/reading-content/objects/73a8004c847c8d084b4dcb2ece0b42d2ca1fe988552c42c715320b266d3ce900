@@ -1,0 +1,57 @@
+## Declare controls by operation
+
+Every mode names its media semantics and its controls using exact request paths.
+Nested controls use dotted paths in the execution profile and nested JSON objects in authored parameters.
+Its `prompt_syntax` declares the grammar used for prompt inspection: a fixed/default
+grammar and, where exposed, the native control path and value-to-grammar mapping.
+The mapping belongs to this mode's interface evidence. A field's spelling never
+selects a parser by itself. See [Explicit prompt weighting](prompt-weighting.md)
+for the shared declaration and a synthetic nested-control example.
+Every mode states a seed and output-count disposition, including interfaces that expose neither.
+A `dispatch-generated` binding marks a control the transport writes fresh on every request, such as a
+per-request identifier; it stays out of authored parameters, and the sealed request records the generated value.
+Only exposed controls of the selected execution mode are generated. Modes that
+share a media transport retain their own control applicability.
+
+| Status | Behavior |
+| --- | --- |
+| `required` | Supply an explicit value or resolve a single authored recommendation. |
+| `optional` | Leave the feature unselected unless the author supplies a value. |
+| `not-applicable` | Show the reason and reject any transmitted value, including null. |
+| `backend-managed` | Show that the interface exposes no control; never invent its internal value. |
+
+A numeric recommendation range is not a chosen value. The agent or user must choose within it.
+An optional feature does not activate because another field opens its JSON envelope.
+Unsupported names, case mismatches, non-finite values, and unknown modes fail resolution.
+Value schemas validate types and limits; the mode's `parameter_schema` validates cross-field combinations.
+For example, it can require either explicit width and height or a named resolution, but not both.
+Schema defaults never substitute for parameter decisions.
+
+Parameter failures name the control, its declared problem status and the
+specific `required_action`. Missing or invalid values include their actual
+schema in `expected`; an undeclared control includes the available authored
+control names there. A recommendation range stays in `recommendation` until
+the author selects one value. For example, an omitted required integer `width`
+reports `value-required`, `expected: {"type": "integer"}` and asks for an
+explicit width value matching that schema. A cross-field failure reports the
+combined parameter schema and asks for the parameter combination to be corrected.
+The standalone `render_contract.py compile` returns these entries in `problems`,
+with `parameter: null` for a combined constraint. Production `check` and
+`prepare` carry the same repair and expected contract in their diagnostics,
+located at the actual editable source; a combined constraint points to that
+parameter document's root. Repair the failed parameter check before repeating
+any dependent check marked `CHECK_NOT_PERFORMED`.
+
+For exposed sampling controls, declare steps, guidance, sampler, parser, and other meaningful controls.
+For a managed instruction model, mark unavailable controls as backend-managed instead of fabricating them.
+A source-image denoising value applies only to a mode that exposes that control.
+A style reference is not automatically an img2img seed; the selected transport must match the intended influence.
+Weights on adapters, guidance inputs, and other optional features need their own declared paths and schemas.
+Keep source identity, rendering influence, composition influence, and transport roles separate.
+
+Validate a proposed execution profile against `schemas/model-execution-profile.schema.json`:
+
+```bash
+python scripts/render_contract.py validate-profile execution-profile.json
+```
+

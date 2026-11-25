@@ -85,7 +85,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
             intended_effect='The same adopted robot reads clearly against a pale green wall.')
         task['criteria'] = [
             {'id': 'requested-background', 'strength': 'hard', 'evidence': 'image',
-             'text': 'The plain background behind the robot is a pale green wall across the visible backdrop.'},
+             'text': 'The plain background behind the robot is a pale green wall across the visible backdrop.',
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}},
             {'id': 'robot-preserved', 'strength': 'hard', 'evidence': 'image',
              'text': 'Compare the whole robot with the complete adopted base.front image: identity, shape, colors, '
                      'pose and framing match within the visible scene.',
@@ -93,7 +94,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
              'identity_bindings': [{'source': 'reference:edit-identity', 'subject_ids': ['robot'], 'selectors': [''],
                  'treatment': 'preserve', 'reason': 'The edit keeps the adopted robot; only the background changes.',
                  'carriers': [{'kind': 'reference', 'reference': 'edit-identity', 'use': 'identity'}],
-                 'variation': None}]}]
+                 'variation': None}],
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         if task['execution'] == 'dispatcher':
             task['recording'].update(slot='edit.background', sheet_panel=False, role='background-edit')
         else:
@@ -300,7 +302,8 @@ class AdoptedImageEditTests(ChoiceReports, unittest.TestCase):
         task['direction'].update(purpose='Change only the background of the accepted image.',
             intended_effect='The same robot reads clearly against a pale green wall.')
         task['criteria'] = [{'id': 'requested-background', 'strength': 'hard', 'evidence': 'image',
-                             'text': 'The visible backdrop is pale green.'}]
+                             'text': 'The visible backdrop is pale green.',
+                                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         task['recording'].update(slot='candidate', sheet_panel=False, role='background-edit')
         cases.write_document(self.root, choices, 'parameters', {'width': 32, 'height': 32, 'steps': 20})
         import request_validation
@@ -394,9 +397,11 @@ class AcceptedSceneEditTests(ReviewCase):
         task['direction'].update(purpose='Change the two-subject scene backdrop.',
                                  intended_effect='Both existing participants remain in the edited scene.')
         task['criteria'] = [
-            {'id': 'backdrop', 'strength': 'hard', 'evidence': 'image', 'text': 'The backdrop is pale green.'},
+            {'id': 'backdrop', 'strength': 'hard', 'evidence': 'image', 'text': 'The backdrop is pale green.',
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}},
             {'id': 'participants', 'strength': 'hard', 'evidence': 'image',
-             'text': 'Both source robots, their positions, camera framing and flat graphic finish remain unchanged.'}]
+             'text': 'Both source robots, their positions, camera framing and flat graphic finish remain unchanged.',
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         task['recording'].update(slot=destination, sheet_panel=False, role='scene-edit')
         with cases.edit_document(self.root, choices, 'production_spec') as specification:
             specification['render_intent']['prompt_expression'] = 'flat graphic finish'

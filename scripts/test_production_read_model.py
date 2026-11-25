@@ -6,6 +6,7 @@ from pathlib import Path
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import copy
+import contextlib
 import contextvars
 import os
 import sqlite3
@@ -65,6 +66,121 @@ class RunReadBoundaryTests(unittest.TestCase):
             self.assertNotIn('caller-edit', second.consumer)
             self.assertEqual(second.rows, [])
             self.assertEqual((publication.call_count, history.call_count), (1, 1))
+
+    def _assert_authority_corruption_during_acquisition_is_rechecked(self, *, writer):
+        task_id = self.case['task']['task_id']
+        scope = 'authority:' + task_id
+        verified_history = store._verified_history
+        interleaved = False
+
+        def commit_corruption_after_acquisition(selected_scope, entries, *, connection=None):
+            nonlocal interleaved
+            held = verified_history(selected_scope, entries, connection=connection)
+            if selected_scope == scope and not interleaved:
+                interleaved = True
+                with contextlib.closing(sqlite3.connect(store.database(self.root))) as independent:
+                    states = independent.execute('SELECT * FROM authority_states').fetchall()
+                    history = independent.execute(
+                        'SELECT sequence, sha256 FROM events WHERE scope=? ORDER BY sequence',
+                        (scope,)).fetchall()
+                    raw = independent.execute(
+                        'SELECT body FROM events WHERE scope=? AND sequence=1', (scope,)).fetchone()[0]
+                    row = c.decode(bytes(raw))
+                    row['data']['authority']['issuer'] = 'Corrupted synthetic authority'
+                    independent.execute('UPDATE events SET body=? WHERE scope=? AND sequence=1',
+                                        (c.encoded(row), scope))
+                    independent.commit()
+                    self.assertEqual(independent.execute('SELECT * FROM authority_states').fetchall(), states)
+                    self.assertEqual(independent.execute(
+                        'SELECT sequence, sha256 FROM events WHERE scope=? ORDER BY sequence',
+                        (scope,)).fetchall(), history)
+            return held
+
+        with read_context.public_call():
+            with patch.object(store, '_verified_history', side_effect=commit_corruption_after_acquisition):
+                acquired = store.read_authority(self.root, task_id)
+            self.assertTrue(interleaved)
+            self.assertNotEqual(acquired.document['issuer'], 'Corrupted synthetic authority')
+            boundary = store.transaction(self.root) if writer else contextlib.nullcontext()
+            with self.assertRaises(ProductionError) as rejected:
+                with boundary:
+                    store.read_authority(self.root, task_id)
+            self.assertEqual(rejected.exception.diagnostic.code, 'EVENT_CHAIN_CORRUPT')
+
+    def test_authority_corruption_during_acquisition_is_rechecked_by_the_next_read(self):
+        self._assert_authority_corruption_during_acquisition_is_rechecked(writer=False)
+
+    def test_authority_corruption_during_acquisition_is_rechecked_before_writing(self):
+        self._assert_authority_corruption_during_acquisition_is_rechecked(writer=True)
+
+    def test_saved_inputs_keep_one_reading_and_decode_installation_pins_only_for_comparison(self):
+        directory = workflow.run_dir(self.root, self.run_id)
+        prepared = c.load(directory / 'prepared.json')
+        descriptor = prepared['implementation']
+        raw = (directory / 'objects' / descriptor['sha256']).read_bytes()
+        self.assertEqual((c.digest(raw), len(raw)), (descriptor['sha256'], descriptor['size']))
+        decoded = []
+        original = c.decode
+
+        def decode(value, *args, **kwargs):
+            if value == raw:
+                decoded.append(value)
+            return original(value, *args, **kwargs)
+
+        with read_context.public_call(), patch.object(c, 'decode', side_effect=decode):
+            held = workflow.read_run(self.root, self.run_id)
+            self.assertNotIn('route', held.prepared)
+            self.assertNotIn('reading_issuance', held.prepared)
+            self.assertTrue(held.prepared['route_reading']['documents'])
+            self.assertFalse(any(row['space'] == 'skill' for row in held.prepared['dependencies']))
+            self.assertEqual(decoded, [])
+            pins = held.implementation_dependencies
+            self.assertIn('scripts/production_workflow.py', {row['path'] for row in pins})
+            self.assertIs(held.implementation_dependencies, pins)
+            self.assertEqual(len(decoded), 1)
+            with self.assertRaises(TypeError):
+                pins[0]['sha256'] = '0' * 64
+
+    def test_complete_read_verifies_unexpanded_installation_pins_after_same_stat_corruption(self):
+        with read_context.public_call():
+            held = workflow.read_run(self.root, self.run_id)
+            path = held.directory / 'objects' / held.prepared['implementation']['sha256']
+            before = path.stat()
+            raw = path.read_bytes()
+            path.write_bytes(b' ' + raw[1:])
+            os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+            self.assertEqual(path.stat().st_size, before.st_size)
+            with self.assertRaises(ProductionError) as forced:
+                workflow.read_run(self.root, self.run_id, force=True)
+            self.assertEqual(forced.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+        with self.assertRaises(ProductionError) as fresh:
+            workflow.read_run(self.root, self.run_id)
+        self.assertEqual(fresh.exception.diagnostic.code, 'EVIDENCE_SNAPSHOT_CORRUPT')
+
+    def test_workspace_target_digest_and_pointer_share_the_acquired_publication(self):
+        import production_workspace
+        with read_context.public_call():
+            held = workflow.read_run(self.root, self.run_id)
+            original = held.artifacts['execution-target.json']
+            expected = next(row for row in held.manifest['files'] if row['path'] == 'execution-target.json')
+            changed = mutable(original)
+            other = copy.deepcopy(changed['model']['offerings'][0])
+            other['service'] = 'different-service'
+            changed['model']['offerings'].insert(0, other)
+            later_bytes = c.encoded(changed)
+            (held.directory / expected['path']).write_bytes(later_bytes)
+
+            with patch.object(c, 'read', side_effect=AssertionError('Project the acquired target and manifest')):
+                target = production_workspace._saved_knowledge(self.root, held)['target']
+            self.assertEqual(target['sha256'], expected['sha256'])
+            self.assertNotEqual(target['sha256'], c.digest(later_bytes))
+            self.assertEqual(target['offering_pointer'], '/model/offerings/0')
+            self.assertEqual(original['model']['offerings'][0]['service'], original['selected_service'])
+            self.assertNotEqual(changed['model']['offerings'][0]['service'], original['selected_service'])
+
+        with self.assertRaises(ProductionError) as fresh:
+            workflow.read_run(self.root, self.run_id)
+        self.assertEqual(fresh.exception.diagnostic.code, 'ARTIFACT_CORRUPT')
 
     def test_internal_view_shares_values_and_status_uses_the_verified_index(self):
         with read_context.public_call():

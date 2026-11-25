@@ -186,7 +186,7 @@ uv export --locked --no-emit-project --format requirements.txt > requirements.tx
 
 After the runner and the validator pass in the synchronized environment:
 
-1. Run `python scripts/rebuild_metadata.py` and confirm only intended metadata changes; generated inventories are rebuilt, never hand-edited.
+1. Run `python scripts/knowledge_document_build.py` to render knowledge from its source records without requiring existing outputs. Run `python scripts/seal_contract.py` to bind the resulting public contract files and update the narrative contract's owning record, then `python scripts/rebuild_metadata.py` for the final documents, catalog metadata and inventories. Confirm only intended changes; generated inventories are rebuilt, never hand-edited.
 2. Build with `python scripts/package.py`; the working tree is never zipped directly.
 3. Verify the reports the packager writes beside the archive: the generated `<archive>.sha256` file, and in `archive-check.json` the `zip_crc_ok`, `deterministic_rebuild`, `stage_extracted_tree_match` and `installed_smoke` fields, together with `stage-extracted-tree-check.json`, `installed-smoke.json` and `validation-read-only-check.json`.
 4. If a content pack changed, advance its UTC CalVer, rebuild its lock, and run its gate with the state described above, dedicated cache, explicit managed root, and report outside the pack.

@@ -1,0 +1,4 @@
+# Production preparation
+
+Compile the current authored sources into an exact, inspectable request. Preparation validates only the inputs required by its selected operation and capabilities. It creates no submission, candidate review or canonical adoption.
+

@@ -1,0 +1,55 @@
+## The work trail
+
+The work ledger follows Production tasks from planning and authoring through verified completion of their deliverables. Studio administration completes through each command's result and [operation record](operation-logs.md), which retain its outcome and diagnostics.
+
+Open a task before production work that takes more than one step, and write the steps down:
+
+```bash
+python scripts/work_ledger.py begin --studio <dir> --goal "C02 base front" \
+  --step "generate three candidates from the recipe of C01" \
+  --step "present them and record the choice" \
+  --step "accept the chosen one for base.front"
+python scripts/work_ledger.py step --studio <dir> 1 --note "it-0004 to it-0006"
+python scripts/work_ledger.py block --studio <dir> "which of the three, or another round"
+python scripts/work_ledger.py show --studio <dir>
+```
+
+Mark each step as it is done, not at the end. A step that is not written down is
+a step the next session does again or skips. Close the task by naming its actual
+completed run:
+
+```bash
+python scripts/work_ledger.py finish --studio STUDIO --run RUN
+```
+
+`finish` requires the run explicitly and identifies its owning task. The default
+scope, `production-result`, requires verified completion for that run. If the
+actual request ends at preparing the input, choose that completion scope explicitly:
+
+```bash
+python scripts/work_ledger.py finish --studio STUDIO --run RUN --scope prepared-input
+```
+
+`prepared-input` verifies the complete immutable input and records its input,
+publication, consumer and actual request digests in the work trail. A saved
+unfinished draft cannot satisfy it. A manual input without a transport request
+records that absence and retains its sealed consumer. The command closes only
+the work task: it records no generation, production-result completion or
+authorization. The same prepared run remains available for later execution
+under actual authority. Status presents this scope as a separate choice beside
+the execution action; the author decides which scope fulfills the request.
+
+Both scopes refuse while the owning task has an unfinished step or an unanswered
+author question. They can close the suspended owning task
+while leaving another active task in place. Neither marks an unfinished step as done
+or supplies a missing answer. Repeating an already recorded closure returns
+that closure under the same scope and exact evidence. If work remains, resolve it through the owning task's ordinary
+workflow.
+
+`abandon --reason` closes a task that will not be finished; once the task has a
+prepared production run, it also requires `--actor`. `block` records the question
+the task waits on, so a resumed session asks it instead of guessing. `show`
+prints where the task stands; `studio.py status` prints the same beside every
+character's slots and candidates, and the scene materials a persona change
+reaches.
+

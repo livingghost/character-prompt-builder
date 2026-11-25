@@ -1,0 +1,16 @@
+## Preserve relevant knowledge before execution
+
+For a permitted task, canonical records preserve the content that is actually present in the user's brief or supplied evidence, whatever its genre: everyday, wholesome, dramatic, violent, medical, grotesque, disturbing, body-altering, intimate, adult, or otherwise sensitive. Do not silently remove, euphemize, soften, or replace a load-bearing element solely because of its sensitivity. A host restriction is handled explicitly under the authority boundary above, not concealed as a change to the evidence.
+
+Examples of prohibited knowledge-layer substitutions include:
+
+- replacing a visible severe injury with a generic `battle-worn` description;
+- turning a grotesque anatomical change into a vague `monster form`;
+- deleting restraint, scars, missing parts, medical devices, or body alterations from a reference-derived identity or state record;
+- changing jealousy into generic seriousness, grief into neutral sadness, or horror into ordinary tension;
+- removing a sensitive scene action from search metadata so the record becomes practically undiscoverable;
+- converting an explicitly adult scene into generic romance, intimacy, or tasteful posing, or deleting the concrete adult element that makes the requested prompt materially different;
+- flattening a stated genre idiom, such as turning a period costume into modern clothes or a horror creature into a generic monster, when the idiom is the point of the request.
+
+The same rule applies to non-sensitive material: fidelity is determined by relevance and evidence, not by whether the subject is comfortable or uncomfortable.
+

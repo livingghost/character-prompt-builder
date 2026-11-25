@@ -1,0 +1,31 @@
+### Keep the reading at its current scope
+
+The final `reading.record` is complete when issued. Generated draft reading
+actions include `--bind-choices`: after complete delivery, the input owner binds
+the issued key to that exact choices file. It compares the captured authored
+content under the file's write lock and rechecks the current stage and knowledge
+scope before changing only `reading.reading_key`. A replay may refresh that
+derived key without changing authored content or another draft.
+
+`choices_binding.bound` reports the result. `choices-changed` means authored
+input changed while the body pages were being read; `reading-scope-changed`
+means its current required scope differs from the completed reading. Both leave
+the changed choices intact and retain the completed reading, with an inspection
+action for the exact owner. Follow that owner's current reading action; the
+current context can reuse unchanged complete material while reading any new
+requirements. A restart of a binding read derives the current stage and target
+from that choices file again.
+
+Direct low-level reads remain available without `--bind-choices`. For that
+explicit path, select the issued key in `choices.reading.reading_key`; no
+document hashes need copying. The input owner resolves exact document editions,
+resource scope and delivered model guidance from the issuance. When authoring
+a task directly, name the emitted file as `task.route_reading`.
+
+To use a narrower amendment scope, obtain its current record through the draft's
+reading action. Supply prior keys with `--known-reading` only while their complete
+contents remain known in this context. The parent record keeps its original
+document editions and resource scope. A declared reading context selects its
+complete current deliveries automatically. Complete the current scoped read;
+the binding action applies its newly issued key even when no new body text is needed.
+

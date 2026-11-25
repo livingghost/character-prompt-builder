@@ -1,0 +1,18 @@
+## Scene Production Specification
+
+Use `templates/production-spec-template.json`, `templates/performance-language-template.json`, [Production Specification](../production-specification.md), and [Performance Language Specification](../performance-language-specification.md). `state_protocol.py make-lineage` acquires selected artifact paths and derives their hashes, or finalizes a stateless lineage with `--mode stateless`. Select actual reviewed nodes for a continuity graph; do not calculate and copy their hashes. A state-aware subject references its Identity Contract, State Snapshot, and Visual State Projection; the specification references the sealed State Lineage and Scene Context.
+
+Use only consequential modules. Fine controls may cover identity projection, proportions, head and facial construction, hair and regional covering maps, current physical state, wardrobe layers and condition, inventory, torso and support geometry, separate left/right hand and leg chains, coordinated performance channels, gaze target and head rotation, relationship distance and contact, environmental response, depth, camera, crop, lighting, and selected rendering knowledge.
+
+Validate saved artifacts:
+
+```bash
+python scripts/state_protocol.py validate <artifact.json> [...]
+python scripts/production_spec.py validate production-specification.json --require-content
+python scripts/validate_state_protocol.py .
+```
+
+The first two commands validate authored artifacts; `validate_state_protocol.py` validates the repository-wide protocol set.
+
+Author only the complete field structure defined by the current Production Specification template. Artifact identity comes from structure, semantic IDs, hashes, and lineage rather than independent internal version fields.
+

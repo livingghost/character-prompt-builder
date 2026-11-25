@@ -1,0 +1,25 @@
+## Searchability is part of fidelity
+
+If a record contains a sensitive or grotesque element that materially changes the image, use accurate canonical aliases and scoped facets so the element can be found by ordinary language. Hiding it from retrieval is a form of silent omission.
+
+Possible facets include:
+
+```text
+content_intensity
+adult_content
+erotic_context
+sexual_context
+nudity_context
+fetish_context
+consent_context
+intimacy_context
+injury_state
+body_alteration
+medical_context
+restraint_context
+horror_theme
+emotional_intensity
+```
+
+Only author facets supported by the record. `intimate` alone must not be treated as a synonym for erotic or sexual content: use erotic, sexual, or nudity facets only when the record explicitly supports those meanings.
+

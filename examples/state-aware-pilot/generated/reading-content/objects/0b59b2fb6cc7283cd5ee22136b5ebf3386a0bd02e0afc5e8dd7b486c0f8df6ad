@@ -1,0 +1,13 @@
+## Keep source responsibilities distinct
+
+`pack-artifact`, `supplied-file`, `studio-artifact` and `studio-accepted-image` are
+current source variants.
+A pack-artifact uses an active Reference Use Plan. The same executor can retain
+direct state references and additional ordinary Studio or supplied sources.
+Each keeps its own authority, exclusions and applicable acceptance or adoption
+proof. Studio choices use
+their actual slots and artifacts; the plan contains only its genuine pack records.
+
+A directory rename or another Studio with the same image does not silently
+retarget a live source. A new live location needs a new explicit source selection;
+the old package remains auditable through its recorded companion.

@@ -210,10 +210,9 @@ def _draft_compilation(root: Path, choices_path: str):
                 'criteria': copy.deepcopy(task.get('criteria', [])),
                 'direction': copy.deepcopy(task.get('direction', {})),
                 'world_views': [], 'moment_views': [], 'authoring_materials': []}
-    prepared = {'task_path': task_path, 'task': task, 'route': {'route': task['route'],
-                'features': list(task.get('features', [])), 'reads': []},
+    prepared = {'task_path': task_path, 'task': task,
                 'authority': None, 'route_reading': None, 'route_reading_sha256': None,
-                'reading_issuance': None, 'dependencies': sorted(dependencies, key=lambda row: row['path']),
+                'implementation': None, 'dependencies': sorted(dependencies, key=lambda row: row['path']),
                 'runtime_snapshot': None, 'consumer_sha256': c.content_id(consumer), 'run': identity}
     prepared['input_sha256'] = compiler.input_digest(prepared, consumer)
     execution = {'run': identity, 'execution': 'authored', 'input_sha256': prepared['input_sha256'],

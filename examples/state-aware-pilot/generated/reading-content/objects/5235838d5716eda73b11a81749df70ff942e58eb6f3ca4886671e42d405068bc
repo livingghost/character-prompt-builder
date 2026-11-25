@@ -1,0 +1,28 @@
+## Weights and conditioning channels
+
+Weights adjust the influence of appearance controls under the selected model
+and parser. They do not numerically change the character's canonical age,
+health, history or body attributes: `1.2` does not mean twenty percent older
+or more muscular. Keep that ownership with
+[the appearance goal and source definition](production-direction.md#translate-established-facts-into-the-current-appearance).
+Observe the effect under the actual combination of terms, references and
+controls; weighting alone determines neither a term's sense nor its subject.
+
+Choose a weight for a concept's intended influence within its channel. A larger
+positive weight, a smaller positive weight and the same term in the negative
+channel are different operations. Reducing the only description of an attribute
+can let the model's prior dominate; it need not create the intended intermediate
+appearance. Describe that appearance directly when supported, and use weighting
+to adjust a remaining priority. A negative should name an unwanted outcome at
+the scope where it is unwanted. Lowering its weight changes the negative
+condition, not the positive description.
+
+Read the applicable model adapter for its encoder, parser and guidance behavior,
+selected under [Interface rendition](prompt-writing-guide.md#interface-rendition).
+It owns the actual token transformation, empty-input baseline, pooled
+representation and guidance combination. A zero weight need
+not remove a term's other contextual effects, and a signed weight does not
+establish logical negation. Use the selected implementation's semantics when
+choosing among these operations; neither the coefficient nor valid grammar
+measures the amount of a visible feature or the probability of success.
+

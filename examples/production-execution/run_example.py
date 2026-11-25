@@ -35,7 +35,8 @@ def run(out: Path) -> dict:
     (out/'delivery.txt').write_bytes(b'One lamp stands in the room.\n')
     spec=production_authoring.seed(route='development',artifact='text',execution='authored',task_id=task_id)
     spec.update(sources=[{'id':'world','path':'world.md','role':'world','disposition':'applied','locator':'whole','reason':'Synthetic fixture premise.'}],
-        criteria=[{'id':'world','strength':'hard','text':'One lamp, no added characters.','evidence':'text'}],
+        criteria=[{'id':'world','strength':'hard','text':'One lamp, no added characters.','evidence':'text',
+                      'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}],
         authored={'requirements':['save','delivery','review']})
     spec['direction'].update(purpose='Write one sentence about the declared empty room.',
         intended_effect='Preserve the supplied room and lamp without adding a cast.',basis=['world'])

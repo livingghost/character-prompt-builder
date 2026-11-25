@@ -1,0 +1,35 @@
+## Recommendations and shared reference instructions
+
+Admission of reusable record defaults and authorship of the current rendition
+are separate decisions. The author can select a documented quality control,
+negative term or weight for this picture even when the record has no reusable
+prompt string. Its meaning, channel and parser still need the selected target's
+evidence. A publisher's sample is evidence of that example, not an instruction
+to insert its complete stack into every prompt.
+
+A model's automatic tag-list merge must not flatten commas inside weighted groups
+or duplicate the author's entire compound expression. For a simple weighted
+prompt, additions remain independent tags and the authored fragment retains its
+exact bytes. For `.blend()` or `.and()` expressions, automatic positive/negative
+recommendations stay visible as advisory audit entries, with
+`conditioning-clauses-preserved; author places recommendations explicitly`.
+The author places any necessary shared guidance inside the intended clauses,
+then prepares and approves that complete rendition. Optional recommendations
+are not silently copied into every clause or dropped without a recorded reason.
+
+When the record's optional recommendation itself uses another syntax (for example
+an sdEmbeds `(term:1.2)` recommendation while Compel is selected), it is retained
+as visible advice with `recommendation-syntax-mismatch; author supplies matching
+grammar`. CPB does not translate it, apply its old parser's numeric semantics, or
+rewrite the selected model record. The author can place any wanted guidance in
+the appropriate authored clause and approve the resulting request. Invalid
+**authored** text is still an error, not an advisory recommendation.
+
+The same boundary applies to authored directions for the actual supplied images.
+Internal binding identifiers and policy records remain outside the prompt.
+A prefix that leaves
+an entire compound outside the supported grammar is refused rather than guessed
+into its clauses. Select a declared native reference mechanism or author the
+instructions into the clause scope explicitly. Do not bypass the final request
+check to send a textually different prompt.
+

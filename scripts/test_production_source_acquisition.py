@@ -44,7 +44,8 @@ def criterion(source='design', *, subjects=None):
         'identity_bindings': [{'source': source, 'subject_ids': subjects or ['A'],
             'selectors': ['/identity'], 'treatment': 'not-exposed',
             'reason': 'This synthetic text does not depict the physical identity.',
-            'carriers': [], 'variation': None}]}
+            'carriers': [], 'variation': None}],
+               'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}
 
 
 def candidate(sources=None, criteria=None):

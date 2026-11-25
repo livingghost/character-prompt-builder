@@ -1,0 +1,9 @@
+##### Read an acquired model
+
+An acquired model outside the catalog uses `--model-file FILE` in place of
+`--model`. A relative path is resolved within the Studio. The reader selects the
+same complete model and writing guidance, binds its exact edition, and retains
+its source for continuation and fresh-context reading. This source matches
+`choices.target.model_file` when saving target-specific text; the input owner
+derives the compiled task target from that selection.
+

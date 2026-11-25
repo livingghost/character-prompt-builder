@@ -24,7 +24,13 @@
       "id": "purpose",
       "strength": "hard",
       "text": "Replace with an observable requirement.",
-      "evidence": "artifact"
+      "evidence": "artifact",
+      "origin": {
+        "kind": "user-request"
+      },
+      "observation": {
+        "scope": "observable"
+      }
     }
   ],
   "world_views": [],

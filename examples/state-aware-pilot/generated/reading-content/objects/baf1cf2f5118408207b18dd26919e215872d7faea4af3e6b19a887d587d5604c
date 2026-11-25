@@ -1,0 +1,60 @@
+## Author the consumed reference direction
+
+Write the reference direction in the editable delivery prompt, where its
+meaning belongs in the whole depiction. Use the stable reference use ID to
+bind actual locations and contributions. The inspector below returns
+`reference_text_slots`, including each usable marker and its current value.
+For a descriptive target, a source fragment can read:
+
+```text
+Use Image {{reference:keeper-face:attachment_number}} for {{reference:keeper-face:controls}}. Place this character beside the doorway, watching the other subject.
+```
+
+The compiler substitutes the current image number and the selected `controls`
+words. Surrounding text is preserved exactly. A sentence can relate several
+references, describe a whole sheet, or use the target's tag grammar. For
+example, an authored `control_expressions` value can be a tag phrase inside an
+existing weighted expression. Write the grammar that the selected target
+supports; the substitution adds no sentence, weighting or exclusion of its own.
+
+| Marker field | Delivered value |
+| --- | --- |
+| `attachment_number` | Actual image position after ordering and deduplication |
+| `controls` | The selected contribution expressions, joined by comma and space |
+| `region` | Board panel `x, y, width, height` in pixels |
+| `x`, `y`, `width`, `height` | Individual board coordinates for authored location wording |
+| `must_not_control` | Declared exceptions, only where the author places this optional marker |
+
+A shared board needs its panel location: place `region`, or all four coordinate
+fields, in the reference instruction with wording that identifies their meaning.
+Every authored reference direction consumes its `attachment_number` and
+`controls`; a number by itself does not deliver the selected contribution.
+The requirement applies to the actual primary text selected for transport.
+An unused working text need not repeat that direction. A target with verified
+`native-fields` reference transport receives the selected scope through its
+declared native mappings and needs no textual reference direction.
+
+Preview the resolved text before dictionary or model grammar work:
+
+```sh
+python scripts/reference_delivery.py --prepared-set WORK/prepared.json \
+  --prompt-file WORK/prompt.txt --out WORK/resolved-prompt.txt
+```
+
+Use `--image-input-plan PLAN --studio STUDIO` in place of `--prepared-set` for
+an external input. The command returns the complete resolved text and its
+source-to-final ranges. `--out` writes the same final UTF-8 bytes for vocabulary
+search. Edit the original prompt and contribution owners; the resolved file is
+an inspection surface. Normal preparation performs the same expansion before
+checking grammar, vocabulary, limits and final input hashes.
+
+The package retains authored literals and a derived `reference_text` record.
+Its verifier recomputes the substitution from the bound references and compares
+the actual transported text. For an external source request, markers belong in
+the request's ordinary prompt field. The image-input builder expands that source
+before schema and prompt checks; a materialized external plan retains the
+derived record beside its final request. This record is produced by the compiler
+from the work and carries no assessment or approval. The agent still reviews
+the complete final text and actual media for meaning, source fit and intended
+effect; successful substitution establishes delivery alone.
+

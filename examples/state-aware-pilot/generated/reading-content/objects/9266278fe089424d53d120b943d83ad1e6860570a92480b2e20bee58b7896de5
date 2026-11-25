@@ -1,0 +1,13 @@
+#### Bind external media
+
+External host interfaces follow their actual upload and deletion contracts.
+Pass a local file only when the available host interface explicitly accepts
+one, selecting `transport: {"local_file": true}` in the external input choices;
+the builder derives its carrier path and execution uses its saved bytes.
+Otherwise use a documented input it supports. Bind the identifier returned
+for this generation and its upload evidence in the image-input plan's
+`external_request.reference_fields`, then record the actual deletion result
+after capturing the output. A provider response and an arbitrary local image
+do not establish which bytes were uploaded. A host that lacks a required
+operation needs an explicitly available interface; do not assume one exists.
+

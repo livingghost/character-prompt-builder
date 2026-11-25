@@ -1,0 +1,27 @@
+## What the saved content establishes
+
+An editable authoring document supplies the current revision. Compilation
+captures that revision and derives its hashes; a later edit does not rewrite
+an earlier run. Preparing the edited content creates another run. The saved
+bytes establish what that preparation used. They do not establish who first
+issued the document or that it was unchanged before acquisition. A previously
+selected source or imported authority retains its own recorded baseline and
+applicability rules; editing an authoring document does not replace those
+records or approve the new request.
+
+Choose a run explicitly to execute its saved revision. Choose editable inputs
+to prepare their current revision. A change notification connects those two
+views; it is not an execution prerequisite or an instruction to restore the
+old files. The compiler still refuses a newly selected input that changes
+during its own acquisition and publication.
+
+Content checks compare files and requests with these local records. They are
+not user signatures or an independent guarantee against a writer that can
+also replace the records and checking code. Dispatcher execution checks its
+prepared request before starting each owned external step. That check and the
+subsequent network operation are separate events. An external execution gives
+the host a prepared request to invoke; it does not intercept the host's actual
+tool call. [Execution permissions](production-permissions.md) describes the
+authority and recorded execution boundaries. Report the observed comparison
+and submission evidence within those limits.
+

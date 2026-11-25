@@ -109,7 +109,8 @@ def run(out: Path):
     task=work_ledger.begin(out,'Synthetic moment text delivery',['compose'])
     write(out,'delivery.txt','A pauses in the soft light, then gives a brief answer.\n')
     spec=production_authoring.seed(route='story-context',artifact='text',execution='authored',task_id=task['task_id'])
-    spec.update(criteria=[{'id':'moment','strength':'hard','text':'Respect the selected moment and portrayal direction.','evidence':'text'}],
+    spec.update(criteria=[{'id':'moment','strength':'hard','text':'Respect the selected moment and portrayal direction.','evidence':'text',
+                              'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}],
         moment_views=[{'query':'query.json','bundle':'moment','view_id':'depiction.main'}],
         authored={'requirements':['save','delivery','review']})
     spec['direction'].update(purpose='Write one sentence using the selected moment and portrayal guidance.',

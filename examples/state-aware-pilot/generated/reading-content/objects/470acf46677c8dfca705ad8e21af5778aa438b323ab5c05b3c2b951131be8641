@@ -1,0 +1,97 @@
+### Resolve the attributes needed by this image
+
+Inspect the source regions that carry the requested features. Establish the
+actual face construction, marking placement, proportions, garment structure
+or other relevant attributes before writing their preservation instructions.
+Use descriptions supported by those regions and the adopted design. Species
+and garment categories help retrieve knowledge; the individual source resolves
+the particular design. Record an unreadable or unseen detail as a coverage
+limit in the current production direction.
+
+For each consequential attribute, determine its subject, adopted source,
+preservation or requested change, and the reference use that carries it.
+Keep those choices in the existing `task.direction.decisions`, applied sources
+and task criteria. The image input's `use_for` and `do_not_transfer` carry the
+source scopes; prepared references express them as `controls` and
+`must_not_control`. A change to the current scene belongs to its Production
+Specification or semantic edit. A change to permanent identity follows the
+owning Identity, Era, Form or Appearance Contract.
+
+Choose the source with the needed authority and readable coverage for each
+attribute. A complete character sheet can be the primary identity evidence;
+a portrait or detail view can supply the particular face or surface information
+the task needs. Several views may complement one another. Resolve their
+precedence within the same subject and use, and describe the finer attribute
+boundary in their scopes and the selected instructions.
+
+Read positive scopes and their exceptions together. A broad scope with an
+explicit exception can express a coherent use when the remaining attributes
+and their target owners are clear. When replacing a broad term with specific
+parts, account for every still-required attribute through a source or the
+target depiction. Preserve complementary evidence and meaningful exceptions.
+Resolve incompatible values for the same subject and attribute against the
+current request and adopted authority, then describe the chosen result.
+
+Synthetic example: an adopted portrait shows a short, rounded muzzle and three
+cheek marks; an adopted sheet provides the tail bands and back markings; the
+new scene changes the expression and arm pose. With those files delivered as
+Images 1 and 2, the reference-use portion of the prompt can read:
+
+```text
+Use Image 1 for the character's short, rounded muzzle and three cheek marks. Use Image 2 for the tail bands and back markings. Depict the expression and arm pose specified for the new scene.
+```
+
+The scene description supplies that expression and pose. The source scopes and
+criteria retain the corresponding preservation and change decisions for review.
+
+Use `prepare_generation_references.py --image-input-plan-file PLAN --studio STUDIO`
+for authored `use_for` and `do_not_transfer` scopes. The plan can pin an existing
+prepared set through `prepared_references`. Its source, state, adoption and pack
+scope must match exactly. Existing candidates remain candidates until their
+actual owner adopts them.
+
+The supplied-selection input is an ordered array with `role`, `source` and
+optional `subject_uses`. A synthetic two-character example:
+
+```json
+[
+  {"role": "identity-a", "source": {"kind": "supplied-file", "reference_id": "a-original",
+   "resolved_path": "/absolute/studio/inputs/a.png"},
+   "subject_uses": [{"subject_id": "A", "use": "identity", "priority": 0}]},
+  {"role": "identity-b", "source": {"kind": "supplied-file", "reference_id": "b-original",
+   "resolved_path": "/absolute/studio/inputs/b.png"},
+   "subject_uses": [{"subject_id": "B", "use": "identity", "priority": 0}]}
+]
+```
+
+The preparer measures media type and hashes. Each `subject_id` must resolve to
+an actual Production Specification subject. `use` names a canonical intended
+influence. Lower `priority` numbers win within the same subject and use;
+equal priorities supply complementary evidence. Priority grants no additional
+influence and never settles a conflict between different people or purposes.
+Leave the array absent or empty for references without a character assignment,
+such as a room plan. Multiple characters without story state require no state graph.
+
+One image may carry several subject/use entries. A pack record declares them in
+its selected-record decision, for example:
+
+```sh
+python scripts/reference_runtime.py plan \
+  --record-use '{"record_id":"wardrobe-record","intended_influence":"outfit","selected_controls":["garment and wearable construction"],"subject_uses":[{"subject_id":"A","use":"outfit","priority":1}]}' \
+  --transport-mode prompt-artifacts --source-lighting-mode replace --out reference-use-plan.json
+```
+
+A state binding limits assignments to its character and declared influences.
+A plan narrows them to its selected influence. Studio identity use requires the
+matching identity adoption. The Reference Use Plan retains canonical pack
+technical authority. Identity use leaves current expression, action and camera
+to their target-scene owners.
+
+One prepared set may contain state-aware A's pack references and stateless B's
+accepted Studio face and outfit. Execute the pack plan with `--reference-selection`
+and append B's `--studio-selection-file` choices, using `--studio` for their owner.
+Use `--supplied-selection-file` for direct source choices instead.
+Without pack sources, combine `--state-selection-file` with either direct input.
+State eligibility covers the managed rows; other subjects require no invented history.
+The state row retains its subject assignment in the binding. The authored prompt identifies that subject through the delivered inputs.
+

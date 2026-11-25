@@ -1,0 +1,34 @@
+## Read the rendition back before it is sent
+
+Read the main subject, action, expression, relationships and framing as a
+single depiction. Keep its intended emotion direct. Check that unshown timing,
+internal knowledge and intentions, unsupported comparisons and other senses
+have not become literal image requirements. Necessary scene premises and
+secondary figurative impressions may remain when the primary depiction stands
+without them. Check exclusions against the request, applied source roles or an
+observed failure. When a premise is corrected, revise its direction and review
+criteria with the wording. A detailed coherent rendition and a concise coherent
+rendition are both valid; neither length supplies the missing judgment.
+
+Inspect the exact rendition with the selected parser. Structural checks locate broken delimiters, malformed weights, invalid conditioning clauses, unsupported channels and declared length violations. The report also retains dictionary and dialect evidence for the author's reading.
+
+This inspection supplies the exact positive and negative channels, controls,
+actual media and parser evidence to the ongoing judgment in
+[Observe and repair](production-direction.md#observe-and-repair). Keep any
+missing premise, changed meaning or added task with its assessment in the
+existing review. A source instruction can govern an author's state or adoption
+decision without belonging in the renderer's request. Equally, a prior event can be
+necessary context for the current performance even though it is outside the
+frame. Preserve that distinction in translations, revisions and transport.
+
+```bash
+python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --negative "<the negative>" --model <model-id>
+python scripts/check_tag_prompt.py --weighting sdEmbeds --dictionary <prompt-vocabulary/dictionary.json> --prompt "<the rendition>" --dialect <dialect-id>
+```
+
+The example assumes an explicitly selected sdEmbeds parser; use `--weighting compel` for Compel or `literal` when no weighting control is selected. Independent conditioning clauses are checked separately and the original text is retained.
+
+The checks read the resolved vocabulary resource and retain matched definitions, usage notes and declared dialect guidance. `--model` adds the record's declared prompt lengths and negative channel. `--dialect` names an evidenced family directly; an unknown ID is answered with the available IDs. Dictionary absence, repeated words, count terms, rating terms or lexical overlap do not establish a semantic failure.
+
+Output is JSON on stdout with `syntax`, parsed `channels`, structural `findings` and the resolved dialect evidence. A `problem` describes a mechanical contract violation and returns exit status 1. A dictionary path that is not a file exits with a message. Preparation blocks mechanical problems; the author reads the complete positive and negative rendition with its actual media and judges the resulting picture. Its regression test is `scripts/check_tag_prompt_smoke_test.py`.
+

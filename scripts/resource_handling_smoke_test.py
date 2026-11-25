@@ -97,7 +97,7 @@ class CompleteMaterialTests(unittest.TestCase):
         raw = text.encode('utf-8'); files = {}
         item = {'path': 'candidate.txt', 'sha256': material.digest(raw), 'size': len(raw)}
         with patch.object(contract, 'object_read', return_value=raw):
-            view = artifact_review._object_file(self.root, item, files)
+            view = artifact_review._object_file(lambda key: contract.object_read(self.root, key), item, files)
         self.assertEqual(view['preview'], text)
         self.assertFalse(view['preview_truncated'])
         self.assertEqual(files[view['download']], raw)
@@ -106,7 +106,8 @@ class CompleteMaterialTests(unittest.TestCase):
         raw = '甲乙丙丁'.encode('utf-8'); files = {}
         item = {'path': 'candidate.txt', 'sha256': material.digest(raw), 'size': len(raw)}
         with patch.object(contract, 'object_read', return_value=raw):
-            view = artifact_review._object_file(self.root, item, files, preview_chars=2)
+            view = artifact_review._object_file(lambda key: contract.object_read(self.root, key), item, files,
+                                                preview_chars=2)
         self.assertEqual(view['preview'], '甲乙')
         self.assertTrue(view['preview_truncated'])
         self.assertEqual(files[view['download']], raw)

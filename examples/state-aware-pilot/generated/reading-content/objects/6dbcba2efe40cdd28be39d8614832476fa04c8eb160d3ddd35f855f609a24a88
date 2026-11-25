@@ -1,0 +1,16 @@
+## State domains and visibility
+
+Track state as open domains:
+
+- physical condition, injury, healing, wetness, dirt, fatigue, aging, and form;
+- felt, expressed, masked, and physiological emotion;
+- directional relationship state, authority, trust, conflict, contact boundaries, public mask, and private behavior;
+- season, temperature, humidity, weather, physical light, approved locale or culture, and environmental body response;
+- wardrobe layers and condition;
+- owned, possessed, carried, equipped, stored, transferred, consumed, lost, damaged, or repaired objects;
+- character-specific processes such as transformation, curse progression, overheat, seasonal coat, or recovery.
+
+Off-screen events remain real when approved. If the underlying feature is hidden, show only approved visible consequences through posture, behavior, condition, or performance. Do not expose an undisclosed fact because the state model knows it. Resolve time jumps from events and approved Era Contracts; do not invent aging merely because years passed. Multi-entity transfers are atomic.
+
+Regenerate a prompt package when a scene-visible semantic input changes: identity, era, form, appearance variant, visible state, wardrobe, prop or inventory binding, expressed emotion, relationship blocking, environmental response, camera, lighting, target, or reference selection. A knowledge-only update with no visible or performance consequence updates state without forcing a new image prompt.
+

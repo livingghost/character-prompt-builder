@@ -1789,7 +1789,8 @@ class SemanticEditSuppliedDispatchTests(unittest.TestCase):
         task['image_input'] = 'image-input.json'
         task['sources'] += [{'id': 'source-scene', 'path': 'scene.png', 'role': 'accepted-source',
             'disposition': 'applied', 'locator': 'whole', 'reason': 'Synthetic product scene selected for this edit.'}]
-        task['criteria'] += [{'id': ident, 'strength': 'hard', 'text': text, 'evidence': 'image'}
+        task['criteria'] += [{'id': ident, 'strength': 'hard', 'text': text, 'evidence': 'image',
+                                 'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}
             for ident, text in [('wall', 'The wall change is visible.'), ('geometry', 'The vase geometry remains fixed.')]]
         spec = production_spec.load(production_spec.TEMPLATE)
         spec.update(source_brief='Edit the cafe interior wall.', target_model=model_name or self.model,
@@ -2008,7 +2009,8 @@ class SemanticEditProductionTests(unittest.TestCase):
                     'selectors': [''], 'treatment': 'preserve',
                     'reason': 'The synthetic fixture author retains this reference identity in the new scene.',
                     'carriers': [{'kind': 'reference', 'reference': row['id'], 'use': 'identity'}],
-                    'variation': None}]})
+                    'variation': None}],
+                                             'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
         spec = production_spec.draft(model=self.plan['model']['requested'], brief='Synthetic scene using two source identities.',
             subject='a', kind='robot', render_intent=intent(PROMPT, 'reference-guided'))
         spec['subjects'][0]['identity'] = 'Synthetic robot A with the original form supplied by the scene reference.'
@@ -2051,7 +2053,8 @@ class SemanticEditProductionTests(unittest.TestCase):
         self.task['features'] = []
         self.task['sources'] = []
         self.task['criteria'] = [{'id': 'vase', 'strength': 'hard', 'evidence': 'image',
-                                 'text': 'Inspect the vase and table in the returned image.'}]
+                                 'text': 'Inspect the vase and table in the returned image.',
+                                     'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         self.task['delivery']['translation_notes'] = 'Exact synthetic text-only image request.'
         write(self.root, 'reading.json', fixture_reading(route=self.task['route'], features=[], studio=self.root,
             ledger=self.root / 'work/reads.jsonl', execution=self.task['execution']))

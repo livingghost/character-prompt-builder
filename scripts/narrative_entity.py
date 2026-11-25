@@ -32,6 +32,7 @@ from urllib.parse import quote, unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from narrative_index import ENTITY_ID, FRONT_MATTER, KINDS, scan  # noqa: E402
+from knowledge_documents import DocumentReader  # noqa: E402
 
 NL = chr(10)
 
@@ -101,9 +102,17 @@ def front_matter(kind: str, identifier: str, name: str, character: str, phase: s
 
 
 
+def _native_form(document_id: str, section_id: str) -> str:
+    """Acquire a complete native form, including its ordinary front matter."""
+    document = DocumentReader(lambda path: (ROOT / path).read_bytes()).acquire(document_id)
+    if len(document.sections) != 1:
+        raise ValueError(document_id + ": a native template requires one complete section")
+    return document.section(section_id).raw.decode("utf-8")
+
+
 def persona_form() -> str:
     """Read the installed current full form, the sole source for new personas."""
-    return (ROOT / "templates/narrative/personas/persona-template.md").read_text(encoding="utf-8")
+    return _native_form("templates/narrative/personas/persona-template", "persona-template")
 
 
 def form_body(form: str, name: str, phase: str) -> str:
@@ -147,8 +156,7 @@ def persona_document(identifier: str, name: str, character: str, phase: str = ""
 
 def design_document(identifier: str, name: str = "") -> str:
     """Create a current design record including the authorial intent register."""
-    source = ROOT / "templates/narrative/design/design-template.md"
-    form = source.read_text(encoding="utf-8")
+    form = _native_form("templates/narrative/design/design-template", "design-template")
     if not form.strip():
         raise ValueError("the full design form is empty; restore the installed template")
     head = FRONT_MATTER.match(form)

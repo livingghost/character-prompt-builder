@@ -1,0 +1,33 @@
+## Protected criteria across runs
+
+A grant's `protected_criteria` names criterion ids whose complete definitions
+must stay identical to the comparison run. Direction compares the new run with
+the previous registered run in the same work task and `production_id`; an edit
+compares its revised task with the parent run. Added and removed protected ids
+also differ. The first run of a production series has no earlier comparison.
+
+Choose these invariants from the actual instruction. `task.criteria` continues
+to hold the intended hard and advisory review requirements. A hard criterion can
+change under explicit authority and remain a hard review requirement of the new
+run. Its changed definition cannot at the same time satisfy a grant requiring
+that id to stay identical. Scripts compare the declared values; they do not
+interpret an instruction or choose the protection scope.
+
+`workspace --phase decision`, `draft-execution`, `draft-authority-update` and
+unsent-run status expose the same comparison in
+`authorization_requirements.protected_criteria`. The report names the comparison
+run, production series, changed ids and their exact before/after values. Grant
+eligibility includes this constraint. A conflicting selected grant reports its
+actual declaration field and the public authority update action.
+
+When an existing actual instruction authorizes a change, use that evidence to
+author the corresponding grant terms. The run-bound additional-grant draft
+preserves every existing grant and records a separate selection; choose its
+`protected_criteria` from the invariants the instruction still requires, import
+it with the observed predecessor, and select that grant for the affected
+operation. A complete current-authority declaration can also record a supported
+change to existing grant terms. Follow the report's update action for that
+owner. Keep the new task's hard review requirements and every saved run intact.
+An already imported compact addition is retained evidence: draft a new update
+against current authority for another change.
+

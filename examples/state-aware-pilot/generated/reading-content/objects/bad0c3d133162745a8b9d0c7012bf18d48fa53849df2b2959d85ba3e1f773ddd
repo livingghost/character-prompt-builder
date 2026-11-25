@@ -1,0 +1,8 @@
+#### Bind input work to the open task
+
+Use [Craft consultation](craft-consultation.md) while deciding what to write or revise.
+Open the work task before reading or drafting its inputs, using
+`work_ledger.py begin --studio STUDIO --goal TEXT --step TEXT`. Reuse its task ID
+through input authoring and preparation. The input builders and route reader
+save their progress under that task automatically.
+

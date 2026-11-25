@@ -20,6 +20,162 @@ from pack_cache import RuntimePackCatalog, RuntimePackEntry, RuntimePackResource
 
 PARAGRAPH = 'The operator preserves the selected source and records the explicit decision before performing the requested operation.'
 
+
+def _section(identifier: str, body: bytes) -> list[dict]:
+    return [{'id': identifier, 'body': body.decode('utf-8')}]
+
+
+def _body_bytes(sections: list[dict]) -> bytes:
+    return ''.join(section['body'] for section in sections).encode('utf-8')
+
+
+def _replace_body(sections: list[dict], old: bytes, new: bytes) -> list[dict]:
+    return [{'id': section['id'], 'body': section['body'].replace(old.decode('utf-8'), new.decode('utf-8'))}
+            for section in sections]
+
+
+def _write_document(root: Path, document_id: str, sections: list[dict]) -> None:
+    """Author canonical sections directly, without a Markdown or index fixture."""
+    path = root / r.record_path(document_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(c.encoded({'sections': sections}))
+
+
+def _document(root: Path, document_id: str):
+    return r.DocumentReader(lambda path: (root / path).read_bytes()).acquire(document_id)
+
+
+def _document_bytes(root: Path, document_id: str) -> bytes:
+    return b''.join(section.raw for section in _document(root, document_id).sections)
+
+
+def _selected_bytes(root: Path, document: dict) -> bytes:
+    acquired = _document(root, document['document_id'])
+    return b''.join(acquired.section(section['section_id']).raw for section in document['sections'])
+
+
+class CanonicalSectionTests(unittest.TestCase):
+    def test_one_acquisition_retains_immutable_structure_without_sharing_exports(self):
+        sections = (_section('opening', b'Opening.\n\n') +
+                    _section('first', b'# First\nFull first body.\n\n') +
+                    _section('second', b'## Second\nFull second body.\n'))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_document(root, 'current', sections)
+            acquired = []
+            def read(path):
+                acquired.append(path)
+                return (root / path).read_bytes()
+            reader = r.DocumentReader(read)
+            original = reader.acquire('current')
+            expected = original.sections
+            for _ in range(8):
+                current = reader.acquire('current')
+                self.assertIs(current, original)
+                self.assertEqual(current.sections, expected)
+                section = current.sections[0].metadata()
+                section['sha256'] = 'Changed by caller'
+                record = current.record
+                record['size'] = 0
+            self.assertEqual(original.sections, expected)
+            self.assertEqual(original.record['size'], (root / r.record_path('current')).stat().st_size)
+            self.assertEqual(acquired, [r.record_path('current')])
+            self.assertEqual(b''.join(section.raw for section in original.sections), _body_bytes(sections))
+
+    def test_explicit_sections_preserve_complete_body_bytes_and_independent_headings(self):
+        sections = (_section('opening', b'Opening.\r\n\r\n') +
+            _section('first', b'# Repeat ###\r\nFirst body.\r\n```md\r\n# Fenced example\r\n```\r\n') +
+            _section('second', b'Repeat\r\n------\r\nSecond body.\r\n'
+                b'## Presentation inside the same section\r\nMore full text.\r\n'
+                b'~~~\r\nFenced setext\r\n======\r\n~~~\r\n') +
+            _section('last', b'## Caf\xc3\xa9\r\nFinal body.\r\n'))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_document(root, 'current', sections)
+            current = _document(root, 'current').sections
+        self.assertEqual([section.section_id for section in current], ['opening', 'first', 'second', 'last'])
+        self.assertEqual(b''.join(section.raw for section in current), _body_bytes(sections))
+        for section, expected in zip(current, sections):
+            self.assertEqual(section.raw, expected['body'].encode('utf-8'))
+            self.assertEqual(section.metadata(), {'section_id': expected['id'],
+                'sha256': c.digest(section.raw), 'size': len(section.raw)})
+
+    def test_current_record_bytes_are_acquired_even_with_same_size_and_mtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = _section('stable', b'# First\nBody.\n')
+            other = _section('stable', b'# Other\nBody.\n')
+            _write_document(root, 'current', first)
+            path = root / r.record_path('current')
+            original_stat = path.stat()
+            original = _document(root, 'current')
+            _write_document(root, 'current', other)
+            os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+            self.assertEqual(path.stat().st_size, original_stat.st_size)
+            self.assertEqual(path.stat().st_mtime_ns, original_stat.st_mtime_ns)
+            changed = _document(root, 'current')
+            self.assertEqual(original.sections[0].section_id, changed.sections[0].section_id)
+            self.assertEqual(changed.sections[0].raw, _body_bytes(other))
+            self.assertNotEqual(original.sections[0].sha256, changed.sections[0].sha256)
+            self.assertNotEqual(original.record['sha256'], changed.record['sha256'])
+
+    def test_canonical_records_do_not_reuse_root_or_scope_decisions(self):
+        sections = (_section('first', b'# First\nFirst body.\n\n') +
+                    _section('other', b'# Other\nOther body.\n'))
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ('left', 'right'):
+                root = Path(directory) / name
+                _write_document(root, 'current', sections)
+                manifest = {'routes': {'generation': {'default_operation': 'adopt',
+                    'features': [], 'reads': ['current'], 'stages': []}}, 'features': {},
+                    'operation_contexts': {'adopt': {'reads': [], 'executions': {'authored': []}}},
+                    'reading_scopes': {'adopt': {'documents': {'current': [
+                        {'scopes': ['delivery-only'], 'sections': ['first'], 'reason': name + ' delivery'},
+                        {'scopes': ['sheet'], 'sections': ['other'], 'reason': name + ' sheet'}]}}}}
+                (root / r.execution_routes.MANIFEST).parent.mkdir(parents=True, exist_ok=True)
+                (root / r.execution_routes.MANIFEST).write_bytes(c.encoded(manifest))
+            for name, scope, expected in (('left', 'delivery-only', 'first'),
+                                          ('left', 'sheet', 'other'),
+                                          ('right', 'sheet', 'other')):
+                resolved = r.execution_routes.resolve('generation', operation='adopt',
+                    execution='authored', scope=scope, source_kind='production-candidate',
+                    root=Path(directory) / name)
+                owner = resolved['section_owners']['current'][0]
+                self.assertEqual(owner['section_id'], expected)
+                self.assertEqual(owner['reason'], name + (' delivery' if scope == 'delivery-only' else ' sheet'))
+                self.assertIn('scope:' + scope, owner['selected_by'])
+
+    def test_snapshot_navigation_and_delivery_use_only_canonical_section_bodies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sections = (_section('stable-first', b'# Same title\nFull first body.\n\n') +
+                        _section('stable-second', b'## Same title\nFull second body.\n'))
+            _write_document(root, 'current', sections)
+            manifest = {'routes': {'generation': {'default_operation': 'prepare',
+                'features': [], 'reads': ['current'], 'stages': []}}, 'features': {},
+                'operation_contexts': {'prepare': {'reads': [], 'executions': {'authored': []}}}}
+            (root / r.execution_routes.MANIFEST).parent.mkdir(parents=True, exist_ok=True)
+            (root / r.execution_routes.MANIFEST).write_bytes(c.encoded(manifest))
+            ledger = root / 'work/reads.jsonl'
+            indexed = r.read_page(route='generation', execution='authored', root=root,
+                ledger=ledger, navigation=True, stream=io.StringIO())
+            record = root / r.record_path('current')
+            original = record.read_bytes()
+            record.unlink()
+            expanded = r.read_page(snapshot_id=indexed['snapshot'], index_source='current',
+                navigation=True, root=root, ledger=ledger, stream=io.StringIO())
+            record.write_bytes(original)
+            self.assertEqual([row['section_id'] for row in expanded['index'][0]['sections']],
+                             ['stable-first', 'stable-second'])
+            self.assertEqual([row['selector'] for row in expanded['index'][0]['sections']],
+                             ['current#stable-first', 'current#stable-second'])
+            self.assertTrue(all('heading' not in row for row in expanded['index'][0]['sections']))
+            delivered = r.read_page(snapshot_id=indexed['snapshot'], root=root,
+                ledger=ledger, stream=io.StringIO())
+            self.assertEqual(''.join(row['text'] for row in delivered['body']).encode(), _body_bytes(sections))
+            self.assertIsNotNone(delivered['reading'])
+
+
 class ReadingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -27,19 +183,19 @@ class ReadingTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root/'config').mkdir()
         (self.root/'notes').mkdir()
-        self.manifest = {'operation_contexts': {name: {'reads': ['notes/always.md'],
+        self.manifest = {'operation_contexts': {name: {'reads': ['notes/always'],
             'executions': {mode: [] for mode in r.execution_routes.EXECUTIONS}}
             for name in r.execution_routes.OPERATIONS}, 'routes': {
-            'development': {'default_operation':'author', 'features': [], 'reads': ['notes/work.md'], 'stages': []},
-            'generation': {'default_operation':'prepare', 'features': [], 'reads': ['notes/work.md'], 'stages': []}},
-            'features': {'extra': {'reads': ['notes/extra.md'], 'source_roles': []}},
+            'development': {'default_operation':'author', 'features': [], 'reads': ['notes/work'], 'stages': []},
+            'generation': {'default_operation':'prepare', 'features': [], 'reads': ['notes/work'], 'stages': []}},
+            'features': {'extra': {'reads': ['notes/extra'], 'source_roles': []}},
             'reading_scopes': {operation: {'documents': {}} for operation in ('adopt', 'withdraw')}}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         # Bytes, not text: the read delivers exact bytes on every platform.
         (self.root/'SKILL.md').write_bytes(('# Skill\n\n'+PARAGRAPH+'\n').encode())
-        (self.root/'notes/always.md').write_bytes(('# Always\n\n'+PARAGRAPH+'\n').encode())
-        (self.root/'notes/work.md').write_bytes(('# Work\n\n'+PARAGRAPH+'\n').encode())
-        (self.root/'notes/extra.md').write_bytes(('# Extra\n\n'+PARAGRAPH+'\n').encode())
+        _write_document(self.root, 'notes/always', _section('always', ('# Always\n\n'+PARAGRAPH+'\n').encode()))
+        _write_document(self.root, 'notes/work', _section('work', ('# Work\n\n'+PARAGRAPH+'\n').encode()))
+        _write_document(self.root, 'notes/extra', _section('extra', ('# Extra\n\n'+PARAGRAPH+'\n').encode()))
         self.ledger = self.root/'work/reads.jsonl'
     def issued(self, route='generation', features=None):
         return r.issue(route, features, root=self.root, ledger=self.ledger,
@@ -60,9 +216,9 @@ class ReadingTests(unittest.TestCase):
         stream=io.StringIO()
         issued=r.issue('generation',root=self.root,ledger=self.ledger,stream=stream, execution='dispatcher')
         out=stream.getvalue()
-        self.assertEqual(['notes/always.md','notes/work.md'],[x['path'] for x in issued['row']['documents']])
-        for name in ('notes/always.md','notes/work.md'):
-            self.assertIn((self.root/name).read_bytes().decode('utf-8'), [item['text'] for item in json.loads(out)['body']])
+        self.assertEqual(['notes/always','notes/work'],[x['document_id'] for x in issued['row']['documents']])
+        for name in ('notes/always','notes/work'):
+            self.assertIn(_document_bytes(self.root, name).decode('utf-8'), [item['text'] for item in json.loads(out)['body']])
         self.assertEqual(json.loads(out)['reading']['key'], issued['reading_key'])
     def test_route_and_feature_errors_explain_selection_before_delivery(self):
         cases = [
@@ -104,8 +260,8 @@ class ReadingTests(unittest.TestCase):
                                 root=self.root, ledger=self.ledger, stream=io.StringIO())
         self.assertEqual(corrected['issued']['row']['route'], 'development')
         self.assertEqual(corrected['issued']['row']['features'], ['extra'])
-        self.assertEqual([item['metadata']['path'] for item in corrected['body']],
-                         ['notes/always.md', 'notes/work.md', 'notes/extra.md'])
+        self.assertEqual([item['metadata']['document_id'] for item in corrected['body']],
+                         ['notes/always', 'notes/work', 'notes/extra'])
     def test_only_a_failed_resource_blocks_a_reading(self):
         self.manifest['features']['prompt-dialect'] = {'reads': [], 'source_roles': []}
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
@@ -139,9 +295,8 @@ class ReadingTests(unittest.TestCase):
                 self.assertIsNone(record['model'])
                 verified = r.require_route_reading(record, root=self.root, ledgers=[self.ledger],
                     operation=operation, execution='external')
-                self.assertEqual(sum(item['body']['source_end'] - item['body']['source_start']
-                                     for item in verified['delivery']['bodies']),
-                    sum(end['end'] - end['start'] for document in record['documents'] for end in document['ranges']))
+                self.assertEqual(sum(item['body']['size'] for item in verified['delivery']['bodies']),
+                    sum(section['size'] for document in record['documents'] for section in document['sections']))
 
     def test_saved_request_reading_action_uses_saved_task_without_live_model_selection(self):
         from types import SimpleNamespace
@@ -164,13 +319,13 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual((report['ok'],report['errors']),(True,[]))
     def test_species_doctrine_comes_only_with_body_plan(self):
         manifest=c.load(r.ROOT/r.execution_routes.MANIFEST)
-        species={'references/morphology-and-species-contracts.md','references/species-architecture.md'}
+        species={'references/morphology-and-species-contracts','references/species-architecture'}
         carriers={name for group in ('features','routes') for name,entry in manifest[group].items()
                   if species & set(entry['reads'])}
         self.assertEqual(carriers,{'body-plan'})
         self.assertEqual(manifest['features']['recurring-identity']['reads'],[
-            'references/character-identity-contract.md',
-            'references/runtime/prompt-vocabulary.md',
+            'references/character-identity-contract',
+            'references/runtime/prompt-vocabulary',
         ])
     def test_a_route_reads_its_complete_operation_and_specialists(self):
         manifest = c.load(r.ROOT/r.execution_routes.MANIFEST)
@@ -178,30 +333,30 @@ class ReadingTests(unittest.TestCase):
         expected = manifest['operation_contexts']['author']['reads'] + manifest['routes']['prompt-only']['reads']
         expected += manifest['operation_contexts']['author']['executions']['authored']
         expected += manifest['features']['render-contract']['reads']
-        self.assertEqual({row['path'] for row in authored['reads']}, set(expected))
+        self.assertEqual({row['document_id'] for row in authored['reads']}, set(expected))
         self.assertEqual(authored['operation'], 'author')
         prepared = r.execution_routes.resolve('repose', execution='dispatcher')
         self.assertEqual(prepared['operation'], 'prepare')
         self.assertEqual(prepared['features'], ['generation-package','prompt-dialect','reference-delivery','render-contract','studio'])
-        package = 'references/runtime/generation-package.md'
-        self.assertIn(package, {row['path'] for row in prepared['reads']})
+        package = 'references/runtime/generation-package'
+        self.assertIn(package, {row['document_id'] for row in prepared['reads']})
         external = r.execution_routes.resolve('generation', execution='external', operation='execute')
-        paths = {row['path'] for row in external['reads']}
-        self.assertIn('references/runtime/production-external-execution.md', paths)
-        self.assertNotIn('references/runtime/production-dispatch.md', paths)
+        paths = {row['document_id'] for row in external['reads']}
+        self.assertIn('references/runtime/production-external-execution', paths)
+        self.assertNotIn('references/runtime/production-dispatch', paths)
         self.assertNotIn(package, paths)
         packaged = r.execution_routes.resolve('generation', ['generation-package'], execution='external')
-        self.assertIn(package, {row['path'] for row in packaged['reads']})
-        self.assertNotIn('references/runtime/production-dispatch.md', {row['path'] for row in packaged['reads']})
+        self.assertIn(package, {row['document_id'] for row in packaged['reads']})
+        self.assertNotIn('references/runtime/production-dispatch', {row['document_id'] for row in packaged['reads']})
         ordinary = r.execution_routes.resolve('generation', execution='external', operation='prepare')
-        paths = {row['path'] for row in ordinary['reads']}
-        self.assertIn('references/runtime/production-diagnostic-navigation.md', paths)
-        self.assertNotIn('references/runtime/production-diagnostics.md', paths)
-        self.assertNotIn('references/runtime/studio-placement.md', paths)
+        paths = {row['document_id'] for row in ordinary['reads']}
+        self.assertIn('references/runtime/production-diagnostic-navigation', paths)
+        self.assertNotIn('references/runtime/production-diagnostics', paths)
+        self.assertNotIn('references/runtime/studio-placement', paths)
         placement = r.execution_routes.resolve('generation', ['studio-placement'], execution='external', operation='adopt',
                                               scope='studio-slot', source_kind='production-candidate')
-        self.assertIn('references/runtime/studio-placement.md', {row['path'] for row in placement['reads']})
-        self.assertEqual(placement['read_owners']['references/runtime/studio-placement.md'], ['feature:studio-placement'])
+        self.assertIn('references/runtime/studio-placement', {row['document_id'] for row in placement['reads']})
+        self.assertEqual(placement['read_owners']['references/runtime/studio-placement'], ['feature:studio-placement'])
     def test_package_reading_requires_its_complete_artifact_contract(self):
         plain = r.issue('generation', execution='external', ledger=self.ledger, stream=io.StringIO())
         record = r.build_record(plain, ledgers=[self.ledger])
@@ -235,7 +390,7 @@ class ReadingTests(unittest.TestCase):
         original = path.read_bytes()
         self.assertEqual(r.write_draft(issued, self.ledger), path)
         self.assertEqual(path.read_bytes(), original)
-        changed = c.load(path); changed['documents'][0]['sha256'] = '0' * 64
+        changed = c.load(path); changed['documents'][0]['sections'][0]['sha256'] = '0' * 64
         path.write_bytes(c.encoded(changed))
         with self.assertRaisesRegex(ValueError, 'differs from its issuance'):
             r.write_draft(issued, self.ledger)
@@ -266,7 +421,7 @@ class ReadingTests(unittest.TestCase):
             for segment in result['body']:
                 header=segment['metadata']
                 body=segment['text'].encode('utf-8')
-                key=(header['kind'],header['path'])
+                key=(header['kind'], header.get('document_id', header.get('path')), header.get('section_id'))
                 self.assertEqual(len(body),header['end']-header['start'])
                 self.assertEqual(len(delivered.get(key,b'')),header['start'])
                 delivered[key]=delivered.get(key,b'')+body
@@ -289,52 +444,57 @@ class ReadingTests(unittest.TestCase):
         draft=c.load(self.root/result['reading']['record'])
         self.assertEqual((draft['route'],draft['operation']),('development','author'))
         for document in draft['documents']:
-            body=(r.ROOT/document['path']).read_bytes()
-            self.assertEqual(delivered[('document',document['path'])],body)
-            self.assertEqual(document['sha256'],c.digest(body))
+            source = _document(r.ROOT, document['document_id'])
+            for selected in document['sections']:
+                section = source.section(selected['section_id'])
+                self.assertEqual(delivered[('document-section', document['document_id'], section.section_id)], section.raw)
+                self.assertEqual(selected, section.metadata())
         r.require_route_reading(draft,root=r.ROOT,ledgers=[ledger])
 
     def test_each_operation_delivers_its_complete_contract(self):
         required = {
-            ('author', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authoring.md', 'references/runtime/production-authored-storage.md',
-                       'references/runtime/production-direction.md'},
-            ('save', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authored-storage.md'},
-            ('prepare', 'dispatcher'): {'references/runtime/authoring-work.md', 'references/runtime/production-preparation.md', 'references/runtime/production-diagnostic-navigation.md'},
-            ('prepare', 'external'): {'references/runtime/authoring-work.md', 'references/runtime/production-image-inputs.md', 'references/runtime/production-external-inputs.md'},
-            ('execute', 'dispatcher'): {'references/runtime/production-dispatch.md', 'references/runtime/production-permissions.md',
-                                       'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
-            ('execute', 'external'): {'references/runtime/production-external-execution.md', 'references/runtime/production-permissions.md',
-                                     'references/runtime/production-request-execution.md', 'references/runtime/production-recovery.md'},
-            ('review', 'external'): {'references/runtime/authoring-work.md', 'references/runtime/production-review.md'},
-            ('review', 'authored'): {'references/runtime/authoring-work.md', 'references/runtime/production-authored-storage.md'},
+            ('author', 'authored'): {'references/runtime/authoring-work', 'references/runtime/production-authoring',
+                'references/runtime/production-authored-storage', 'references/runtime/production-direction'},
+            ('save', 'authored'): {'references/runtime/authoring-work', 'references/runtime/production-authored-storage'},
+            ('prepare', 'dispatcher'): {'references/runtime/authoring-work', 'references/runtime/production-preparation',
+                'references/runtime/production-diagnostic-navigation'},
+            ('prepare', 'external'): {'references/runtime/authoring-work', 'references/runtime/production-image-inputs',
+                'references/runtime/production-external-inputs'},
+            ('execute', 'dispatcher'): {'references/runtime/production-dispatch', 'references/runtime/production-permissions',
+                'references/runtime/production-request-execution', 'references/runtime/production-recovery'},
+            ('execute', 'external'): {'references/runtime/production-external-execution', 'references/runtime/production-permissions',
+                'references/runtime/production-request-execution', 'references/runtime/production-recovery'},
+            ('review', 'external'): {'references/runtime/authoring-work', 'references/runtime/production-review'},
+            ('review', 'authored'): {'references/runtime/authoring-work', 'references/runtime/production-authored-storage'},
         }
         for (operation, execution), names in required.items():
             with self.subTest(operation=operation, execution=execution):
                 manifest, bodies = r.capture('development', operation=operation, execution=execution)
                 received = {}
                 for meta, body in bodies:
-                    if meta['kind'] == 'document':
-                        received.setdefault(meta['path'], []).append((meta, body))
+                    if meta['kind'] == 'document-section':
+                        received.setdefault(meta['document_id'], []).append((meta, body))
                 self.assertEqual(manifest['execution'], execution)
                 for name in names:
                     self.assertIn(name, received)
-                    if not ((operation == 'execute' and name == 'references/runtime/production-permissions.md')
-                            or (operation == 'review' and name == 'references/runtime/authoring-work.md')):
-                        self.assertEqual(b''.join(body for _, body in received[name]), (r.ROOT/name).read_bytes())
+                    if not ((operation == 'execute' and name == 'references/runtime/production-permissions')
+                            or (operation == 'review' and name == 'references/runtime/authoring-work')):
+                        self.assertEqual(b''.join(body for _, body in received[name]), _document_bytes(r.ROOT, name))
                 for document in manifest['documents']:
-                    source = (r.ROOT/document['path']).read_bytes()
-                    expected = b''.join(source[part['start']:part['end']] for part in document['ranges'])
-                    self.assertEqual(b''.join(body for _, body in received[document['path']]), expected)
-                    for meta, body in received[document['path']]:
-                        self.assertEqual(body, source[meta['source_start']:meta['source_end']])
-                        self.assertEqual(meta['source_sha256'], c.digest(source))
+                    source = _document(r.ROOT, document['document_id'])
+                    self.assertEqual(b''.join(body for _, body in received[document['document_id']]),
+                                     _selected_bytes(r.ROOT, document))
+                    for meta, body in received[document['document_id']]:
+                        section = source.section(meta['section_id'])
+                        self.assertEqual(body, section.raw)
+                        self.assertEqual(meta['sha256'], c.digest(body))
+                        self.assertEqual(meta['size'], len(body))
                 if execution != 'dispatcher':
-                    self.assertNotIn('references/runtime/production-dispatch.md', received)
+                    self.assertNotIn('references/runtime/production-dispatch', received)
         _, bodies = r.capture('prompt-only', operation='author', execution='authored')
-        received = {meta['path'] for meta, _ in bodies}
-        self.assertNotIn('references/runtime/production-dispatch.md', received)
-        self.assertNotIn('references/runtime/production-adoption.md', received)
-        self.assertNotIn('references/runtime/production-external-inputs.md', received)
+        received = {meta['document_id'] for meta, _ in bodies if meta['kind'] == 'document-section'}
+        self.assertFalse({'references/runtime/production-dispatch', 'references/runtime/production-adoption',
+                          'references/runtime/production-external-inputs'} & received)
 
     def cli_read(self, argv, *, cwd, environment):
         run = subprocess.run(argv, cwd=cwd, env=environment, capture_output=True,
@@ -683,6 +843,86 @@ class ReadingTests(unittest.TestCase):
         r.require_model_reading(record, model_record=model, service='interface-b', resource_reader=lambda name: None)
         self.assertIsNone(record['model']['service'])
 
+    def test_construction_defers_writing_and_rendition_delivers_it_before_issuing(self):
+        from model_prompt_input_fixtures import prompt_input
+        catalog, guide = self.family_catalog()
+        self.manifest['reading_scopes']['authoring'] = {'documents': {}}
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        model = {'id': 'defined-model', 'prompt_dialect': 'family-a',
+                 'prompt_input': prompt_input('tag-based', vocabularies=('synthetic',))}
+        scope = {'stage': 'definition', 'composition': 'compose', 'source_formats': ['text'],
+                 'documents': [], 'render_operation': 'generation', 'conditions': []}
+        with catalog:
+            for stage in ('definition', 'depiction'):
+                with (self.subTest(stage=stage), patch.object(r, '_live_resource_reader',
+                        side_effect=AssertionError('Construction does not author a rendition'))):
+                    defined = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                        stream=io.StringIO(), execution='dispatcher', model_record=model,
+                        authoring_scope={**scope, 'stage': stage})
+                self.assertEqual(defined['row']['resources'], {})
+                self.assertEqual(defined['row']['model']['id'], model['id'])
+            definition = r.draft_record(defined)
+            forbidden = lambda name: self.fail('Construction acquired a writing resource: ' + name)
+            r.require_route_reading(definition, root=self.root, ledgers=[self.ledger],
+                authoring_scope=scope, model_record=model, dialect='family-a', resource_reader=forbidden)
+            for stage in ('rendition', 'prepare'):
+                with self.subTest(stage=stage):
+                    current_scope = {**scope, 'stage': stage}
+                    operation = 'prepare' if stage == 'prepare' else 'author'
+                    with self.assertRaises(r.ReadingSourcesChanged):
+                        r.require_route_reading(definition, root=self.root, ledgers=[self.ledger],
+                            authoring_scope=current_scope, operation=operation, model_record=model, dialect='family-a')
+                    with patch.object(r, '_selected_model', return_value=(model['id'], model)):
+                        result = r.read_page(route='generation', features=['prompt-dialect'],
+                            execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                            model=model['id'], authoring_scope=current_scope,
+                            known_reading_keys=[defined['reading_key']], page_bytes=300)
+                        segments = list(result['body'])
+                        self.assertIsNone(result['reading'])
+                        while result['reading'] is None:
+                            result = r.read_page(cursor=result['cursor'], page_bytes=300,
+                                root=self.root, ledger=self.ledger, stream=io.StringIO())
+                            segments.extend(result['body'])
+                    self.assertGreater(result['progress']['reused_bytes'], 0)
+                    self.assertEqual(result['progress']['remaining_bytes'], 0)
+                    current = r.draft_record(result['issued'])
+                    self.assertEqual(set(current['resources']), {'prompt-writing-guide', 'prompt-dialects'})
+                    text = ''.join(row['text'] for row in segments)
+                    self.assertIn(guide['sections'][0]['rules'][0], text)
+                    self.assertIn(guide['sections'][1]['rules'][0], text)
+                    self.assertNotIn(guide['sections'][2]['rules'][0], text)
+                    r.require_route_reading(current, root=self.root, ledgers=[self.ledger],
+                        authoring_scope=current_scope, operation=operation, model_record=model, dialect='family-a')
+                    with patch.object(r, '_selected_model', return_value=(model['id'], model)):
+                        fresh = r.read_page(route='generation', features=['prompt-dialect'],
+                            execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO(),
+                            model=model['id'], authoring_scope=current_scope, page_bytes=300)
+                        fresh_bytes = sum(len(row['text'].encode('utf-8')) for row in fresh['body'])
+                        while fresh['reading'] is None:
+                            self.assertEqual(fresh['progress']['reused_bytes'], 0)
+                            fresh = r.read_page(cursor=fresh['cursor'], page_bytes=300,
+                                root=self.root, ledger=self.ledger, stream=io.StringIO())
+                            fresh_bytes += sum(len(row['text'].encode('utf-8')) for row in fresh['body'])
+                    self.assertEqual(fresh['progress']['reused_bytes'], 0)
+                    self.assertEqual(fresh_bytes, fresh['progress']['required_bytes'])
+                    fresh_record = r.draft_record(fresh['issued'])
+                    self.assertEqual(fresh_record['documents'], current['documents'])
+                    self.assertEqual(fresh_record['resources'], current['resources'])
+            self.assertEqual(definition, r.draft_record(defined))
+
+    def test_unknown_definition_sources_or_target_change_keep_current_writing_guidance(self):
+        catalog, _ = self.family_catalog()
+        self.manifest['reading_scopes']['authoring'] = {'documents': {}}
+        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
+        with catalog:
+            for condition in ('unknown-sources', 'target-change'):
+                with self.subTest(condition=condition):
+                    scope = {'stage': 'definition', 'composition': 'compose', 'source_formats': ['text'],
+                             'documents': [], 'render_operation': 'generation', 'conditions': [condition]}
+                    issued = r.issue('generation', ['prompt-dialect'], root=self.root, ledger=self.ledger,
+                        stream=io.StringIO(), execution='dispatcher', authoring_scope=scope)
+                    self.assertEqual(set(issued['row']['resources']), {'prompt-writing-guide', 'prompt-dialects'})
+
     def amendment_scope(self, profiles, changes, *, stage='rendition', conditions=None):
         self.manifest['reading_scopes']['amendment'] = {'documents': {}}
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
@@ -935,7 +1175,7 @@ class ReadingTests(unittest.TestCase):
 
     def test_current_scope_preserves_an_unneeded_changed_specialist(self):
         record = self.record(features=['extra'])
-        (self.root / 'notes/extra.md').write_bytes(b'# Changed specialist\nA different specialist source.\n')
+        _write_document(self.root, 'notes/extra', _section('extra', b'# Changed specialist\nA different specialist source.\n'))
         r.require_route_reading(record, root=self.root, ledgers=[self.ledger], features=[])
         issued = r.resolve_issuance(record['reading_key'], ledgers=[self.ledger])
         self.assertEqual(r.build_record(issued, root=self.root, ledgers=[self.ledger], features=[]), record)
@@ -944,7 +1184,7 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(r.ledger_rows(copied), r.ledger_rows(self.ledger))
         with self.assertRaises(r.ReadingSourcesChanged) as failure:
             r.require_route_reading(record, root=self.root, ledgers=[self.ledger], features=['extra'])
-        self.assertEqual([row['path'] for row in failure.exception.changes], ['notes/extra.md'])
+        self.assertEqual([row['document_id'] for row in failure.exception.changes], ['notes/extra'])
         self.assertEqual(failure.exception.as_dict()['code'], 'READING_SOURCES_CHANGED')
         from production_diagnostics import from_exception
         diagnostic = from_exception(failure.exception, phase='authoring', file='choices.json')
@@ -964,22 +1204,22 @@ class ReadingTests(unittest.TestCase):
         self.assertNotEqual(reused['issued']['reading_key'], issued['reading_key'])
         self.assertTrue(self.ledger.read_bytes().startswith(before))
         self.assertEqual(reused['progress']['reused_bytes'], reused['progress']['required_bytes'])
-        changed = b'# Changed work\nA current source.\n'
-        (self.root / 'notes/work.md').write_bytes(changed)
+        changed = _section('work', b'# Changed work\nA current source.\n')
+        _write_document(self.root, 'notes/work', changed)
         current = r.read_page(route='generation', root=self.root, ledger=self.ledger, stream=io.StringIO(),
                               operation='save', execution='dispatcher', known_reading_keys=[issued['reading_key']])
-        self.assertEqual([item['metadata']['path'] for item in current['body']], ['notes/work.md'])
-        self.assertEqual(current['body'][0]['text'].encode(), changed)
+        self.assertEqual([item['metadata']['document_id'] for item in current['body']], ['notes/work'])
+        self.assertEqual(current['body'][0]['text'].encode(), _body_bytes(changed))
         self.assertEqual(current['progress']['reused_bodies'], 1)
         r.require_route_reading(r.draft_record(current['issued']), root=self.root, ledgers=[self.ledger])
 
     def test_phase_continuation_combines_multiple_complete_readings_and_keeps_origins(self):
         for name in ('prepare', 'execute', 'review', 'adopt'):
-            path = 'notes/' + name + '.md'
-            (self.root / path).write_bytes(('# ' + name + '\nComplete ' + name + ' contract.\n').encode())
+            path = 'notes/' + name
+            _write_document(self.root, path, _section(name.lower(), ('# ' + name + '\nComplete ' + name + ' contract.\n').encode()))
             self.manifest['operation_contexts'][name]['reads'].append(path)
-        self.manifest['operation_contexts']['review']['reads'] += ['notes/prepare.md', 'notes/execute.md']
-        self.manifest['operation_contexts']['adopt']['reads'] += ['notes/prepare.md', 'notes/review.md']
+        self.manifest['operation_contexts']['review']['reads'] += ['notes/prepare', 'notes/execute']
+        self.manifest['operation_contexts']['adopt']['reads'] += ['notes/prepare', 'notes/review']
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         prepared = self.root / 'prepared-request.json'
         original = b'{"prompt":"The retained character choice.","seed":31}\n'
@@ -992,7 +1232,7 @@ class ReadingTests(unittest.TestCase):
                                  root=self.root, ledger=self.ledger, stream=output, known_reading_keys=keys,
                                  **({'scope': 'studio-slot', 'source_kind': 'production-candidate'} if operation == 'adopt' else {}))
             response = json.loads(output.getvalue())
-            paths = [item['metadata']['path'] for item in response['body']]
+            paths = [item['metadata']['document_id'] for item in response['body']]
             self.assertTrue(paths)
             self.assertFalse(set(paths) & seen)
             self.assertEqual(response['reading']['key'], result['issued']['reading_key'])
@@ -1003,10 +1243,10 @@ class ReadingTests(unittest.TestCase):
             record = r.draft_record(result['issued'])
             r.require_route_reading(record, root=self.root, ledgers=[self.ledger], operation=operation)
             self.assertEqual(prepared.read_bytes(), original)
-        self.assertEqual(delivered, sum((self.root / path).stat().st_size for path in seen))
+        self.assertEqual(delivered, sum(len(_document_bytes(self.root, path)) for path in seen))
         adopted = result['issued']['row']
         first = r.resolve_issuance(keys[0], ledgers=[self.ledger])['row']
-        work = next(item for item in adopted['delivery']['bodies'] if item['body']['path'] == 'notes/work.md')
+        work = next(item for item in adopted['delivery']['bodies'] if item['body']['document_id'] == 'notes/work')
         self.assertEqual(work['origin']['key_sha256'], first['key_sha256'])
         self.assertNotEqual(work['reused_from'], first['key_sha256'])
         copied = self.root / 'isolated-copy/reads.jsonl'
@@ -1036,7 +1276,7 @@ class ReadingTests(unittest.TestCase):
 
     def test_context_delta_replay_and_interruption_preserve_complete_union(self):
         issued = self.issued()
-        self.manifest['operation_contexts']['execute']['reads'].append('notes/extra.md')
+        self.manifest['operation_contexts']['execute']['reads'].append('notes/extra')
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         first = r.read_page(route='generation', operation='execute', execution='dispatcher',
                             root=self.root, ledger=self.ledger, stream=io.StringIO(),
@@ -1044,17 +1284,17 @@ class ReadingTests(unittest.TestCase):
         replay = r.read_page(cursor=first['cursor'], replay=True, root=self.root, ledger=self.ledger,
                              stream=io.StringIO(), page_bytes=11)
         self.assertEqual(replay['body'][0]['metadata']['start'], 0)
-        self.assertEqual(replay['body'][0]['metadata']['path'], 'notes/extra.md')
+        self.assertEqual(replay['body'][0]['metadata']['document_id'], 'notes/extra')
         self.assertEqual(len(r.ledger_rows(self.ledger)), 1)
         complete = r.read_page(cursor=replay['cursor'], root=self.root, ledger=self.ledger,
                                stream=io.StringIO(), page_bytes=10000)
-        self.assertEqual(complete['progress']['page_end'], first['progress']['page_end'])
+        self.assertEqual(complete['progress']['page_to'], first['progress']['page_to'])
         self.assertIsNone(complete['reading'])
         while complete['reading'] is None:
             complete = r.read_page(cursor=complete['cursor'], root=self.root, ledger=self.ledger,
                                    stream=io.StringIO(), page_bytes=10000)
         self.assertEqual(complete['progress']['reused_bodies'], 2)
-        self.assertEqual(complete['progress']['delivered_bytes'], (self.root / 'notes/extra.md').stat().st_size)
+        self.assertEqual(complete['progress']['delivered_bytes'], len(_document_bytes(self.root, 'notes/extra')))
         r.require_route_reading(r.draft_record(complete['issued']), root=self.root,
                                 ledgers=[self.ledger], operation='execute')
         again = r.read_page(cursor=complete['cursor'], replay=True, root=self.root,
@@ -1064,12 +1304,12 @@ class ReadingTests(unittest.TestCase):
 
     def test_changed_reused_source_during_new_body_delivery_never_issues_current_receipt(self):
         issued = self.issued()
-        self.manifest['operation_contexts']['execute']['reads'].append('notes/extra.md')
+        self.manifest['operation_contexts']['execute']['reads'].append('notes/extra')
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         first = r.read_page(route='generation', operation='execute', execution='dispatcher',
                             root=self.root, ledger=self.ledger, stream=io.StringIO(),
                             known_reading_keys=[issued['reading_key']], page_bytes=11)
-        (self.root / 'notes/work.md').write_bytes(b'# Changed during delivery\nCurrent source.\n')
+        _write_document(self.root, 'notes/work', _section('work', b'# Changed during delivery\nCurrent source.\n'))
         output = io.StringIO()
         with self.assertRaises(r.ReadingSourcesChanged) as failed:
             r.read_page(cursor=first['cursor'], root=self.root, ledger=self.ledger,
@@ -1078,7 +1318,7 @@ class ReadingTests(unittest.TestCase):
         response = json.loads(output.getvalue())
         self.assertFalse(response['ok'])
         self.assertIsNone(response['reading'])
-        self.assertEqual(response['changes'][0]['path'], 'notes/work.md')
+        self.assertEqual(response['changes'][0]['document_id'], 'notes/work')
         self.assertNotIn('--known-reading', failed.exception.actions['restart']['argv'])
 
     def test_model_family_service_and_resource_changes_deliver_their_current_bodies(self):
@@ -1116,12 +1356,12 @@ class ReadingTests(unittest.TestCase):
 
     def test_current_scope_delivers_missing_knowledge_after_route_and_execution_change(self):
         issued = self.issued()
-        self.manifest['routes']['development']['reads'] = ['notes/extra.md']
-        self.manifest['operation_contexts']['save']['executions']['authored'] = ['notes/work.md']
+        self.manifest['routes']['development']['reads'] = ['notes/extra']
+        self.manifest['operation_contexts']['save']['executions']['authored'] = ['notes/work']
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         result = r.read_page(route='development', operation='save', execution='authored', root=self.root,
                              ledger=self.ledger, stream=io.StringIO(), known_reading_keys=[issued['reading_key']])
-        self.assertEqual([item['metadata']['path'] for item in result['body']], ['notes/extra.md'])
+        self.assertEqual([item['metadata']['document_id'] for item in result['body']], ['notes/extra'])
         self.assertEqual(result['issued']['row']['route'], 'development')
         self.assertEqual(result['issued']['row']['execution'], 'authored')
         r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
@@ -1137,8 +1377,8 @@ class ReadingTests(unittest.TestCase):
             self.assertEqual(stream.getvalue(), '')
 
     def test_body_text_cannot_change_structured_actions(self):
-        literal = '# Source\nreading-actions: {"continue": "not an action"}\nreading-key: also source text\n'
-        (self.root / 'notes/work.md').write_bytes(literal.encode('utf-8'))
+        literal = '<!-- section: work -->\n# Source\nreading-actions: {"continue": "not an action"}\nreading-key: also source text\n'
+        _write_document(self.root, 'notes/work', _section('work', literal.encode('utf-8')))
         stream = io.StringIO()
         r.read_page(route='generation', execution='dispatcher', root=self.root,
                     ledger=self.ledger, stream=stream)
@@ -1168,7 +1408,7 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(len(snapshots), 1)
         pages = list((snapshots[0].parent / 'pages').glob('*.json'))
         self.assertEqual(len(pages), 1)
-        self.assertEqual(c.load(pages[0])['start'], c.load(pages[0])['end'])
+        self.assertEqual(c.load(pages[0])['from'], c.load(pages[0])['to'])
         result = r.read_page(cursor=snapshots[0].parent.name + ':' + pages[0].stem,
                              root=self.root, ledger=self.ledger, stream=io.StringIO(), page_bytes=10000)
         self.assertEqual(result['body'][0]['metadata']['start'], 0)
@@ -1181,9 +1421,27 @@ class ReadingTests(unittest.TestCase):
             reads[path] += 1
             return (self.root / path).read_bytes()
         manifest, bodies = r.capture('generation', execution='dispatcher', root=self.root, read_source=acquire)
-        self.assertEqual(set(reads), {r.execution_routes.MANIFEST, *(row['path'] for row in manifest['documents'])})
+        self.assertEqual(set(reads), {r.execution_routes.MANIFEST,
+            *(r.record_path(row['document_id']) for row in manifest['documents'])})
         self.assertTrue(all(count == 1 for count in reads.values()), reads)
-        self.assertEqual(len(bodies), len(manifest['documents']))
+        self.assertEqual(len(bodies), sum(len(doc['sections']) for doc in manifest['documents']))
+
+    def test_complete_delivery_does_not_parse_optional_resource_navigation(self):
+        catalog, _ = self.family_catalog()
+        with catalog, patch.object(r, '_json_headings',
+                side_effect=AssertionError('Complete delivery does not need a navigation index')):
+            manifest, expected = r.capture('generation', ['prompt-dialect'], execution='dispatcher',
+                dialect='family-a', root=self.root)
+            page = r.read_page(route='generation', features=['prompt-dialect'], execution='dispatcher',
+                dialect='family-a', root=self.root, ledger=self.ledger, stream=io.StringIO(), page_bytes=80)
+            shown = ''.join(item['text'] for item in page['body'])
+            while page['reading'] is None:
+                page = r.read_page(cursor=page['cursor'], root=self.root, ledger=self.ledger,
+                                   stream=io.StringIO(), page_bytes=80)
+                shown += ''.join(item['text'] for item in page['body'])
+            self.assertEqual(shown.encode('utf-8'), b''.join(raw for _, raw in expected))
+            self.assertTrue(any(meta['kind'] == 'resource' for meta, _ in expected))
+            self.assertEqual(r.draft_record(page['issued'])['resources'], manifest['resources'])
 
     def test_model_guidance_serialization_ignores_dictionary_insertion_order(self):
         from model_prompt_input_fixtures import prompt_input
@@ -1194,9 +1452,28 @@ class ReadingTests(unittest.TestCase):
         second, reordered_body = r._model_material(reordered, None)
         self.assertEqual((first, body), (second, reordered_body))
 
-    def test_document_update(self):
-        record=self.record(); (self.root/'notes/work.md').write_text(PARAGRAPH+' changed', encoding='utf-8')
-        with self.assertRaisesRegex(ValueError,'documents'): self.verify(record)
+    def test_document_update_names_each_changed_document(self):
+        record = self.record(features=['extra'])
+        original_record = c.content_id(record)
+        original_ledger = self.ledger.read_bytes()
+        for name in ('always', 'work'):
+            _write_document(self.root, 'notes/' + name,
+                            _section(name, (PARAGRAPH + ' changed').encode('utf-8')))
+        with self.assertRaises(r.ReadingSourcesChanged) as failure:
+            self.verify(record)
+        error = failure.exception
+        self.assertEqual(str(error), 'reading documents do not cover the current operation and execution; '
+                         'read their complete contract: notes/always, notes/work')
+        self.assertEqual([row['document_id'] for row in error.changes], ['notes/always', 'notes/work'])
+        self.assertTrue(all(row['kind'] == 'document' and row['change'] == 'modified'
+                            for row in error.changes))
+        from production_diagnostics import from_exception
+        diagnostic = from_exception(error, phase='route-reading')
+        self.assertEqual(diagnostic['message'], str(error))
+        self.assertEqual(diagnostic['changes'], error.changes)
+        self.assertEqual(diagnostic['required_action'], error.required_action)
+        self.assertEqual(c.content_id(record), original_record)
+        self.assertEqual(self.ledger.read_bytes(), original_ledger)
     def test_unrelated_issuance_preserves_record(self):
         record=self.record(); before=c.content_id(record)
         r.issue('development',root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='authored')
@@ -1213,8 +1490,8 @@ class ReadingTests(unittest.TestCase):
         row = r.require_route_reading(record, root=self.root, ledgers=[self.ledger], operation='save')
         self.assertEqual(row['operation'], 'author')
     def test_current_operation_requires_its_complete_contract(self):
-        self.manifest['operation_contexts']['execute']['reads'].append('notes/execute.md')
-        (self.root/'notes/execute.md').write_bytes(b'# Execute\n\nThe send and recovery contract.\n')
+        self.manifest['operation_contexts']['execute']['reads'].append('notes/execute')
+        _write_document(self.root, 'notes/execute', _section('execute', b'# Execute\n\nThe send and recovery contract.\n'))
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         record = self.record()
         with self.assertRaisesRegex(ValueError, 'current operation'):
@@ -1227,8 +1504,8 @@ class ReadingTests(unittest.TestCase):
             self.verify(record)
     def test_execution_coverage_uses_required_sources_and_preserves_issuance(self):
         for name in r.execution_routes.OPERATIONS:
-            self.manifest['operation_contexts'][name]['executions']['dispatcher'] = ['notes/dispatcher.md']
-        (self.root/'notes/dispatcher.md').write_bytes(b'# Dispatcher\n\nRetain exact transport and authentication recovery.\n')
+            self.manifest['operation_contexts'][name]['executions']['dispatcher'] = ['notes/dispatcher']
+        _write_document(self.root, 'notes/dispatcher', _section('dispatcher', b'# Dispatcher\n\nRetain exact transport and authentication recovery.\n'))
         (self.root/'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         issued = r.issue('generation', execution='external', root=self.root, ledger=self.ledger, stream=io.StringIO())
         record = r.draft_record(issued)
@@ -1241,11 +1518,11 @@ class ReadingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'documents|issuance'):
             self.verify(changed)
     def test_markdown_and_nonprose_are_delivered_as_complete_source_bytes(self):
-        raw = b'# Heading\n\n| field | value |\n| --- | --- |\n| A | **B** |\n\n```text\nliteral [link](source.md)\n```\n'
-        (self.root/'notes/work.md').write_bytes(raw)
+        raw = _section('work', b'# Heading\n\n| field | value |\n| --- | --- |\n| A | **B** |\n\n```text\nliteral [link](source.md)\n```\n')
+        _write_document(self.root, 'notes/work', raw)
         stream = io.StringIO()
         issued = r.issue('generation', root=self.root, ledger=self.ledger, stream=stream, execution='dispatcher')
-        self.assertIn(raw.decode('utf-8'), [item['text'] for item in json.loads(stream.getvalue())['body']])
+        self.assertIn(_body_bytes(raw).decode('utf-8'), [item['text'] for item in json.loads(stream.getvalue())['body']])
         self.verify(r.draft_record(issued))
     def test_corrupt_ledger_is_not_ignored(self):
         record=self.record();self.ledger.write_bytes(self.ledger.read_bytes()+b'{')
@@ -1259,37 +1536,39 @@ class ReadingTests(unittest.TestCase):
             def flush(self): raise OSError('synthetic sink closed')
         with self.assertRaises(OSError):r.issue('generation',root=self.root,ledger=self.ledger,stream=Broken(), execution='dispatcher')
         self.assertFalse(self.ledger.exists())
-    def test_index_partitions_exact_sources_without_delivering_or_issuing(self):
-        raw = b'Opening.\r\n\r\n# Work\r\n\r\n```markdown\r\n## Example only\r\n```\r\n\r\n## Required detail\r\nText.\r\n\r\nFinal condition\r\n---------------\r\nLast bytes.\r\n'
-        (self.root/'notes/work.md').write_bytes(raw)
-        output=io.StringIO()
-        indexed=r.read_page(route='generation',execution='dispatcher',navigation=True,
-                            root=self.root,ledger=self.ledger,stream=output)
+    def test_index_lists_exact_sections_without_delivering_or_issuing(self):
+        raw = (_section('opening', b'Opening.\r\n\r\n') +
+               _section('work', b'# Work\r\n\r\n```markdown\r\n## Example only\r\n```\r\n\r\n') +
+               _section('required-detail', b'## Required detail\r\nText.\r\n\r\n') +
+               _section('final-condition', b'Final condition\r\n---------------\r\nLast bytes.\r\n'))
+        _write_document(self.root, 'notes/work', raw)
+        output = io.StringIO()
+        indexed = r.read_page(route='generation', execution='dispatcher', navigation=True,
+                             root=self.root, ledger=self.ledger, stream=output)
         self.assertEqual((indexed['mode'], indexed['body'], indexed['reading'], indexed['context_reuse']),
                          ('index', [], None, None))
-        self.assertNotIn('Text.',output.getvalue())
-        self.assertEqual(indexed['progress']['delivered_bytes'],0)
+        self.assertNotIn('Text.', output.getvalue())
+        self.assertEqual(indexed['progress']['delivered_bytes'], 0)
         self.assertFalse(self.ledger.exists())
-        work=next(row for row in indexed['index'] if row['path']=='notes/work.md')
-        self.assertEqual(work['sha256'],c.digest(raw))
-        self.assertEqual(work['selected_by'],['route:generation'])
+        work = next(row for row in indexed['index'] if row['document_id'] == 'notes/work')
+        self.assertEqual(work['selected_by'], ['route:generation'])
         self.assertEqual(work['sections'], [])
         self.assertEqual(work['section_count'], 4)
         self.assertFalse(work['sections_expanded'])
         self.assertTrue(all(key in indexed['selection_reasons'] for key in work['selection_reason_ids']))
         expanded = self.expanded_index(indexed)
-        work=next(row for row in expanded['index'] if row['path']=='notes/work.md')
-        self.assertEqual([row['heading'] for row in work['sections']],
-                         ['Source opening','Work','Required detail','Final condition'])
-        self.assertEqual(sum(row['bytes'] for row in work['sections']),len(raw))
-        self.assertEqual(work['remaining_bytes'],len(raw))
+        work = next(row for row in expanded['index'] if row['document_id'] == 'notes/work')
+        self.assertEqual([row['section_id'] for row in work['sections']],
+                         ['opening', 'work', 'required-detail', 'final-condition'])
+        self.assertEqual(sum(row['bytes'] for row in work['sections']), len(_body_bytes(raw)))
+        self.assertEqual(work['remaining_bytes'], len(_body_bytes(raw)))
         self.assertIsNone(indexed['actions']['continue'])
         self.assertIsNone(indexed['actions']['replay'])
-        self.assertIn('--all',indexed['actions']['next']['argv'])
+        self.assertIn('--all', indexed['actions']['next']['argv'])
 
     def test_out_of_order_section_delivery_and_all_preserve_complete_exact_coverage(self):
-        raw=b'# Work\nOpening.\n\n## First\nFirst condition.\n\n## Last\nLast condition.\n'
-        (self.root/'notes/work.md').write_bytes(raw)
+        raw=(_section('work', b'# Work\nOpening.\n\n') + _section('first', b'## First\nFirst condition.\n\n') + _section('last', b'## Last\nLast condition.\n'))
+        _write_document(self.root, 'notes/work', raw)
         indexed=r.read_page(route='generation',execution='dispatcher',navigation=True,
                             root=self.root,ledger=self.ledger,stream=io.StringIO())
         indexed=self.expanded_index(indexed)
@@ -1311,11 +1590,13 @@ class ReadingTests(unittest.TestCase):
             result=r.read_page(cursor=result['cursor'],root=self.root,ledger=self.ledger,
                                stream=io.StringIO(),page_bytes=10000)
             segments.extend(result['body'])
-        for path in ('notes/always.md','notes/work.md'):
-            chunks=sorted((item['metadata']['start'],item['text'].encode('utf-8'))
-                          for item in segments if item['metadata']['path']==path)
-            self.assertEqual(b''.join(body for _,body in chunks),(self.root/path).read_bytes())
-            self.assertEqual(sum(len(body) for _,body in chunks),(self.root/path).stat().st_size)
+        for document_id in ('notes/always', 'notes/work'):
+            for section in _document(self.root, document_id).sections:
+                chunks = sorted((item['metadata']['start'], item['text'].encode('utf-8'))
+                    for item in segments if item['metadata']['document_id'] == document_id
+                    and item['metadata']['section_id'] == section.section_id)
+                self.assertEqual(b''.join(body for _, body in chunks), section.raw)
+                self.assertEqual(sum(len(body) for _, body in chunks), section.size)
         self.assertEqual(result['remaining_bytes'],0)
         self.assertIsNone(result['actions']['next'])
         self.verify(r.draft_record(result['issued']))
@@ -1327,7 +1608,7 @@ class ReadingTests(unittest.TestCase):
                             known_reading_keys=[issued['reading_key']])
         self.assertEqual(indexed['progress']['remaining_bytes'],0)
         self.assertEqual(indexed['progress']['reused_bodies'],2)
-        self.assertTrue(all(source['selector'] is None and source['sections']==[]
+        self.assertTrue(all(source['state'] == 'known' and source['remaining_bytes'] == 0
                             for source in indexed['index']))
         self.assertIsNone(indexed['reading'])
         self.assertEqual(len(r.ledger_rows(self.ledger)),1)
@@ -1383,7 +1664,7 @@ class ReadingTests(unittest.TestCase):
         studio.init(studio_root,'section-continuation','Section continuation')
         work_ledger.begin(studio_root,'Keep the authored choices and continue the source reading.',['Compose'])
         work_before=(studio_root/'work/current.json').read_bytes()
-        (self.root/'notes/work.md').write_bytes(('# Work\n\n## Detail\n'+PARAGRAPH*3+'\n').encode())
+        _write_document(self.root, 'notes/work', _section('work', b'# Work\n\n') + _section('detail', ('## Detail\n'+PARAGRAPH*3+'\n').encode()))
         indexed=r.read_page(route='generation',execution='dispatcher',navigation=True,
                             studio=studio_root,root=self.root,ledger=self.ledger,stream=io.StringIO())
         indexed=self.expanded_index(indexed)
@@ -1418,11 +1699,11 @@ class ReadingTests(unittest.TestCase):
                             root=self.root,ledger=self.ledger,stream=io.StringIO())
         r.read_page(snapshot_id=indexed['snapshot'],section=indexed['index'][-1]['selector'],
                     root=self.root,ledger=self.ledger,stream=io.StringIO())
-        (self.root/'notes/always.md').write_bytes(b'# Changed current condition\n')
+        _write_document(self.root, 'notes/always', _section('always', b'# Changed current condition\n'))
         with self.assertRaises(r.ReadingSourcesChanged) as failure:
             r.read_page(snapshot_id=indexed['snapshot'],root=self.root,ledger=self.ledger,
                         stream=io.StringIO(),page_bytes=10000)
-        self.assertEqual(failure.exception.changes[0]['path'],'notes/always.md')
+        self.assertEqual(failure.exception.changes[0]['document_id'],'notes/always')
         self.assertIn('--restart',failure.exception.actions['restart']['argv'])
         self.assertFalse(self.ledger.exists())
 
@@ -1437,13 +1718,13 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(len(r.ledger_rows(self.ledger)),1)
         complete=r.read_page(cursor=replay['cursor'],page_bytes=10000,
                              root=self.root,ledger=self.ledger,stream=io.StringIO())
-        self.assertEqual(complete['progress']['page_start'],8)
-        self.assertEqual(complete['progress']['page_end'],first['progress']['page_end'])
+        self.assertEqual(complete['progress']['page_from'], {'body': 0, 'offset': 8})
+        self.assertEqual(complete['progress']['page_to'],first['progress']['page_to'])
         self.assertNotEqual(complete['reading']['key'],first['reading']['key'])
 
     def test_unicode_paging_is_lossless(self):
-        raw=(PARAGRAPH+' café\n').encode()
-        (self.root/'notes/work.md').write_bytes(raw)
+        raw=_section('work', (PARAGRAPH+' café\n').encode())
+        _write_document(self.root, 'notes/work', raw)
         stream=io.StringIO();result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=stream, execution='dispatcher')
         ranges=list(result['delivered'])
         while result['remaining_bytes']:
@@ -1451,9 +1732,9 @@ class ReadingTests(unittest.TestCase):
             self.assertFalse(self.ledger.exists())
             result=r.read_page(cursor=result['cursor'],page_bytes=13,root=self.root,ledger=self.ledger,stream=stream)
             ranges.extend(result['delivered'])
-        for name in ('notes/always.md','notes/work.md'):
-            original=(self.root/name).read_bytes()
-            chunks=[original[x['start']:x['end']] for x in ranges if x['path']==name]
+        for name in ('notes/always','notes/work'):
+            original=_document_bytes(self.root, name)
+            chunks=[original[x['start']:x['end']] for x in ranges if x['document_id']==name]
             self.assertEqual(b''.join(chunks),original)
             for chunk in chunks:chunk.decode('utf-8')
         self.assertIn('issued',result)
@@ -1464,7 +1745,8 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(replay['remaining_bytes'],first['remaining_bytes'])
         self.assertEqual(replay['progress']['replay_remaining_bytes'],15)
         resumed=r.read_page(cursor=replay['cursor'],page_bytes=10000,root=self.root,ledger=self.ledger,stream=io.StringIO())
-        self.assertEqual((resumed['progress']['page_start'],resumed['progress']['page_end']),(8,23))
+        self.assertEqual((resumed['progress']['page_from'],resumed['progress']['page_to']),
+                         ({'body': 0, 'offset': 8}, {'body': 0, 'offset': 23}))
         self.assertIsNone(resumed['reading'])
     def test_cursor_cannot_skip(self):
         result=r.read_page(route='generation',page_bytes=23,root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
@@ -1476,10 +1758,10 @@ class ReadingTests(unittest.TestCase):
         self.assertNotEqual(result['issued']['reading_key'],new['issued']['reading_key'])
     def test_stale_snapshot_never_issues(self):
         result=r.read_page(route='generation',page_bytes=13,root=self.root,ledger=self.ledger,stream=io.StringIO(), execution='dispatcher')
-        (self.root/'notes/work.md').write_text(PARAGRAPH+' New source.', encoding='utf-8')
+        _write_document(self.root, 'notes/work', _section('work', (PARAGRAPH+' New source.').encode('utf-8')))
         with self.assertRaises(r.ReadingSourcesChanged) as failure:
             r.read_page(cursor=result['cursor'],page_bytes=10000,root=self.root,ledger=self.ledger,stream=io.StringIO())
-        self.assertEqual(failure.exception.changes[0]['path'], 'notes/work.md')
+        self.assertEqual(failure.exception.changes[0]['document_id'], 'notes/work')
         restart = failure.exception.as_dict()['actions']['restart']['argv']
         self.assertIn('--restart', restart)
         self.assertEqual(restart[restart.index('--reading-ledger') + 1], str(self.ledger))
@@ -1492,10 +1774,10 @@ class ReadingTests(unittest.TestCase):
         first = r.execution_routes.resolve('generation', execution='dispatcher', root=self.root)
         expected = c.digest(manifest_path.read_bytes())
         self.assertEqual(first['manifest_sha256'], expected)
-        (self.root / 'notes/work.md').write_bytes(b'# Changed document\nIts independent source edition.\n')
+        _write_document(self.root, 'notes/work', _section('work', b'# Changed document\nIts independent source edition.\n'))
         changed_document = r.execution_routes.resolve('generation', execution='dispatcher', root=self.root)
         self.assertEqual(changed_document['manifest_sha256'], expected)
-        self.assertNotEqual(first['reads'][-1]['sha256'], changed_document['reads'][-1]['sha256'])
+        self.assertNotEqual(first['reads'][-1]['sections'][0]['sha256'], changed_document['reads'][-1]['sections'][0]['sha256'])
         self.manifest['features']['extra']['source_roles'] = ['declared-role']
         manifest_path.write_bytes(c.encoded(self.manifest))
         changed_manifest = r.execution_routes.resolve('generation', execution='dispatcher', root=self.root)
@@ -1503,84 +1785,86 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(changed_manifest['manifest_sha256'], c.digest(manifest_path.read_bytes()))
 
     def test_operation_profiles_refine_selected_features_and_execution_without_new_scope(self):
-        raw = b'# Work\nSource opening.\n\n## Common\nCommon authority.\n\n## Prepare\nExact input and recovery.\n\n## Execute\nPerform the actual send.\n'
-        (self.root / 'notes/work.md').write_bytes(raw)
-        self.manifest['features']['complete'] = {'reads': ['notes/work.md'], 'source_roles': []}
-        self.manifest['reading_scopes']['prepare'] = {'documents': {
-            'notes/work.md': [
-                {'sections': ['common'], 'reason': 'Preserve the common authority.'},
-                {'sections': ['prepare'], 'reason': 'Prepare the exact input.', 'executions': ['dispatcher']},
-                {'whole_source': True, 'reason': 'The complete specialist was explicitly selected.',
-                 'features_any': ['complete']}],
-            'notes/extra.md': [{'whole_source': True, 'reason': 'Only when extra is actually selected.'}]}}
+        raw = (_section('work', b'# Work\nSource opening.\n\n') +
+               _section('common', b'## Common\nCommon authority.\n\n') +
+               _section('prepare', b'## Prepare\nExact input and recovery.\n\n') +
+               _section('execute', b'## Execute\nPerform the actual send.\n'))
+        _write_document(self.root, 'notes/work', raw)
+        self.manifest['features']['complete'] = {'reads': ['notes/work'], 'source_roles': []}
+        self.manifest['reading_scopes']['prepare'] = {'documents': {'notes/work': [
+            {'sections': ['common'], 'reason': 'Preserve the common authority.'},
+            {'sections': ['prepare'], 'reason': 'Prepare the exact input.', 'executions': ['dispatcher']},
+            {'whole_source': True, 'reason': 'The complete specialist was explicitly selected.',
+             'features_any': ['complete']}],
+            'notes/extra': [{'whole_source': True, 'reason': 'Only when extra is actually selected.'}]}}
         (self.root / r.execution_routes.MANIFEST).write_bytes(c.encoded(self.manifest))
         record, bodies = r.capture('generation', execution='dispatcher', root=self.root)
         self.assertIsNone(record['scope']); self.assertIsNone(record['source_kind'])
-        self.assertNotIn('notes/extra.md', [item['path'] for item in record['documents']])
-        selected = [(meta, body) for meta, body in bodies if meta.get('path') == 'notes/work.md']
-        self.assertEqual(len(selected), 1)  # Adjacent complete sections form one exact interval.
-        self.assertEqual(selected[0][1], raw[raw.index(b'## Common'):raw.index(b'## Execute')])
+        self.assertNotIn('notes/extra', [item['document_id'] for item in record['documents']])
+        selected = [(meta, body) for meta, body in bodies if meta.get('document_id') == 'notes/work']
+        self.assertEqual([meta['section_id'] for meta, _ in selected], ['common', 'prepare'])
+        self.assertEqual(b''.join(body for _, body in selected), _body_bytes(raw[1:3]))
         external, external_bodies = r.capture('generation', execution='external', root=self.root)
         self.assertNotIn(b'## Prepare', b''.join(body for _, body in external_bodies))
         complete, complete_bodies = r.capture('generation', ['complete'], execution='dispatcher', root=self.root)
-        self.assertEqual(next(body for meta, body in complete_bodies if meta.get('path') == 'notes/work.md'), raw)
-        self.assertEqual(complete['documents'][-1]['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+        self.assertEqual(b''.join(body for meta, body in complete_bodies if meta.get('document_id') == 'notes/work'), _body_bytes(raw))
+        self.assertEqual(_selected_bytes(self.root, complete['documents'][-1]), _body_bytes(raw))
         ordinary, ordinary_bodies = r.capture('generation', operation='execute', execution='dispatcher', root=self.root)
-        self.assertIn(raw, [body for _, body in ordinary_bodies])
+        self.assertEqual(b''.join(body for meta, body in ordinary_bodies if meta.get('document_id') == 'notes/work'), _body_bytes(raw))
 
     def test_actual_prepare_profile_retains_complete_boundaries_and_excludes_later_procedures(self):
         resolved = r.execution_routes.resolve('generation',
             ['vocabulary', 'sparse-retrieval', 'performance-language', 'unlisted-interface'],
             operation='prepare', execution='dispatcher')
-        by_path = {path: {row['anchor'] for row in sections}
+        by_path = {path: {row['section_id'] for row in sections}
                    for path, sections in resolved['section_owners'].items()}
         self.assertTrue({'form-a-prompt-from-an-image', 'form-a-prompt-from-an-idea',
                          'preserve-accepted-variation-at-its-declared-scope', 'worked-depictions',
-                         'an-image-of-an-action-is-not-the-action'} <= by_path['references/runtime/production-direction.md'])
+                         'an-image-of-an-action-is-not-the-action'} <= by_path['references/runtime/production-direction'])
         self.assertFalse({'observe-and-repair', 'a-failure-must-leave-an-actionable-record'}
-                         & by_path['references/runtime/production-direction.md'])
+                         & by_path['references/runtime/production-direction'])
         self.assertTrue({'verification-and-host-forwarding', 'preview-a-prepared-request', 'failure-policy'}
-                        <= by_path['references/runtime/generation-package.md'])
-        self.assertNotIn('capture-and-recover-the-provider-result', by_path['references/runtime/generation-package.md'])
+                        <= by_path['references/runtime/generation-package'])
+        self.assertNotIn('capture-and-recover-the-provider-result', by_path['references/runtime/generation-package'])
         self.assertFalse({'authorization-and-execution-records', 'add-authority-for-selected-canonical-use',
                           'reuse-stop-judgments-for-the-same-selected-image'}
-                         & by_path['references/runtime/production-permissions.md'])
-        self.assertNotIn('display-publication-ownership', by_path['references/runtime/studio.md'])
-        self.assertNotIn('upload-the-selected-media-for-one-generation', by_path['references/runtime/reference-delivery.md'])
-        self.assertNotIn('external-image-work', by_path['references/runtime/render-contract.md'])
-        self.assertNotIn('design-a-trial', by_path['references/runtime/model-evidence.md'])
-        for path in ('references/prompt-knowledge-boundary.md',
-                     'references/performance-language-specification.md', 'references/runtime/prompt-vocabulary.md'):
-            source = (r.ROOT / path).read_bytes()
-            selected = next(item for item in resolved['reads'] if item['path'] == path)
-            self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(source), 'sha256': c.digest(source)}])
+                         & by_path['references/runtime/production-permissions'])
+        self.assertNotIn('display-publication-ownership', by_path['references/runtime/studio'])
+        self.assertNotIn('upload-the-selected-media-for-one-generation', by_path['references/runtime/reference-delivery'])
+        self.assertNotIn('external-image-work', by_path['references/runtime/render-contract'])
+        self.assertNotIn('design-a-trial', by_path['references/runtime/model-evidence'])
+        for path in ('references/prompt-knowledge-boundary',
+                     'references/performance-language-specification', 'references/runtime/prompt-vocabulary'):
+            source = _document_bytes(r.ROOT, path)
+            selected = next(item for item in resolved['reads'] if item['document_id'] == path)
+            self.assertEqual(_selected_bytes(r.ROOT, selected), source)
         external = r.execution_routes.resolve('generation', operation='prepare', execution='external')
         self.assertIn('external-image-work',
-                      {row['anchor'] for row in external['section_owners']['references/runtime/render-contract.md']})
+                      {row['section_id'] for row in external['section_owners']['references/runtime/render-contract']})
 
     def test_saved_operation_profiles_read_execution_and_review_without_reopening_authoring(self):
         executed = r.execution_routes.resolve('character-sheet', operation='execute', execution='dispatcher')
         owners = executed['section_owners']
-        self.assertNotIn('references/runtime/authorial-intent.md', owners)
-        self.assertNotIn('templates/narrative/design/design-template.md', owners)
+        self.assertNotIn('references/runtime/authorial-intent', owners)
+        self.assertNotIn('templates/narrative/design/design-template', owners)
         self.assertNotIn('generation-package-1',
-                         {row['anchor'] for row in owners['references/runtime/generation-package.md']})
+                         {row['section_id'] for row in owners['references/runtime/generation-package']})
         self.assertTrue({'execute-the-prepared-request', 'capture-and-recover-the-provider-result',
                          'forward-the-exact-verified-input', 'failure-policy'} <=
-                        {row['anchor'] for row in owners['references/runtime/generation-package.md']})
-        for path in ('references/runtime/production-request-execution.md',
-                     'references/runtime/production-dispatch.md', 'references/runtime/production-recovery.md'):
-            raw = (r.ROOT / path).read_bytes()
-            selected = next(item for item in executed['reads'] if item['path'] == path)
-            self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+                        {row['section_id'] for row in owners['references/runtime/generation-package']})
+        for path in ('references/runtime/production-request-execution',
+                     'references/runtime/production-dispatch', 'references/runtime/production-recovery'):
+            raw = _document_bytes(r.ROOT, path)
+            selected = next(item for item in executed['reads'] if item['document_id'] == path)
+            self.assertEqual(_selected_bytes(r.ROOT, selected), raw)
         reviewed = r.execution_routes.resolve('character-sheet', operation='review', execution='dispatcher')
-        self.assertIn('references/runtime/authorial-intent.md', reviewed['section_owners'])
-        self.assertNotIn('templates/narrative/design/design-template.md', reviewed['section_owners'])
-        raw = (r.ROOT / 'references/runtime/production-review.md').read_bytes()
-        selected = next(item for item in reviewed['reads'] if item['path'] == 'references/runtime/production-review.md')
-        self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+        self.assertIn('references/runtime/authorial-intent', reviewed['section_owners'])
+        self.assertNotIn('templates/narrative/design/design-template', reviewed['section_owners'])
+        raw = _document_bytes(r.ROOT, 'references/runtime/production-review')
+        selected = next(item for item in reviewed['reads'] if item['document_id'] == 'references/runtime/production-review')
+        self.assertEqual(_selected_bytes(r.ROOT, selected), raw)
         self.assertTrue({'observe-and-repair', 'preserve-accepted-variation-at-its-declared-scope'} <=
-                        {row['anchor'] for row in reviewed['section_owners']['references/runtime/production-direction.md']})
+                        {row['section_id'] for row in reviewed['section_owners']['references/runtime/production-direction']})
 
     def test_saved_operation_scope_covers_all_routes_and_preserves_unmanaged_specialists(self):
         manifest = c.load(r.ROOT / r.execution_routes.MANIFEST)
@@ -1590,25 +1874,23 @@ class ReadingTests(unittest.TestCase):
                     with self.subTest(route=route, execution=execution, operation=operation):
                         resolved = r.execution_routes.resolve(route, operation=operation, execution=execution)
                         self.assertTrue(resolved['reads'])
-                        self.assertTrue(all(row['ranges'] for row in resolved['reads']))
-                        self.assertEqual(set(resolved['section_owners']), {row['path'] for row in resolved['reads']})
+                        self.assertTrue(all(row['sections'] for row in resolved['reads']))
+                        self.assertEqual(set(resolved['section_owners']), {row['document_id'] for row in resolved['reads']})
         ordinary = r.execution_routes.resolve('generation', ['body-plan'], operation='review', execution='external')
         specialist = manifest['features']['body-plan']['reads'][0]
-        raw = (r.ROOT / specialist).read_bytes()
-        selected = next(item for item in ordinary['reads'] if item['path'] == specialist)
-        self.assertEqual(selected['ranges'], [{'start': 0, 'end': len(raw), 'sha256': c.digest(raw)}])
+        raw = _document_bytes(r.ROOT, specialist)
+        selected = next(item for item in ordinary['reads'] if item['document_id'] == specialist)
+        self.assertEqual(_selected_bytes(r.ROOT, selected), raw)
 
     def test_sparse_foundation_expands_to_complete_finishing_with_only_missing_bytes(self):
-        path = 'references/finishing-layers-specification.md'
-        raw = (r.ROOT / path).read_bytes()
+        path = 'references/finishing-layers-specification'
+        raw = _document_bytes(r.ROOT, path)
         with patch.object(r, '_live_resource_reader', return_value=lambda name: None):
             first = r.read_page(route='generation', features=['sparse-retrieval'], execution='dispatcher',
                 root=r.ROOT, ledger=self.ledger, stream=io.StringIO(), page_bytes=1000000)
-            chosen = next(item for item in first['issued']['row']['documents'] if item['path'] == path)
-            foundation = sum(row['end'] - row['start'] for row in chosen['ranges'])
-            sections = r.execution_routes.document_sections(raw)
-            selected_ranges = {(row['start'], row['end']) for row in chosen['ranges']}
-            self.assertEqual({row['anchor'] for row in sections if (row['start'], row['end']) in selected_ranges}, {
+            chosen = next(item for item in first['issued']['row']['documents'] if item['document_id'] == path)
+            foundation = sum(section['size'] for section in chosen['sections'])
+            self.assertEqual({section['section_id'] for section in chosen['sections']}, {
                 'visual-construction-and-finishing', '1-purpose', '2-the-five-finishing-layers',
                 '3-composition-order', 'visibility-and-surface-order', 'large-form-interval-and-degree',
                 'color-and-value-as-a-shared-construction', 'shape-and-mark-as-one-drawing-grammar',
@@ -1616,7 +1898,7 @@ class ReadingTests(unittest.TestCase):
                 '10-layer-specific-cautions'})
             self.assertGreater(foundation, 0)
             self.assertLess(foundation, len(raw))
-            self.assertEqual(chosen['sha256'], c.digest(raw))
+            self.assertEqual(len(_selected_bytes(r.ROOT, chosen)), foundation)
             indexed = r.read_page(route='generation', features=['sparse-retrieval', 'finishing'],
                 execution='dispatcher', root=r.ROOT, ledger=self.ledger, stream=io.StringIO(), navigation=True,
                 known_reading_keys=[first['reading']['key']])
@@ -1624,7 +1906,7 @@ class ReadingTests(unittest.TestCase):
             self.assertEqual(indexed['remaining_bytes'], len(raw) - foundation)
             current = r.read_page(snapshot_id=indexed['snapshot'], root=r.ROOT, ledger=self.ledger,
                 stream=io.StringIO(), page_bytes=1000000)
-            self.assertEqual({item['metadata']['path'] for item in current['body']}, {path})
+            self.assertEqual({item['metadata']['document_id'] for item in current['body']}, {path})
             self.assertEqual(sum(len(item['text'].encode()) for item in current['body']), len(raw) - foundation)
             r.require_route_reading(r.draft_record(current['issued']), root=r.ROOT, ledgers=[self.ledger],
                                    features=['sparse-retrieval', 'finishing'], execution='dispatcher', operation='prepare')
@@ -1639,7 +1921,7 @@ class ReadingTests(unittest.TestCase):
         with patch.object(r, '_live_resource_reader', return_value=lambda name: None):
             indexed = r.read_page(route='generation', execution='dispatcher', root=r.ROOT,
                 ledger=self.ledger, stream=io.StringIO(), navigation=True)
-            source = next(row for row in indexed['index'] if row['path'] == 'references/runtime/authoring-work.md')
+            source = next(row for row in indexed['index'] if row['document_id'] == 'references/runtime/authoring-work')
             self.assertFalse(source['sections_expanded'])
             self.assertEqual(source['sections'], [])
             arguments = [*indexed['actions']['index']['argv'][3:], '--index-source', source['selector']]
@@ -1662,20 +1944,167 @@ class ReadingTests(unittest.TestCase):
 
 
 
+class SectionIdentityBoundaryTests(unittest.TestCase):
+    """Exercise public continuations without a document-global byte identity."""
+
+    setUp = ReadingTests.setUp
+
+    def test_stable_selector_delivers_its_own_body_from_local_zero(self):
+        _write_document(self.root, 'notes/work',
+            _section('first', b'# Duplicate title\nFirst body.\n') +
+            _section('second', b'# Duplicate title\nSecond body.\n'))
+        indexed = r.read_page(route='generation', execution='dispatcher', navigation=True,
+            root=self.root, ledger=self.ledger, stream=io.StringIO())
+        page = r.read_page(snapshot_id=indexed['snapshot'], section='notes/work#second',
+            page_bytes=9, root=self.root, ledger=self.ledger, stream=io.StringIO())
+        self.assertEqual(page['progress']['page_from'], {'body': 2, 'offset': 0})
+        self.assertEqual(page['progress']['page_to'], {'body': 2, 'offset': 9})
+        self.assertEqual(page['body'][0]['metadata']['start'], 0)
+        self.assertEqual(page['body'][0]['metadata']['section_id'], 'second')
+        shown = page['body'][0]['text']
+        page = r.read_page(cursor=page['cursor'], page_bytes=10000,
+            root=self.root, ledger=self.ledger, stream=io.StringIO())
+        shown += ''.join(item['text'] for item in page['body'])
+        self.assertEqual(shown.encode(), _document(self.root, 'notes/work').section('second').raw)
+        self.assertIsNone(page['reading'])
+        complete = r.read_page(snapshot_id=indexed['snapshot'], page_bytes=10000,
+            root=self.root, ledger=self.ledger, stream=io.StringIO())
+        self.assertEqual([item['metadata']['section_id'] for item in complete['body']], ['always', 'first'])
+        r.require_route_reading(r.draft_record(complete['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_rehashed_cursor_cannot_skip_or_substitute_section_local_delivery(self):
+        partial = r.read_page(route='generation', execution='dispatcher', page_bytes=8,
+            root=self.root, ledger=self.ledger, stream=io.StringIO())
+        folder = r._snapshot_dir(self.ledger, partial['snapshot'])
+        original = c.load(folder / 'pages' / (partial['cursor'].split(':')[1] + '.json'))
+        snapshot = c.load(folder / 'snapshot.json')
+        cases = []
+        skipped = copy.deepcopy(original)
+        skipped['to'] = {'body': 1, 'offset': 0}
+        cases.append(skipped)
+        jumped = copy.deepcopy(original)
+        jumped['from'] = {'body': 1, 'offset': 0}
+        cases.append(jumped)
+        outside = copy.deepcopy(original)
+        outside['ranges'][0]['end'] = snapshot['bodies'][0]['size'] + 1
+        cases.append(outside)
+        different = copy.deepcopy(original)
+        different['ranges'][0]['section_id'] = 'work'
+        cases.append(different)
+        boolean = copy.deepcopy(original)
+        boolean['from']['offset'] = False
+        cases.append(boolean)
+        for number, page in enumerate(cases):
+            with self.subTest(case=number):
+                key = c.content_id(page)
+                path = folder / 'pages' / (key + '.json')
+                path.write_bytes(c.encoded(page))
+                try:
+                    with self.assertRaises(ValueError):
+                        r.read_page(cursor=partial['snapshot'] + ':' + key,
+                            root=self.root, ledger=self.ledger, stream=io.StringIO())
+                finally:
+                    path.unlink()
+                self.assertFalse(self.ledger.exists())
+        complete = r.read_page(cursor=partial['cursor'], page_bytes=10000,
+            root=self.root, ledger=self.ledger, stream=io.StringIO())
+        self.assertIsNotNone(complete['reading'])
+
+    def test_issued_section_identity_hash_size_order_and_scope_are_bound(self):
+        _write_document(self.root, 'notes/work',
+            _section('first', b'# First\nFirst body.\n') +
+            _section('second', b'# Second\nSecond body.\n'))
+        issued = r.issue('generation', execution='dispatcher', root=self.root,
+                         ledger=self.ledger, stream=io.StringIO())
+        record = r.draft_record(issued)
+        changed_records = []
+        for field, value in (('section_id', 'other'), ('sha256', '0' * 64), ('size', 1)):
+            changed = copy.deepcopy(record)
+            changed['documents'][1]['sections'][0][field] = value
+            changed_records.append(changed)
+        changed = copy.deepcopy(record)
+        changed['documents'][1]['document_id'] = 'notes/other'
+        changed_records.append(changed)
+        changed = copy.deepcopy(record)
+        changed['documents'][1]['sections'].reverse()
+        changed_records.append(changed)
+        changed = copy.deepcopy(record)
+        changed['documents'].reverse()
+        changed_records.append(changed)
+        changed = copy.deepcopy(record)
+        changed['operation'], changed['scope'], changed['source_kind'] = 'adopt', 'sheet', 'production-candidate'
+        changed_records.append(changed)
+        for number, changed in enumerate(changed_records):
+            with self.subTest(case=number), self.assertRaises(ValueError):
+                r.require_route_reading(changed, root=self.root, ledgers=[self.ledger])
+        r.require_route_reading(record, root=self.root, ledgers=[self.ledger])
+
+    def test_generated_markdown_is_not_a_second_runtime_source(self):
+        issued = r.issue('generation', execution='dispatcher', root=self.root,
+                         ledger=self.ledger, stream=io.StringIO())
+        (self.root / 'notes/work.md').write_bytes(b'# Unrelated display file\n')
+        record = r.draft_record(issued)
+        r.require_route_reading(record, root=self.root, ledgers=[self.ledger])
+        reused = r.read_page(route='generation', execution='dispatcher', root=self.root,
+            ledger=self.ledger, stream=io.StringIO(), known_reading_keys=[issued['reading_key']])
+        self.assertEqual(reused['body'], [])
+        self.assertEqual(reused['progress']['reused_bytes'], reused['progress']['required_bytes'])
+
+    def test_reuse_checks_every_witness_and_separates_identical_hashes_in_different_stores(self):
+        first = r.issue('generation', execution='dispatcher', root=self.root,
+                        ledger=self.ledger, stream=io.StringIO())
+        second = r.read_page(route='generation', execution='dispatcher', root=self.root,
+            ledger=self.ledger, stream=io.StringIO())
+        section = _document(self.root, 'notes/work').section('work')
+        old_body = self.ledger.parent / 'reading-content/objects' / section.sha256
+        old_body.write_bytes(b'A damaged body in the earlier store.')
+        checked, acquire = [], r._section_content_available
+        def inspect(metadata, issuance, ledger, **kwargs):
+            available = acquire(metadata, issuance, ledger, **kwargs)
+            if metadata.get('document_id') == 'notes/work':
+                checked.append((issuance['key_sha256'], available))
+            return available
+        keys = [first['reading_key'], second['reading']['key']]
+        with patch.object(r, '_section_content_available', side_effect=inspect):
+            reused = r.read_page(route='generation', execution='dispatcher', root=self.root,
+                ledger=self.ledger, stream=io.StringIO(), known_reading_keys=keys, navigation=True)
+        self.assertEqual(checked, [(first['row']['key_sha256'], False),
+                                   (second['issued']['row']['key_sha256'], True)])
+        self.assertEqual(reused['remaining_bytes'], 0)
+        redelivered = r.read_page(route='generation', execution='dispatcher', root=self.root,
+            ledger=self.ledger, stream=io.StringIO(), known_reading_keys=list(reversed(keys)))
+        self.assertEqual([item['metadata']['section_id'] for item in redelivered['body']], ['work'])
+        self.assertEqual(redelivered['body'][0]['text'].encode('utf-8'), section.raw)
+        r.require_route_reading(r.draft_record(redelivered['issued']), root=self.root, ledgers=[self.ledger])
+
+    def test_reordered_sections_during_delivery_require_a_new_snapshot(self):
+        sections = (_section('first', b'# First\nFirst body.\n') +
+                    _section('second', b'# Second\nSecond body.\n'))
+        _write_document(self.root, 'notes/work', sections)
+        partial = r.read_page(route='generation', execution='dispatcher', page_bytes=8,
+            root=self.root, ledger=self.ledger, stream=io.StringIO())
+        _write_document(self.root, 'notes/work', list(reversed(sections)))
+        with self.assertRaises(r.ReadingSourcesChanged) as refused:
+            r.read_page(cursor=partial['cursor'], page_bytes=10000,
+                root=self.root, ledger=self.ledger, stream=io.StringIO())
+        self.assertEqual(refused.exception.changes[0]['document_id'], 'notes/work')
+        self.assertEqual(refused.exception.changes[0]['change'], 'reordered')
+        self.assertFalse(self.ledger.exists())
+        fresh = r.read_page(route='generation', execution='dispatcher', root=self.root,
+            ledger=self.ledger, stream=io.StringIO())
+        self.assertEqual([row['metadata']['section_id'] for row in fresh['body']], ['always', 'second', 'first'])
+        r.require_route_reading(r.draft_record(fresh['issued']), root=self.root, ledgers=[self.ledger])
+
+
 class AuthoringScopeTests(unittest.TestCase):
     """Keep current staged work separate from historical delivery evidence."""
 
     def setUp(self):
         ReadingTests.setUp(self)
-        self.raw = (b'# Work\n\nShared authoring contract.\n\n'
-            b'## Definition\n\nEstablish the requested subject.\n\n'
-            b'## Depiction\n\nDevelop the intended depiction.\n\n'
-            b'## Image source\n\nPreserve selected source authority and exclusions.\n\n'
-            b'## Wording\n\nWrite the actual selected prompt.\n\n'
-            b'## Native request\n\nBind carriers without rewriting the chosen content.\n')
-        (self.root / 'notes/work.md').write_bytes(self.raw)
+        self.raw = ((_section('work', b'# Work\n\nShared authoring contract.\n\n') + _section('definition', b'## Definition\n\nEstablish the requested subject.\n\n') + _section('depiction', b'## Depiction\n\nDevelop the intended depiction.\n\n') + _section('image-source', b'## Image source\n\nPreserve selected source authority and exclusions.\n\n') + _section('wording', b'## Wording\n\nWrite the actual selected prompt.\n\n') + _section('native-request', b'## Native request\n\nBind carriers without rewriting the chosen content.\n')))
+        _write_document(self.root, 'notes/work', self.raw)
         self.manifest['reading_scopes']['authoring'] = {'documents': {
-            'notes/work.md': [
+            'notes/work': [
                 {'sections': ['work'], 'reason': 'The common contract applies at every stage.'},
                 {'stages': ['definition'], 'sections': ['definition'], 'reason': 'Define the subject now.'},
                 {'stages': ['depiction'], 'sections': ['depiction'], 'reason': 'Develop the picture now.'},
@@ -1683,9 +2112,9 @@ class AuthoringScopeTests(unittest.TestCase):
                  'reason': 'A selected image retains its scoped source authority.'},
                 {'stages': ['rendition'], 'sections': ['wording'], 'reason': 'Write the selected depiction now.'},
                 {'stages': ['prepare'], 'sections': ['native-request'], 'reason': 'Bind the prepared request now.'}],
-            'notes/always.md': [{'stages': ['definition', 'depiction'], 'whole_source': True,
+            'notes/always': [{'stages': ['definition', 'depiction'], 'whole_source': True,
                                  'reason': 'Resolve source meanings while defining and depicting.'}],
-            'notes/unselected.md': [{'whole_source': True, 'reason': 'Only the selected specialist owns this source.'}]}}
+            'notes/unselected': [{'whole_source': True, 'reason': 'Only the selected specialist owns this source.'}]}}
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
 
     def scope(self, stage='definition', conditions=None):
@@ -1698,20 +2127,22 @@ class AuthoringScopeTests(unittest.TestCase):
 
     def test_selected_stage_preserves_exact_text_and_unmanaged_specialist(self):
         result = self.start(features=['extra'])
-        bodies = {item['metadata']['path']: item['text'] for item in result['body']}
+        bodies = {}
+        for item in result['body']:
+            identifier = item['metadata']['document_id']
+            bodies[identifier] = bodies.get(identifier, '') + item['text']
         text = ''.join(bodies.values())
         self.assertIn('Establish the requested subject.', text)
         self.assertNotIn('Develop the intended depiction.', text)
         self.assertNotIn('Bind carriers without rewriting', text)
-        self.assertEqual(bodies['notes/extra.md'], (self.root / 'notes/extra.md').read_text(encoding='utf-8'))
-        self.assertNotIn('notes/unselected.md', bodies)
+        self.assertEqual(bodies['notes/extra'], _document_bytes(self.root, 'notes/extra').decode('utf-8'))
+        self.assertNotIn('notes/unselected', bodies)
         record = r.draft_record(result['issued'])
         self.assertEqual(record['authoring_scope'], self.scope())
         for document in record['documents']:
-            source = (self.root / document['path']).read_bytes()
-            self.assertEqual(document['sha256'], c.digest(source))
-            for part in document['ranges']:
-                self.assertEqual(part['sha256'], c.digest(source[part['start']:part['end']]))
+            source = _document(self.root, document['document_id'])
+            for part in document['sections']:
+                self.assertEqual(part, source.section(part['section_id']).metadata())
         r.require_route_reading(record, root=self.root, ledgers=[self.ledger])
 
     def test_source_conditions_add_selected_image_contract_only_when_applicable(self):
@@ -1723,9 +2154,9 @@ class AuthoringScopeTests(unittest.TestCase):
                 self.assertEqual(manifest['authoring_scope'], scope)
         prepared = self.start('prepare')
         self.assertEqual(prepared['metadata']['operation'], 'prepare')
-        self.assertNotIn('notes/always.md', {item['metadata']['path'] for item in prepared['body']})
+        self.assertNotIn('notes/always', {item['metadata']['document_id'] for item in prepared['body']})
 
-    def test_current_stage_requires_its_ranges_and_whole_source_read_can_cover_them(self):
+    def test_current_stage_requires_its_sections_and_whole_source_read_can_cover_them(self):
         definition = r.draft_record(self.start()['issued'])
         with self.assertRaises(r.ReadingSourcesChanged):
             r.require_route_reading(definition, root=self.root, ledgers=[self.ledger],
@@ -1742,7 +2173,7 @@ class AuthoringScopeTests(unittest.TestCase):
                 r.capture('generation', execution='external', operation=operation, root=self.root,
                     authoring_scope=self.scope())
 
-    def test_stage_change_reuses_only_explicit_current_context_ranges(self):
+    def test_stage_change_reuses_only_explicit_current_context_sections(self):
         first = self.start()
         second = self.start('depiction', known_reading_keys=[first['reading']['key']])
         self.assertGreater(second['progress']['reused_bytes'], 0)
@@ -1791,7 +2222,7 @@ class AuthoringScopeTests(unittest.TestCase):
 
 
 class ScopedReadingTests(unittest.TestCase):
-    """Prove destination/source contracts and exact same-context range reuse."""
+    """Prove destination/source contracts and exact same-context section reuse."""
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -1800,9 +2231,9 @@ class ScopedReadingTests(unittest.TestCase):
         (self.root / 'config').mkdir()
         (self.root / 'notes').mkdir()
         self.ledger = self.root / 'work/reads.jsonl'
-        self.document = 'notes/contract.md'
-        self.raw = b'# Contract\nOriginal source opening.\n\n## Common\nThe common condition.\n\n## Slot\nThe complete slot decision and recovery.\n\n## Sheet\nThe complete canonical approval and recovery.\n\n## Catalog\nThe exact new catalog destination and retry.\n\n## Imported\nThe imported source approval and recovery.\n\n## Withdrawal\nThe actual ending decision and historical proof.\n'
-        (self.root / self.document).write_bytes(self.raw)
+        self.document = 'notes/contract'
+        self.raw = (_section('contract', b'# Contract\nOriginal source opening.\n\n') + _section('common', b'## Common\nThe common condition.\n\n') + _section('slot', b'## Slot\nThe complete slot decision and recovery.\n\n') + _section('sheet', b'## Sheet\nThe complete canonical approval and recovery.\n\n') + _section('catalog', b'## Catalog\nThe exact new catalog destination and retry.\n\n') + _section('imported', b'## Imported\nThe imported source approval and recovery.\n\n') + _section('withdrawal', b'## Withdrawal\nThe actual ending decision and historical proof.\n'))
+        _write_document(self.root, self.document, self.raw)
         base = {'reads': [self.document], 'executions': {mode: [] for mode in r.execution_routes.EXECUTIONS}}
         def selection(heading, *, scopes=None, sources=None):
             value = {'sections': [heading], 'reason': 'Complete ' + heading + ' contract, including its authority and recovery.'}
@@ -1840,9 +2271,11 @@ class ScopedReadingTests(unittest.TestCase):
             pages.append(response)
             for item in response['body']:
                 meta = item['metadata']; raw = item['text'].encode('utf-8')
-                source = ((root or self.root) / meta['path']).read_bytes()
-                self.assertEqual(source[meta['source_start'] + meta['start']:meta['source_start'] + meta['end']], raw)
-                self.assertEqual(c.digest(source), meta['source_sha256'])
+                if meta['kind'] == 'document-section':
+                    section = _document(root or self.root, meta['document_id']).section(meta['section_id'])
+                    self.assertEqual(section.raw[meta['start']:meta['end']], raw)
+                    self.assertEqual(section.sha256, meta['sha256'])
+                    self.assertEqual(section.size, meta['total'])
                 total += len(raw)
             if response['reading'] is not None:
                 break
@@ -1872,7 +2305,7 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertIn(b'## Withdrawal', b''.join(raw for _, raw in bodies))
         self.assertEqual(record['operation'], 'withdraw')
 
-    def test_complete_selected_ranges_issue_only_after_every_required_byte(self):
+    def test_complete_selected_sections_issue_only_after_every_required_byte(self):
         indexed = self.start(navigation=True)
         self.assertIsNone(indexed['reading'])
         self.assertFalse(self.ledger.exists())
@@ -1881,21 +2314,20 @@ class ScopedReadingTests(unittest.TestCase):
             for section in source['sections']:
                 self.assertTrue(section['selection_reason_ids'])
                 self.assertTrue(all(key in indexed['selection_reasons'] for key in section['selection_reason_ids']))
-                self.assertGreater(section['source_end'], section['source_start'])
+                self.assertGreater(section['bytes'], 0)
         result, pages, total = self.finish(indexed, page_bytes=13, publish_record=True)
         self.assertGreater(len(pages), 1)
         record = c.load(Path(result['reading']['record_absolute']))
         self.assertEqual((record['scope'], record['source_kind']), ('studio-slot', 'production-candidate'))
         document = record['documents'][0]
-        self.assertEqual(document['sha256'], c.digest(self.raw))
-        self.assertEqual(document['size'], len(self.raw))
-        self.assertEqual(total, sum(item['end'] - item['start'] for item in document['ranges']))
-        for selected in document['ranges']:
-            self.assertEqual(selected['sha256'], c.digest(self.raw[selected['start']:selected['end']]))
+        acquired = _document(self.root, self.document)
+        self.assertEqual(document, {'document_id': self.document,
+            'sections': [acquired.section(name).metadata() for name in ('common', 'slot')]})
+        self.assertEqual(total, sum(section['size'] for section in document['sections']))
         r.require_route_reading(record, root=self.root, ledgers=[self.ledger], scope='studio-slot',
                               source_kind='production-candidate')
         changed = copy.deepcopy(record)
-        changed['documents'][0]['ranges'] = changed['documents'][0]['ranges'][:1]
+        changed['documents'][0]['sections'] = changed['documents'][0]['sections'][:1]
         with self.assertRaisesRegex(ValueError, 'issuance differs'):
             r.require_route_reading(changed, root=self.root, ledgers=[self.ledger])
         row = copy.deepcopy(result['issued']['row'])
@@ -1912,28 +2344,28 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertEqual(delivered, 0)
         for part in result['issued']['row']['delivery']['bodies']:
             self.assertEqual(part['origin']['key_sha256'], whole['row']['key_sha256'])
-            self.assertEqual(part['source_body']['source_start'], 0)
-            self.assertEqual(part['source_body']['source_end'], len(self.raw))
-            self.assertGreater(part['body']['source_start'], 0)
+            self.assertEqual(part['source_body'], part['body'])
+            self.assertIn(part['body']['section_id'], ('common', 'sheet'))
+            section = _document(self.root, self.document).section(part['body']['section_id'])
+            self.assertEqual(part['body'], {'kind': 'document-section', 'document_id': self.document,
+                                          **section.metadata()})
         r.require_route_reading(r.draft_record(whole), root=self.root, ledgers=[self.ledger],
                               operation='adopt', scope='sheet', source_kind='production-candidate')
 
-    def test_scope_expansion_delivers_only_missing_ranges_and_never_a_gap(self):
+    def test_scope_expansion_delivers_only_missing_sections(self):
         slot = self.start()
         slot_record = r.draft_record(slot['issued'])
         with self.assertRaises(r.ReadingSourcesChanged) as missing:
             r.require_route_reading(slot_record, root=self.root, ledgers=[self.ledger],
                                   scope='sheet', source_kind='production-candidate')
         self.assertEqual(missing.exception.changes[0]['change'], 'scope-expanded')
-        self.assertTrue(missing.exception.changes[0]['missing_ranges'])
+        self.assertEqual(missing.exception.changes[0]['missing_sections'], ['sheet'])
         sheet = self.start(scope='sheet', known_reading_keys=[slot['reading']['key']])
-        self.assertEqual(len(sheet['body']), 1)
+        self.assertEqual([row['metadata']['section_id'] for row in sheet['body']], ['sheet'])
         self.assertTrue(sheet['body'][0]['text'].startswith('## Sheet'))
         catalog = self.start(scope='catalog', known_reading_keys=[slot['reading']['key'], sheet['reading']['key']])
-        self.assertEqual(len(catalog['body']), 1)
+        self.assertEqual([row['metadata']['section_id'] for row in catalog['body']], ['catalog'])
         self.assertTrue(catalog['body'][0]['text'].startswith('## Catalog'))
-        # A broader whole-source requirement reuses all complete known intervals,
-        # while the opening, imported contract and withdrawal remain unread gaps.
         indexed = r.read_page(route='development', execution='dispatcher', navigation=True,
             root=self.root, ledger=self.ledger, stream=io.StringIO(),
             known_reading_keys=[slot['reading']['key'], sheet['reading']['key'], catalog['reading']['key']])
@@ -1946,7 +2378,7 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertIn('## Withdrawal', text)
         self.assertNotIn('## Common', text)
         self.assertNotIn('## Slot', text)
-        self.assertEqual(total + result['progress']['reused_bytes'], len(self.raw))
+        self.assertEqual(total + result['progress']['reused_bytes'], len(_body_bytes(self.raw)))
         self.assertEqual(result['context_reuse']['curation_scopes'], [])
         self.assertIn('reading_action', result['context_reuse']['curation_guidance'])
         r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
@@ -1958,27 +2390,29 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertEqual(indexed['remaining_bytes'], first['progress']['required_bytes'])
         fresh, pages, total = self.finish(indexed)
         self.assertEqual(total, first['progress']['required_bytes'])
-        # A current receipt retains the new source edition while unchanged
-        # sections remain known only under the explicitly selected context key.
-        (self.root / self.document).write_bytes(self.raw + b'Changed retained source edition.\n')
+        _write_document(self.root, self.document, self.raw + _section('unselected-note', b'Unrelated source maintenance.\n'))
         changed = self.start(scope='sheet', known_reading_keys=[fresh['reading']['key']])
         self.assertEqual(changed['progress']['reused_bytes'], changed['progress']['required_bytes'])
         self.assertEqual(changed['progress']['delivered_bytes'], 0)
-        self.assertNotEqual(changed['issued']['row']['documents'][0]['sha256'],
-                            fresh['issued']['row']['documents'][0]['sha256'])
+        self.assertEqual(changed['issued']['row']['documents'], fresh['issued']['row']['documents'])
         r.require_route_reading(r.draft_record(changed['issued']), root=self.root, ledgers=[self.ledger])
         partial = self.start(scope='sheet', page_bytes=11)
-        (self.root / self.document).write_bytes(self.raw)
+        _write_document(self.root, self.document, self.raw)
+        unchanged = r.read_page(cursor=partial['cursor'], root=self.root, ledger=self.ledger,
+            stream=io.StringIO(), page_bytes=10000)
+        self.assertIsNotNone(unchanged['reading'])
+        partial = self.start(scope='sheet', page_bytes=11)
+        _write_document(self.root, self.document, _replace_body(self.raw, b'The common condition.', b'The current condition.'))
         before = self.ledger.read_bytes()
         with self.assertRaises(r.ReadingSourcesChanged):
             r.read_page(cursor=partial['cursor'], root=self.root, ledger=self.ledger,
                         stream=io.StringIO(), page_bytes=10000)
         self.assertEqual(self.ledger.read_bytes(), before)
 
-    def test_moved_sections_retain_complete_issuance_and_current_source_positions(self):
+    def test_added_earlier_sections_leave_required_bodies_and_issuance_independent(self):
         whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
-        prefix = b'# New preface\nAn unrelated maintenance note.\n\n'
-        (self.root / self.document).write_bytes(prefix + self.raw)
+        prefix = _section('new-preface', b'# New preface\nAn unrelated maintenance note.\n\n')
+        _write_document(self.root, self.document, prefix + self.raw)
         indexed = self.start(scope='sheet', navigation=True, known_reading_keys=[whole['reading_key']])
         self.assertEqual(indexed['body'], [])
         self.assertEqual(indexed['progress']['same_context_new_bytes'], 0)
@@ -1989,13 +2423,9 @@ class ScopedReadingTests(unittest.TestCase):
         self.assertEqual(total, 0)
         for item in result['issued']['row']['delivery']['bodies']:
             self.assertEqual(item['origin']['key_sha256'], whole['row']['key_sha256'])
-            self.assertEqual(item['source_body']['source_sha256'], c.digest(self.raw))
-            self.assertEqual(item['body']['source_sha256'], c.digest(prefix + self.raw))
-            for section in item['body']['sections']:
-                current = (prefix + self.raw)[section['start']:section['end']]
-                original = self.raw[section['start'] - len(prefix):section['end'] - len(prefix)]
-                self.assertEqual(current, original)
-                self.assertEqual(c.digest(current), section['sha256'])
+            self.assertEqual(item['source_body'], item['body'])
+            section = _document(self.root, self.document).section(item['body']['section_id'])
+            self.assertEqual(item['body']['sha256'], c.digest(section.raw))
         r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
         fresh = self.start(scope='sheet')
         self.assertEqual(fresh['progress']['reused_bytes'], 0)
@@ -2004,35 +2434,55 @@ class ScopedReadingTests(unittest.TestCase):
     def test_changed_selected_section_delivers_only_that_section_and_retains_others(self):
         first = self.start(scope='catalog')
         replacement = b'The revised canonical approval has its own recovery.'
-        current = self.raw.replace(b'The complete canonical approval and recovery.', replacement)
-        (self.root / self.document).write_bytes(current)
+        current = _replace_body(self.raw, b'The complete canonical approval and recovery.', replacement)
+        _write_document(self.root, self.document, current)
         second = self.start(scope='catalog', known_reading_keys=[first['reading']['key']])
         self.assertEqual(len(second['body']), 1)
         self.assertEqual(second['body'][0]['text'], '## Sheet\n' + replacement.decode() + '\n\n')
         self.assertGreater(second['progress']['reused_bytes'], 0)
         self.assertEqual(second['progress']['total_bytes'], len(second['body'][0]['text'].encode()))
-        issued = second['issued']['row']
-        fresh_parts = [item for item in issued['delivery']['bodies'] if item['reused_from'] is None]
-        self.assertEqual(len(fresh_parts), 1)
-        self.assertEqual([section['anchor'] for section in fresh_parts[0]['body']['sections']], ['sheet'])
+        fresh_parts = [item for item in second['issued']['row']['delivery']['bodies'] if item['reused_from'] is None]
+        self.assertEqual([part['body']['section_id'] for part in fresh_parts], ['sheet'])
         r.require_route_reading(r.draft_record(second['issued']), root=self.root, ledgers=[self.ledger])
         third = self.start(scope='catalog', known_reading_keys=[second['reading']['key']])
         self.assertEqual(third['body'], [])
         self.assertEqual(third['progress']['reused_bytes'], third['progress']['required_bytes'])
 
+    def test_reordered_duplicate_headings_keep_their_ids_and_original_delivery(self):
+        raw = _replace_body(_replace_body(self.raw, b'## Common', b'## Repeated heading'), b'## Sheet', b'## Repeated heading')
+        _write_document(self.root, self.document, raw)
+        first = self.start(scope='sheet')
+        sections = {section['id']: section for section in raw}
+        order = ['contract', 'sheet', 'slot', 'common', 'catalog', 'imported', 'withdrawal']
+        current = [sections[identifier] for identifier in order]
+        _write_document(self.root, self.document, current)
+        indexed = self.start(scope='sheet', navigation=True, known_reading_keys=[first['reading']['key']])
+        visible = [part for source in indexed['index'] for part in source['sections']]
+        self.assertEqual([part['section_id'] for part in visible], ['sheet', 'common'])
+        self.assertEqual([part['selector'] for part in visible], [None, None])
+        self.assertEqual(indexed['progress']['same_context_new_bytes'], 0)
+        result, _, delivered = self.finish(indexed)
+        self.assertEqual(delivered, 0)
+        for body in result['issued']['row']['delivery']['bodies']:
+            self.assertEqual(body['origin']['key_sha256'], first['issued']['row']['key_sha256'])
+            self.assertEqual(body['body'], body['source_body'])
+        fresh = self.start(scope='sheet')
+        self.assertEqual(fresh['progress']['reused_bytes'], 0)
+        self.assertEqual(''.join(row['text'] for row in fresh['body']), sections['sheet']['body'] + sections['common']['body'])
+
     def test_scope_expansion_across_source_edit_reads_only_new_required_section(self):
         first = self.start()
-        (self.root / self.document).write_bytes(b'# Earlier note\nA new opening.\n\n' + self.raw)
+        _write_document(self.root, self.document, _section('earlier-note', b'# Earlier note\nA new opening.\n\n') + self.raw)
         expanded = self.start(scope='sheet', known_reading_keys=[first['reading']['key']])
-        self.assertEqual(len(expanded['body']), 1)
+        self.assertEqual([row['metadata']['section_id'] for row in expanded['body']], ['sheet'])
         self.assertTrue(expanded['body'][0]['text'].startswith('## Sheet\n'))
         self.assertNotIn('## Common', expanded['body'][0]['text'])
         r.require_route_reading(r.draft_record(expanded['issued']), root=self.root, ledgers=[self.ledger])
 
-    def test_section_content_never_reuses_a_different_source_path_or_heading(self):
+    def test_document_id_separates_evidence_and_heading_changes_keep_the_section_identity(self):
         first = self.start(scope='sheet')
-        other = 'notes/other.md'
-        (self.root / other).write_bytes(self.raw)
+        other = 'notes/other'
+        _write_document(self.root, other, self.raw)
         for entry in self.manifest['operation_contexts'].values():
             entry['reads'] = [other]
         for profile in self.manifest['reading_scopes'].values():
@@ -2040,73 +2490,64 @@ class ScopedReadingTests(unittest.TestCase):
         (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
         changed = self.start(scope='sheet', known_reading_keys=[first['reading']['key']])
         self.assertEqual(changed['progress']['reused_bytes'], 0)
-        self.assertTrue(all(item['metadata']['path'] == other for item in changed['body']))
-        self.manifest['reading_scopes']['adopt']['documents'][other][0]['sections'] = ['renamed-common']
-        (self.root / 'config/execution-routes.json').write_bytes(c.encoded(self.manifest))
-        (self.root / other).write_bytes(self.raw.replace(b'## Common', b'## Renamed common'))
+        self.assertTrue(all(item['metadata']['document_id'] == other for item in changed['body']))
+        _write_document(self.root, other, _replace_body(self.raw, b'## Common', b'## Renamed common'))
         renamed = self.start(scope='sheet', known_reading_keys=[changed['reading']['key']])
-        self.assertEqual(len(renamed['body']), 1)
+        self.assertEqual([row['metadata']['section_id'] for row in renamed['body']], ['common'])
         self.assertTrue(renamed['body'][0]['text'].startswith('## Renamed common'))
+        delivered = [item['body'] for item in renamed['issued']['row']['delivery']['bodies'] if item['reused_from'] is None]
+        self.assertEqual([body['section_id'] for body in delivered], ['common'])
+        self.assertGreater(renamed['progress']['reused_bytes'], 0)
 
-    def test_relocated_section_provenance_and_current_content_cannot_be_substituted(self):
+    def test_section_provenance_and_current_content_cannot_be_substituted(self):
         first = self.start(scope='catalog')
-        current = b'# Earlier note\nA new opening.\n\n' + self.raw
-        (self.root / self.document).write_bytes(current)
+        current = _section('earlier-note', b'# Earlier note\nA new opening.\n\n') + self.raw
+        _write_document(self.root, self.document, current)
         indexed = self.start(scope='catalog', navigation=True, known_reading_keys=[first['reading']['key']])
         snapshot = c.load(self.ledger.parent / 'reading-snapshots' / indexed['snapshot'] / 'snapshot.json')
         damaged = copy.deepcopy(snapshot)
-        damaged['reused_bodies'][0]['source_body']['sections'][0]['sha256'] = '0' * 64
+        damaged['reused_bodies'][0]['source_body']['sha256'] = '0' * 64
         with self.assertRaisesRegex(ValueError, 'complete source issuance'):
             r._check_reused_bodies(damaged, self.ledger)
         damaged = copy.deepcopy(snapshot)
-        damaged['required_bodies'][0]['sections'][0]['sha256'] = '0' * 64
+        damaged['required_bodies'][0]['sha256'] = '0' * 64
         _, acquired = r.capture('adoption', operation='adopt', execution='dispatcher', scope='catalog',
                                source_kind='production-candidate', root=self.root)
-        self.assertFalse(r._current_body_ranges(acquired, damaged['required_bodies']))
-        (self.root / self.document).write_bytes(current.replace(b'The common condition.', b'The changed condition.'))
+        self.assertFalse(r._current_bodies(acquired, damaged['required_bodies']))
+        _write_document(self.root, self.document, _replace_body(current, b'The common condition.', b'The changed condition.'))
         with self.assertRaises(r.ReadingSourcesChanged):
             self.finish(indexed)
 
-    def test_complete_interval_evidence_does_not_invent_unknown_section_hashes(self):
+    def test_receipt_without_retained_bytes_cannot_prove_section_reuse(self):
         manifest, acquired = r.capture('adoption', operation='adopt', execution='dispatcher', scope='studio-slot',
                                       source_kind='production-candidate', root=self.root)
-        # A complete interval without a section index still proves its own
-        # bytes, but cannot prove an independently hashed subset after edits.
-        bodies = [{key: value for key, value in dict(metadata, size=len(raw)).items() if key != 'sections'}
-                  for metadata, raw in acquired]
-        first = r._issue(manifest, self.ledger, bodies=bodies)
-        (self.root / self.document).write_bytes(b'# Earlier note\nA new opening.\n\n' + self.raw)
+        first = r._issue(manifest, self.ledger, bodies=[dict(metadata) for metadata, _ in acquired])
+        _write_document(self.root, self.document, _section('earlier-note', b'# Earlier note\nA new opening.\n\n') + self.raw)
         same = self.start(known_reading_keys=[first['reading_key']])
-        self.assertEqual(same['body'], [])
+        self.assertEqual(same['progress']['reused_bytes'], 0)
+        self.assertEqual({row['metadata']['section_id'] for row in same['body']}, {'common', 'slot'})
         subset = self.start(scope='sheet', known_reading_keys=[first['reading_key']])
         self.assertEqual(subset['progress']['reused_bytes'], 0)
-        delivered = ''.join(item['text'] for item in subset['body'])
-        self.assertIn('## Common\n', delivered)
-        self.assertIn('## Sheet\n', delivered)
+        self.assertEqual({row['metadata']['section_id'] for row in subset['body']}, {'common', 'sheet'})
 
     def test_section_hash_edit_cannot_substitute_for_original_delivered_body_bytes(self):
         whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
-        current = self.raw.replace(b'The common condition.', b'The changed common condition.')
-        (self.root / self.document).write_bytes(current)
-        changed_section = next(row for row in r.execution_routes.document_sections(current) if row['anchor'] == 'common')
+        current = _replace_body(self.raw, b'The common condition.', b'The changed common condition.')
+        _write_document(self.root, self.document, current)
+        changed_section = _document(self.root, self.document).section('common')
         row = copy.deepcopy(whole['row'])
-        body = row['delivery']['bodies'][0]['body']
-        section = next(part for part in body['sections'] if part['anchor'] == 'common')
-        section['sha256'] = changed_section['sha256']
+        body = next(item['body'] for item in row['delivery']['bodies'] if item['body']['section_id'] == 'common')
+        body['sha256'] = changed_section.sha256
+        body['size'] = changed_section.size
         self.ledger.write_bytes(c.encoded(row))
-        # The whole-body hash and original manifest still match the earlier
-        # receipt. The finer claim must also match those actual original bytes.
-        r.ledger_rows(self.ledger)
-        result = self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
-        text = ''.join(item['text'] for item in result['body'])
-        self.assertIn('The changed common condition.', text)
-        self.assertEqual(result['progress']['reused_bytes'], 0)
-        r.require_route_reading(r.draft_record(result['issued']), root=self.root, ledgers=[self.ledger])
+        with self.assertRaisesRegex(ValueError, 'body|section|delivery'):
+            self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
+        self.assertEqual(len(self.ledger.read_text(encoding='utf-8').splitlines()), 1)
 
     def test_missing_or_damaged_original_body_redelivers_sections_and_allows_fresh_reading(self):
         for paged, damaged in ((False, False), (False, True), (True, False), (True, True)):
             with self.subTest(paged=paged, damaged=damaged):
-                (self.root / self.document).write_bytes(self.raw)
+                _write_document(self.root, self.document, self.raw)
                 if paged:
                     initial = r.read_page(route='development', execution='dispatcher', root=self.root,
                         ledger=self.ledger, stream=io.StringIO(), page_bytes=100000)
@@ -2116,38 +2557,39 @@ class ScopedReadingTests(unittest.TestCase):
                     whole = r.issue('development', execution='dispatcher', root=self.root,
                                     ledger=self.ledger, stream=io.StringIO())
                     folder = self.ledger.parent / 'reading-content'
-                body_file = folder / 'objects' / c.digest(self.raw)
+                original = _document(self.root, self.document).section('common')
+                body_file = folder / 'objects' / original.sha256
                 if damaged:
                     body_file.write_bytes(b'A damaged retained body.')
                 else:
                     body_file.unlink()
-                (self.root / self.document).write_bytes(b'# Earlier note\nUnrelated source maintenance.\n\n' + self.raw)
+                _write_document(self.root, self.document, _section('earlier-note', b'# Earlier note\nUnrelated source maintenance.\n\n') + self.raw)
                 current = self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
-                self.assertEqual(current['progress']['reused_bytes'], 0)
-                self.assertEqual(current['progress']['delivered_bytes'], current['progress']['required_bytes'])
+                self.assertEqual([item['metadata']['section_id'] for item in current['body']], ['common'])
+                self.assertGreater(current['progress']['reused_bytes'], 0)
+                self.assertEqual(current['progress']['delivered_bytes'], original.size)
                 fresh = self.start(scope='sheet')
                 self.assertEqual(fresh['progress']['reused_bytes'], 0)
                 self.assertEqual(fresh['progress']['delivered_bytes'], fresh['progress']['required_bytes'])
-                # A direct fresh delivery can also restore its own damaged
-                # content-addressed evidence from the newly delivered bytes.
                 if not paged:
-                    (self.root / self.document).write_bytes(self.raw)
+                    _write_document(self.root, self.document, self.raw)
                     r.issue('development', execution='dispatcher', root=self.root,
                             ledger=self.ledger, stream=io.StringIO())
-                    self.assertEqual(body_file.read_bytes(), self.raw)
+                    self.assertEqual(body_file.read_bytes(), original.raw)
 
     def test_lost_original_body_during_scoped_read_requires_redelivery(self):
         whole = r.issue('development', execution='dispatcher', root=self.root, ledger=self.ledger, stream=io.StringIO())
-        (self.root / self.document).write_bytes(b'# Earlier note\nUnrelated source maintenance.\n\n' + self.raw)
+        _write_document(self.root, self.document, _section('earlier-note', b'# Earlier note\nUnrelated source maintenance.\n\n') + self.raw)
         indexed = self.start(scope='sheet', navigation=True, known_reading_keys=[whole['reading_key']])
         self.assertGreater(indexed['progress']['reused_bytes'], 0)
-        original = self.ledger.parent / 'reading-content/objects' / c.digest(self.raw)
-        original.unlink()
+        original = _document(self.root, self.document).section('common')
+        (self.ledger.parent / 'reading-content/objects' / original.sha256).unlink()
         with self.assertRaisesRegex(ValueError, 'start the current reading again'):
             self.finish(indexed)
         recovered = self.start(scope='sheet', known_reading_keys=[whole['reading_key']])
-        self.assertEqual(recovered['progress']['reused_bytes'], 0)
-        self.assertEqual(recovered['progress']['delivered_bytes'], recovered['progress']['required_bytes'])
+        self.assertEqual([item['metadata']['section_id'] for item in recovered['body']], ['common'])
+        self.assertGreater(recovered['progress']['reused_bytes'], 0)
+        self.assertEqual(recovered['progress']['delivered_bytes'], original.size)
 
     def test_actual_curation_contracts_exclude_other_procedures_and_keep_recovery(self):
         expected = {
@@ -2162,7 +2604,7 @@ class ScopedReadingTests(unittest.TestCase):
         for scope, needed in expected.items():
             resolved = r.execution_routes.resolve('adoption', execution='dispatcher', scope=scope,
                                                  source_kind='production-candidate')
-            anchors = {part['anchor'] for values in resolved['section_owners'].values() for part in values}
+            anchors = {part['section_id'] for values in resolved['section_owners'].values() for part in values}
             self.assertTrue(needed <= anchors, (scope, needed - anchors))
             self.assertFalse({'service-authentication', 'display-publication-ownership',
                 'story-timeline-projection', 'input-and-scope', 'register-an-imported-catalog-reference',
@@ -2174,7 +2616,7 @@ class ScopedReadingTests(unittest.TestCase):
                 self.assertNotIn('register-the-selected-candidate-in-the-catalog', anchors)
                 self.assertNotIn('catalog-publication-and-reuse', anchors)
         imported = r.execution_routes.resolve('adoption', execution='external', scope='sheet', source_kind='imported-iteration')
-        anchors = {part['anchor'] for values in imported['section_owners'].values() for part in values}
+        anchors = {part['section_id'] for values in imported['section_owners'].values() for part in values}
         self.assertIn('input-and-scope', anchors)
         self.assertIn('record-a-missing-generation-package', anchors)
         self.assertNotIn('author-one-canonical-adoption-decision', anchors)
@@ -2320,7 +2762,7 @@ class RetainedAmendmentReadingTests(unittest.TestCase):
             execution='dispatcher', studio=root, stream=io.StringIO(), page_bytes=1000000,
             authoring_scope=scope, choices_path=draft['choices_file'], model=selected['model'],
             service=selected.get('service'), known_reading_keys=[original_key])
-        self.assertTrue(all(item['metadata']['kind'] == 'document' for item in current['body']))
+        self.assertTrue(all(item['metadata']['kind'] == 'document-section' for item in current['body']))
         self.assertLess(current['progress']['same_context_new_bytes'], current['progress']['fresh_context_bytes'])
         self.assertEqual(current['issued']['row']['resources'], {})
         choices['reading']['reading_key'] = current['reading']['key']
@@ -2382,9 +2824,9 @@ class ContextReadingTests(unittest.TestCase):
             return r.read_command(parser.parse_args(words), parser)
 
     def test_compact_cli_pages_preserve_complete_sources_index_replay_and_source_capacity(self):
-        work = self.root / 'notes/work.md'
-        work.write_bytes(work.read_bytes() * 80)
-        expected = (self.root / 'notes/always.md').read_bytes() + work.read_bytes()
+        work = _document_bytes(self.root, 'notes/work')
+        _write_document(self.root, 'notes/work', _section('work', work * 80))
+        expected = _document_bytes(self.root, 'notes/always') + _document_bytes(self.root, 'notes/work')
 
         def command(words):
             stream = io.StringIO()
@@ -2437,8 +2879,8 @@ class ContextReadingTests(unittest.TestCase):
             (self.root / name).mkdir()
             c.atomic(self.root / name / 'choices.json', c.encoded(original))
             c.atomic(self.root / name / 'context.json', (self.root / 'draft/context.json').read_bytes())
-        work = self.root / 'notes/work.md'
-        work.write_bytes(work.read_bytes() * 50)
+        work = _document_bytes(self.root, 'notes/work')
+        _write_document(self.root, 'notes/work', _section('work', work * 50))
         base = ['--root', str(self.root), '--bind-choices', '--all', '--page-bytes', '4096']
         first = self.command([*base, '--choices', 'draft/choices.json', '--fresh-context'])
         while first['reading'] is None:
@@ -2483,7 +2925,7 @@ class ContextReadingTests(unittest.TestCase):
             pages.append(result)
         return result, pages
 
-    def test_one_context_selects_complete_ranges_across_actual_operations(self):
+    def test_one_context_selects_complete_sections_across_actual_operations(self):
         context = 'a' * 32
         byte_counts = []
         for operation in ('author', 'prepare', 'execute', 'review', 'adopt'):
@@ -2499,7 +2941,7 @@ class ContextReadingTests(unittest.TestCase):
                 source_kind='production-candidate' if operation == 'adopt' else None)
         self.assertGreater(byte_counts[0], 0)
         self.assertEqual(byte_counts[1:4], [0, 0, 0])
-        self.assertEqual(byte_counts[-1], (self.root / 'notes/extra.md').stat().st_size)
+        self.assertEqual(byte_counts[-1], len(_document_bytes(self.root, 'notes/extra')))
         self.assertEqual(result['reuse_selection']['automatic_readings'], 4)
 
     def test_conflicting_start_flags_return_nonmutating_exact_cursor_recovery(self):
@@ -2623,13 +3065,13 @@ class ContextReadingTests(unittest.TestCase):
     def test_changed_document_is_delivered_without_repeating_unchanged_documents(self):
         context = 'e' * 32
         first, _ = self.read(context=context)
-        changed = self.root / 'notes/work.md'
-        changed.write_bytes(changed.read_bytes() + b'A newly required source sentence.\n')
+        changed = _document_bytes(self.root, 'notes/work') + b'A newly required source sentence.\n'
+        _write_document(self.root, 'notes/work', _section('work', changed))
         result, pages = self.read(context=context)
         delivered = [item for page in pages for item in page['body']]
-        self.assertEqual([item['metadata']['path'] for item in delivered], ['notes/work.md'])
-        self.assertEqual(delivered[0]['text'].encode(), changed.read_bytes())
-        self.assertEqual(result['progress']['reused_bytes'], (self.root / 'notes/always.md').stat().st_size)
+        self.assertEqual([item['metadata']['document_id'] for item in delivered], ['notes/work'])
+        self.assertEqual(delivered[0]['text'].encode(), changed)
+        self.assertEqual(result['progress']['reused_bytes'], len(_document_bytes(self.root, 'notes/always')))
         self.assertNotEqual(first['issued']['row']['documents'], result['issued']['row']['documents'])
 
     def test_continuation_and_plan_navigation_keep_an_explicit_context_boundary(self):
@@ -2669,8 +3111,8 @@ class ContextReadingTests(unittest.TestCase):
         self.assertIn('--restart', fresh_legacy['reading_action']['argv'])
 
     def test_auto_pages_respect_declared_host_capacity_and_preserve_complete_bytes(self):
-        original = (self.root / 'notes/work.md').read_bytes()
-        (self.root / 'notes/work.md').write_bytes(original * 1000)
+        original = _document_bytes(self.root, 'notes/work')
+        _write_document(self.root, 'notes/work', _section('work', original * 1000))
         fixed, fixed_pages = self.read()
         automatic, auto_pages = self.read(page_bytes='auto', host_page_bytes=65536)
         self.assertGreater(len(fixed_pages), len(auto_pages))
@@ -2734,7 +3176,7 @@ class ContextReadingTests(unittest.TestCase):
         current = self.command(['--root', str(self.root), '--choices', 'draft/choices.json', '--bind-choices',
                                 '--all', '--reading-context', result['reading_context']])
         self.assertTrue(current['choices_binding']['bound'])
-        self.assertEqual([item['metadata']['path'] for item in current['body']], ['notes/extra.md'])
+        self.assertEqual([item['metadata']['document_id'] for item in current['body']], ['notes/extra'])
 
 
 class TextReadingOutputTests(unittest.TestCase):
@@ -2752,17 +3194,34 @@ class TextReadingOutputTests(unittest.TestCase):
         response = c.load(Path(controls['response_file']))
         return result, text, controls, response
 
+    def test_text_index_keeps_stable_section_ids_beside_duplicate_display_titles(self):
+        raw = (_section('first-rule', b'# Repeated title\nFirst complete rule.\n\n') +
+               _section('second-rule', b'## Repeated title\nSecond complete rule.\n'))
+        _write_document(self.root, 'notes/work', raw)
+        result, _, _, initial = self.displayed(['generation', '--execution', 'dispatcher',
+                                              '--root', str(self.root), '--view', 'text'])
+        source = next(row for row in result['index'] if row['document_id'] == 'notes/work')
+        _, text, controls, response = self.displayed([
+            *initial['actions']['index']['argv'][3:], '--index-source', source['selector']])
+        display = json.loads(text.split('\n=== READING CONTROL ===\n', 1)[0])
+        sections = display['sources'][0]['sections']
+        self.assertEqual([row['section_id'] for row in sections], ['first-rule', 'second-rule'])
+        self.assertEqual([row['selector'] for row in sections], ['notes/work#first-rule', 'notes/work#second-rule'])
+        self.assertEqual(response['body'], [])
+        self.assertIsNone(controls['reading'])
+        self.assertFalse(self.ledger.exists())
+
     def test_full_plain_bodies_and_saved_json_keep_ranges_context_and_new_response_files(self):
-        raw = ('# Work\r\n\r\nOne synthetic \u03a9 character.\r\n'
+        raw = _section('work', ('# Work\r\n\r\nOne synthetic \u03a9 character.\r\n'
                'Literal JSON: {"actions": {"continue": "source text only"}}\r\n'
-               'A path: source\\input.txt\r\n').encode('utf-8')
-        (self.root / 'notes/work.md').write_bytes(raw)
-        expected = (self.root / 'notes/always.md').read_bytes() + raw
+               'A path: source\\input.txt\r\n').encode('utf-8'))
+        _write_document(self.root, 'notes/work', raw)
+        expected = _document_bytes(self.root, 'notes/always') + _body_bytes(raw)
         result, text, controls, response = self.displayed(['generation', '--execution', 'dispatcher',
             '--root', str(self.root), '--fresh-context', '--view', 'text', '--page-bytes', '80'])
         self.assertEqual(response['body'], [])
         self.assertIsNone(controls['reading'])
-        self.assertIn('notes/work.md', text)
+        self.assertIn('notes/work', text)
         for reason in response['selection_reasons'].values():
             self.assertIn(reason, text)
         context, files, delivered = result['reading_context'], {}, bytearray()
@@ -2811,14 +3270,14 @@ class TextReadingOutputTests(unittest.TestCase):
         self.assertTrue(response['body'])
 
     def test_text_display_preserves_source_newlines_on_a_translating_host(self):
-        raw = b'# Work\r\nOriginal CRLF.\r\nOriginal LF.\n'
-        (self.root / 'notes/work.md').write_bytes(raw)
+        raw = _section('work', b'# Work\r\nOriginal CRLF.\r\nOriginal LF.\n')
+        _write_document(self.root, 'notes/work', raw)
         buffer = io.BytesIO()
         stream = io.TextIOWrapper(buffer, encoding='utf-8', newline='\r\n')
         self.addCleanup(stream.close)
         self.command(['generation', '--execution', 'dispatcher', '--root', str(self.root),
                       '--all', '--view', 'text'], stream=stream)
-        self.assertIn(raw, buffer.getvalue())
+        self.assertIn(_body_bytes(raw), buffer.getvalue())
         self.assertNotIn(b'\r\r\n', buffer.getvalue())
 
     def test_failed_host_body_flush_issues_no_reading_or_completed_page(self):

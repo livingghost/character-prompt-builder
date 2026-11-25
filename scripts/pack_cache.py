@@ -813,15 +813,17 @@ def _create_database(path: Path, catalog: CatalogBuild) -> None:
     # Nothing is deleted or updated after the build, so the file has no free
     # pages to reclaim and VACUUM would rewrite it for no gain. A rollback
     # journal rather than WAL, because the build publishes by renaming one file
-    # and WAL keeps its content in sidecars that a rename leaves behind. All the
-    # inserts are one transaction, so FULL costs one flush and buys a published
-    # file that survives a crash.
+    # and WAL keeps its content in sidecars that a rename leaves behind. Schema
+    # creation and all inserts share one transaction with FULL synchronization.
+    # BEGIN belongs inside executescript, which commits a pending transaction
+    # before running the script. Publication follows commit and integrity check.
     connection = sqlite3.connect(path)
     try:
         connection.execute("PRAGMA journal_mode=DELETE")
         connection.execute("PRAGMA synchronous=FULL")
         connection.executescript(
             """
+            BEGIN;
             CREATE TABLE meta (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL

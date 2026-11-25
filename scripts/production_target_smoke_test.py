@@ -10,6 +10,8 @@ import unittest
 from unittest.mock import patch
 
 import execution_contract as c
+import execution_target
+import generation_payload_builder as builder
 from input_evidence import InputEvidence
 import pack_manager as packs
 from pack_cache import load_runtime_catalog
@@ -125,6 +127,47 @@ class TargetProjectionTests(unittest.TestCase):
         self.assertEqual([row['field'] for row in result['unresolved']], ['target.service'])
         self.assertIsNone(result['resolved_target'])
         self.assertEqual(result['files'], {})
+
+    def test_saved_execution_target_selects_one_owned_offering(self):
+        resolved = builder.resolve_target(fixtures.MODEL_ID, 'synthetic', source=self.source)
+        saved = c.decode(c.encoded(execution_target.record(resolved)), owned=True)
+        self.assertNotIn('offering', saved)
+        self.assertEqual(saved['selected_service'], 'synthetic')
+        self.assertEqual(saved['model'], resolved.model)
+        selected = execution_target.offering(saved)
+        self.assertIs(selected, saved['model']['offerings'][0])
+        self.assertEqual(execution_target.offering_pointer(saved), '/model/offerings/0')
+        restored = builder.resolve_execution_target(saved, source=self.source)
+        self.assertEqual(restored.offering, resolved.offering)
+        self.assertEqual(restored.service, resolved.service)
+        self.assertEqual(restored.transport_sha256, resolved.transport_sha256)
+        multiple = c.decode(c.encoded(saved))
+        other = copy.deepcopy(multiple['model']['offerings'][0])
+        other['service'] = 'another-service'
+        multiple['model']['offerings'].insert(0, other)
+        self.assertIs(execution_target.offering(multiple), multiple['model']['offerings'][1])
+        self.assertEqual(execution_target.offering_pointer(multiple), '/model/offerings/1')
+
+    def test_saved_execution_target_rejects_changed_selection_and_duplicate_services(self):
+        resolved = builder.resolve_target(fixtures.MODEL_ID, 'synthetic', source=self.source)
+        saved = execution_target.record(resolved)
+        changed = c.decode(c.encoded(saved))
+        changed['selected_service'] = 'another-service'
+        with self.assertRaisesRegex(ValueError, 'selects no offering'):
+            builder.resolve_execution_target(changed, source=self.source)
+        changed = c.decode(c.encoded(saved))
+        changed['model']['offerings'].append(copy.deepcopy(changed['model']['offerings'][0]))
+        with self.assertRaisesRegex(ValueError, 'repeats offering service'):
+            execution_target.offering(changed)
+        changed = c.decode(c.encoded(saved))
+        changed['model']['execution_profile']['id'] = 'a-different-host-profile'
+        self.assertEqual(execution_target.offering(changed), resolved.offering)
+        with self.assertRaisesRegex(ValueError, 'model differs'):
+            builder.resolve_execution_target(changed, source=self.source)
+        changed = c.decode(c.encoded(saved))
+        changed['service']['label'] = 'A different saved service'
+        with self.assertRaisesRegex(ValueError, 'service or transport differs'):
+            builder.resolve_execution_target(changed, source=self.source)
 
     def test_unknown_model_returns_unresolved_without_replacement(self):
         result = self.project({'kind': 'catalog', 'model': 'not-a-fixture-model', 'service': 'synthetic'})

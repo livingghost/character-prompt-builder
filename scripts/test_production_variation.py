@@ -704,7 +704,7 @@ class VariationTests(unittest.TestCase):
     def test_changed_installation_is_a_notice_for_a_variant_and_a_repeat(self):
         import shutil
         installation = Path(self.temp.name) / 'installation'
-        pinned = [source for source in workflow.load_run(self.root, self.run)[1]['dependencies'] if source['space'] == 'skill']
+        pinned = workflow.read_run(self.root, self.run).implementation_dependencies
         for source in pinned:
             target = installation / source['path']
             target.parent.mkdir(parents=True, exist_ok=True)

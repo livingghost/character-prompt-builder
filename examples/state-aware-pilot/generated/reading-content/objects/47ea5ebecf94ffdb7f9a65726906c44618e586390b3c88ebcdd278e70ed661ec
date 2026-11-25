@@ -1,0 +1,55 @@
+## Read the story without authoring a diagram
+
+Flow is generated whenever the normal story projection runs. The agent records
+story decisions in the ordinary narrative, scene and event sources, then runs
+`studio.py sync` after those writes. The user does not maintain a second synopsis,
+node table, edge file or Flow-specific form. Drafts remain visibly unapproved.
+
+The readable cards quote the scene's proposition, participants, setting, beats and
+consequences. Open a passage to read its full account, exchanges, preserved conditions
+and source. Events without a scene show their recorded notes and changes. A missing
+narrative account is marked missing instead of being completed from a model or keywords.
+State-event notes can hold the account the agent already records for that event.
+
+For example, a synthetic source may say "Mara distrusts Ivo" before another says
+"Mara gives Ivo the only key." Pin the first passage and open the second. Compare
+the actual actions, who knows what, and the stated consequences. The page does not
+decide whether the missing explanation is a flaw, a deliberate mystery or a later reveal.
+
+Two reading orders remain distinct:
+
+- Declared presentation follows narrative chapter numbers and each scene's order.
+  A flashback remains where the author presents it.
+- Story order follows exact event positions and the scene's explicitly referenced
+  scene-context-snapshot. No coordinate is inferred from chapter order, a filename,
+  a similar scene ID or an audience disclosure label.
+
+A scene joins an event only through its `setting.scene_context`, the committed
+snapshot's timeline/scene identity, and its declared interval. Unassociated events
+remain visible on separate chronological tracks. Unplaced scene sources are shown
+without an invented story position. Equal positions are peers, not forced causal
+steps. Separate timelines do not acquire inferred branch points or cross-timeline edges.
+
+Flow arrows show reading order. Its cause and revision buttons navigate to the exact
+record. Graph draws those explicit relationships as arrows between cards. In the open `cause` object, `type: "event"` identifies a literal
+event-ID reference in the same timeline. Other cause types remain recorded text;
+even matching prose is not promoted into an event link. Missing or ambiguous explicit
+references get source notices. Cyclic references cannot trap a recursive layout.
+A revision replaces the earlier event as a whole according to the existing resolver,
+not as an inferred partial inheritance.
+
+Open story threads to inspect the narrative's arcs, wants, needs, promises, questions
+and knowledge. Statuses and chapter links are quoted as recorded. An open question
+or unchanged relationship is not automatically a defect. More records can be expanded
+without opening another data file. No acceptance or new story fact is written by browsing.
+
+Pin any passage and compare another, including a passage outside the active filters.
+The comparison says explicitly when a pinned source is outside those filters.
+Previous/next move through the filtered sequence, and omitted intermediate positions
+are counted. Switching Graph/Flow/Axis preserves filters, comparison pins and the selected resolver viewpoint.
+
+The inspector distinguishes authored consequences from before/after values in a
+stored resolver trace. Processes show their declared milestones; interruption and
+restart effects come only from that resolver. Click the Axis inspector for the exact
+state fields and their source operations. Flow does not replay state in JavaScript.
+

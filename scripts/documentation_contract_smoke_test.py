@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Callable
 import concurrent.futures
 import html
@@ -30,6 +30,7 @@ from validate import (
     SKILL_REQUIRED_ROUTER_PHRASES,
     SKILL_ROUTED_DOCUMENTS,
     _adapter_documents,
+    _route_deliveries,
     _skill_target_adapters,
     _skill_word_count,
     check_english_content,
@@ -184,7 +185,8 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         manifest = {
             "operation_contexts": {},
             "routes": {},
-            "features": {"specialist": {"reads": [required, specialist, adapter], "source_roles": []}},
+            "features": {"specialist": {"reads": [path.removesuffix('.md') for path in (required, specialist, adapter)],
+                                          "source_roles": []}},
         }
         self._write("config/execution-routes.json", json.dumps(manifest))
         path = self.root / "SKILL.md"
@@ -199,7 +201,7 @@ class DocumentationContractSmokeTest(unittest.TestCase):
     def test_core_authoring_document_is_directly_reachable(self) -> None:
         relative = SKILL_DIRECT_LINKS[-1]
         manifest = {"operation_contexts": {}, "routes": {},
-                    "features": {"prompt-help": {"reads": [relative], "source_roles": []}}}
+                    "features": {"prompt-help": {"reads": [relative.removesuffix('.md')], "source_roles": []}}}
         self._write("config/execution-routes.json", json.dumps(manifest))
         path = self.root / "SKILL.md"
         text = path.read_text(encoding="utf-8").replace(f"]({relative})", "](references/not-the-authority.md)")
@@ -210,6 +212,23 @@ class DocumentationContractSmokeTest(unittest.TestCase):
                 for error in self._errors()
             )
         )
+
+    def test_route_reachability_resolves_operation_and_transitive_feature_document_ids(self) -> None:
+        manifest = {
+            'features': {
+                'specialist': {'reads': ['references/specialist'],
+                               'execution_features': {'dispatcher': ['transport']}},
+                'transport': {'reads': ['references/transport']},
+            },
+            'operation_contexts': {'prepare': {'reads': ['references/preparation'],
+                                              'executions': {'dispatcher': ['references/dispatch']}}},
+            'routes': {'production': {'reads': ['references/production'], 'features': ['specialist']}},
+        }
+        self._write('config/execution-routes.json', json.dumps(manifest))
+        deliveries = _route_deliveries(self.root)
+        self.assertEqual(deliveries['specialist'], ('references/specialist.md', 'references/transport.md'))
+        self.assertEqual(deliveries['production'], tuple('references/' + name + '.md'
+                         for name in ('dispatch', 'preparation', 'production', 'specialist', 'transport')))
 
     def test_judgment_automation_boundary_is_enforced(self) -> None:
         path = self.root / "SKILL.md"
@@ -301,9 +320,9 @@ class DocumentationContractSmokeTest(unittest.TestCase):
         core = "references/runtime/prompt-only-core.md"
         self.assertIn(f"]({core})", paths)
         routes = json.loads((ROOT / "config/execution-routes.json").read_text(encoding="utf-8"))
-        self.assertIn(core, routes["routes"]["prompt-only"]["reads"])
+        self.assertIn(core.removesuffix('.md'), routes["routes"]["prompt-only"]["reads"])
         for operation in ("author", "save", "prepare", "review"):
-            self.assertIn(owner, routes["operation_contexts"][operation]["reads"])
+            self.assertIn(owner.removesuffix('.md'), routes["operation_contexts"][operation]["reads"])
 
         authoring = (ROOT / owner).read_text(encoding="utf-8")
         self.assertIn("../../schemas/authoring/authoring-work.schema.json", authoring)
@@ -415,11 +434,11 @@ class RepositoryDocumentationTests(unittest.TestCase):
 
     def test_preparation_and_material_reuse_have_distinct_reads(self) -> None:
         from execution_routes import resolve
-        preparing = {x['path'] for x in resolve('performance', execution='authored')['reads']}
-        reusing = {x['path'] for x in resolve('performance', ['scene-persona'], execution='authored')['reads']}
-        self.assertIn('templates/narrative/personas/persona-template.md', preparing)
-        self.assertIn('references/runtime/scene-persona.md', reusing)
-        self.assertNotIn('templates/narrative/personas/persona-template.md', reusing)
+        preparing = {x['document_id'] for x in resolve('performance', execution='authored')['reads']}
+        reusing = {x['document_id'] for x in resolve('performance', ['scene-persona'], execution='authored')['reads']}
+        self.assertIn('templates/narrative/personas/persona-template', preparing)
+        self.assertIn('references/runtime/scene-persona', reusing)
+        self.assertNotIn('templates/narrative/personas/persona-template', reusing)
 
     def test_live_repository_contract(self) -> None:
         errors: list[str] = []
@@ -462,17 +481,19 @@ class RepositoryDocumentationTests(unittest.TestCase):
         self.assertEqual("static-lexical-words-not-host-tokens", report["measurement"])
         for route in report["routes"].values():
             # The host loads SKILL.md itself; a route read never repeats it.
-            self.assertNotIn("SKILL.md", [entry["path"] for entry in route["files"]])
+            self.assertNotIn("SKILL", [entry["document_id"] for entry in route["files"]])
             for entry in route["files"]:
-                self.assertFalse(entry["missing"], entry["path"])
-                raw = (ROOT / entry['path']).read_bytes()
-                selected = b''.join(raw[row['start']:row['end']] for row in entry['ranges'])
+                self.assertFalse(entry["missing"], entry["document_id"])
+                record = json.loads((ROOT / 'knowledge' / (entry['document_id'] + '.json')).read_text(encoding='utf-8'))
+                bodies = {section['id']: section['body'].encode('utf-8') for section in record['sections']}
+                selected = b''.join(bodies[section['section_id']] for section in entry['sections'])
                 self.assertEqual(
                     _skill_word_count(selected.decode('utf-8')),
                     entry["words"],
-                    entry["path"],
+                    entry["document_id"],
                 )
                 self.assertEqual(len(selected), entry['selected_bytes'])
+                self.assertEqual(sum(map(len, bodies.values())), entry['source_bytes'])
             self.assertEqual(sum(entry['selected_bytes'] for entry in route['files']), route['selected_bytes'])
 
     def test_catalog_batch_is_routed_and_self_describing(self) -> None:
@@ -1009,7 +1030,7 @@ def help_workers() -> int:
     budget = os.environ.get("CPB_CHECK_CHILD_WORKERS")
     if budget is None:
         from run_checks import execution_context
-        return execution_context(None)["jobs"]
+        return execution_context(1)["child_command_workers"]
     count = int(budget)
     if count < 1:
         raise ValueError("CPB_CHECK_CHILD_WORKERS must be a positive integer")
@@ -1133,9 +1154,13 @@ class DiagnosticCodeFlow:
     """
 
     def __init__(self, paths: list[Path]) -> None:
-        self.modules = {script_module(path): ast.parse(path.read_text(encoding="utf-8")) for path in paths}
-        self.imports = {name: self._imports(tree) for name, tree in self.modules.items()}
-        self.sites = {name: list(self._sites(tree)) for name, tree in self.modules.items()}
+        self.sources = {path: ast.parse(path.read_text(encoding="utf-8")) for path in paths}
+        self.modules = {script_module(path): tree for path, tree in self.sources.items()}
+        self.imports = {}
+        self.sites = {}
+        self.guidance = {}
+        for name, tree in self.modules.items():
+            self.imports[name], self.sites[name], self.guidance[name] = self._scan(tree)
         self._values: dict[tuple[str, ast.AST | None], dict[str, list[ast.expr]]] = {}
         self._definitions: dict[ast.AST, dict[str, ast.AST]] = {}
         self._resolutions: dict[ast.expr, ast.AST | None] = {}
@@ -1146,9 +1171,14 @@ class DiagnosticCodeFlow:
             pass
 
     @staticmethod
-    def _imports(tree: ast.Module) -> dict[str, tuple[str, ...]]:
+    def _scan(tree: ast.Module):
+        """Acquire import bindings, scoped sites and guidance in one tree traversal."""
         table: dict[str, tuple[str, ...]] = {}
-        for node in ast.walk(tree):
+        sites = []
+        guidance = []
+        pending: deque[tuple[ast.AST, tuple[ast.AST, ...]]] = deque([(tree, ())])
+        while pending:
+            node, scopes = pending.popleft()
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     table[alias.asname or alias.name.split(".")[0]] = (
@@ -1156,18 +1186,15 @@ class DiagnosticCodeFlow:
             elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
                 for alias in node.names:
                     table[alias.asname or alias.name] = ("name", node.module, alias.name)
-        return table
-
-    @staticmethod
-    def _sites(tree: ast.Module):
-        """Every call, record display and assignment, with the scopes that enclose it."""
-        stack: list[tuple[ast.AST, tuple[ast.AST, ...]]] = [(tree, ())]
-        while stack:
-            node, scopes = stack.pop()
             if isinstance(node, (ast.Call, ast.Dict, ast.Assign)):
-                yield node, scopes
+                sites.append((node, scopes))
+            if isinstance(node, ast.Dict):
+                guidance.extend((value.lineno, value.value) for key, value in zip(node.keys, node.values)
+                                if isinstance(key, ast.Constant) and key.value == "document_path"
+                                and isinstance(value, ast.Constant) and isinstance(value.value, str))
             inner = scopes + (node,) if isinstance(node, SCOPES) else scopes
-            stack.extend((child, inner) for child in ast.iter_child_nodes(node))
+            pending.extend((child, inner) for child in ast.iter_child_nodes(node))
+        return table, sites, guidance
 
     def _defined(self, owner: ast.AST, name: str) -> ast.AST | None:
         if owner not in self._definitions:
@@ -1355,6 +1382,7 @@ class DiagnosticCodeFlowBindingTests(unittest.TestCase):
                 "Wrapper('WRAPPED_CODE')\n"
                 "def defaulted(code='DEFAULT_CODE'):\n"
                 "    renamed(code)\n"
+                "guidance = {'document_path': 'references/runtime/production-diagnostics.md#codes'}\n"
             ),
         }
         with tempfile.TemporaryDirectory(prefix="cpb-diagnostic-bindings-") as temporary:
@@ -1374,6 +1402,50 @@ class DiagnosticCodeFlowBindingTests(unittest.TestCase):
                 "DEFAULT_CODE": {("consumer", "raise")},
                 "LOCAL_RECORD": {("forwarding", "record")},
             })
+            self.assertEqual(flow.guidance["consumer"],
+                             [(8, "references/runtime/production-diagnostics.md#codes")])
+
+    def test_implementation_closure_reuses_parsed_sources_and_rereads_new_observations(self) -> None:
+        from unittest import mock
+        import production_operations as workflow
+
+        sources = {
+            "entry.py": "import alpha\nfrom branch import leaf\n",
+            "alpha.py": "VALUE = 1\n",
+            "bravo.py": "VALUE = 2\n",
+            "branch/__init__.py": "from . import leaf\n",
+            "branch/leaf.py": "import importlib\nimportlib.import_module('dynamic')\n'helper.json'\n",
+            "dynamic.py": "VALUE = 3\n",
+        }
+        with tempfile.TemporaryDirectory(prefix="cpb-implementation-sources-") as temporary:
+            root = Path(temporary)
+            parsed = {}
+            for relative, source in sources.items():
+                path = root / "scripts" / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source, encoding="utf-8")
+                parsed[path] = ast.parse(source)
+            (root / "scripts/helper.json").write_text("{}", encoding="utf-8")
+            with mock.patch.object(workflow, "ROOT", root), mock.patch.object(workflow, "ENTRY_MODULES", ("entry",)):
+                original = workflow.implementation_closure()
+                self.assertEqual(set(original), {
+                    "scripts/entry.py", "scripts/alpha.py", "scripts/branch/__init__.py",
+                    "scripts/branch/leaf.py", "scripts/dynamic.py", "scripts/helper.json",
+                    workflow.execution_routes.MANIFEST, workflow.IMPLEMENTATION_INDEX,
+                })
+                with mock.patch.object(ast, "parse", side_effect=AssertionError("source parsed again")), \
+                        mock.patch.object(workflow.c, "read", side_effect=AssertionError("source read again")):
+                    self.assertEqual(workflow.implementation_closure(parsed=parsed), original)
+
+                entry = root / "scripts/entry.py"
+                before = entry.stat()
+                entry.write_text(sources["entry.py"].replace("alpha", "bravo"), encoding="utf-8")
+                os.utime(entry, ns=(before.st_atime_ns, before.st_mtime_ns))
+                current = workflow.implementation_closure()
+                self.assertEqual((entry.stat().st_size, entry.stat().st_mtime_ns),
+                                 (before.st_size, before.st_mtime_ns))
+                self.assertNotIn("scripts/alpha.py", current)
+                self.assertIn("scripts/bravo.py", current)
 
 
 class DiagnosticDocumentationTests(unittest.TestCase):
@@ -1394,21 +1466,20 @@ class DiagnosticDocumentationTests(unittest.TestCase):
         import production_operations as production_workflow
         scripts = sorted(path for path in (ROOT / "scripts").rglob("*.py")
                          if not path.name.startswith("test_") and not path.name.endswith("_test.py"))
-        cls.flow = DiagnosticCodeFlow(scripts)
-        cls.production = {script_module(ROOT / path) for path in production_workflow.implementation_closure()
+        flow = DiagnosticCodeFlow(scripts)
+        cls.production = {script_module(ROOT / path)
+                          for path in production_workflow.implementation_closure(parsed=flow.sources)
                           if path.endswith(".py")}
+        # Retain the small test observations, not every source AST until shutdown.
+        cls.codes = flow.codes
+        cls.guidance = flow.guidance
         cls.rows = CODE_ROW.findall(DIAGNOSTICS_DOCUMENT.read_text(encoding="utf-8"))
 
     def test_diagnostic_guidance_names_existing_documents_and_sections(self) -> None:
         from production_diagnostics import PHASE_DOCUMENTS, PHASE_SCHEMAS
         declared = [(f"phase {phase}", target) for phase, target in PHASE_DOCUMENTS.items()]
         for module in sorted(self.production):
-            for node in ast.walk(self.flow.modules[module]):
-                if isinstance(node, ast.Dict):
-                    declared += [(f"{module}.py line {value.lineno}", value.value)
-                                 for key, value in zip(node.keys, node.values)
-                                 if isinstance(key, ast.Constant) and key.value == "document_path"
-                                 and isinstance(value, ast.Constant) and isinstance(value.value, str)]
+            declared.extend((f"{module}.py line {line}", target) for line, target in self.guidance[module])
         problems = []
         for owner, target in declared:
             path, _, anchor = target.partition("#")
@@ -1426,10 +1497,10 @@ class DiagnosticDocumentationTests(unittest.TestCase):
     def test_code_table_lists_each_code_production_raises_and_only_produced_codes(self) -> None:
         documented = [code for code, _ in self.rows]
         self.assertEqual([], sorted({code for code in documented if documented.count(code) > 1}), "repeated rows")
-        raised = {code for code, sources in self.flow.codes.items()
+        raised = {code for code, sources in self.codes.items()
                   if any(module in self.production and kind == "raise" for module, kind in sources)}
         self.assertEqual([], sorted(raised - set(documented)), "codes a production script raises without a row")
-        self.assertEqual([], sorted(set(documented) - set(self.flow.codes)), "rows that name a code no script produces")
+        self.assertEqual([], sorted(set(documented) - set(self.codes)), "rows that name a code no script produces")
 
     def test_authored_choice_reasons_match_their_schema_and_code_table_row(self) -> None:
         import production_diagnostics

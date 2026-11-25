@@ -1,0 +1,29 @@
+## Inspect and deliver
+
+Inspect the actual work and complete its current input checks:
+
+```bash
+python scripts/authoring_work.py inspect work.json
+python scripts/authoring_work.py check work.json
+python scripts/authoring_work.py export work.json --pointer /prompt --out prompt.txt
+```
+
+Inspection exposes the request, applied sources, subjects, retained requirements,
+baseline, current content and derived difference. Check the complete candidate
+against the request and source roles through
+[Observe and repair](production-direction.md#observe-and-repair). For a revision,
+[Revision contract](revision-contract.md) inspects the same work. The scripts
+check content, source bindings and structural relationships. The author judges
+whether the construction and its actual wording satisfy the commissioned result.
+
+Export the requested pointer from the current candidate. A string exports as
+its exact UTF-8 text; structured content exports as JSON. A completed `/prompt`
+or `/negative` export checks the candidate's whole prompt input through
+[Prompt-only core](prompt-only-core.md), including its selected target's grammar,
+required real vocabulary work and selected documents. This applies to a final
+prompt delivered in conversation as well as a saved file. For an explicit pack
+runtime, give `--state-file`, `--cache-dir` and `--managed-root` together, with
+repeatable `--pack-root` for additional roots. Present the completed result in
+the requested form. The specialized exporter reads the same work when a prompt
+package is requested.
+

@@ -1,0 +1,67 @@
+## Select the operation and optional rendering declaration
+
+`execution_mode` owns the operation used to resolve the interface's controls
+and media transport. It is required for generation independently of style.
+This complete declaration adds no rendering constraint:
+
+```json
+{"artifact_type":"render-intent","execution_mode":"text-to-image"}
+```
+
+Create it directly, or use:
+
+```bash
+python scripts/render_contract.py intent --mode text-to-image --out render-intent.json
+```
+
+`templates/render-intent.template.json` supplies that operation-only form.
+Choose the actual operation when preparing an image request. No model selection
+or operation record is required merely to write conversation-only prompt text.
+Neither this form nor an unselected axis clears a requirement in the prompt,
+an adopted image or an assigned source. The exact prompt and source bindings
+retain those requirements.
+
+An optional authored rendering declaration adds `preset`, `axes`,
+`presentation`, `selection`, `prompt_expression` and `regional_overrides`
+together. This synthetic custom example selects linework without a medium:
+
+```json
+{
+  "artifact_type": "render-intent",
+  "execution_mode": "text-to-image",
+  "preset": null,
+  "axes": {"linework": "continuous dark contours"},
+  "presentation": "single illustration",
+  "selection": {"chosen_by": "user", "reason": "The fixture author selected the contour treatment."},
+  "prompt_expression": "Use continuous dark contours.",
+  "regional_overrides": []
+}
+```
+
+Selecting a named preset constructs its complete declaration:
+
+```bash
+python scripts/render_contract.py intent --preset flat-graphic --mode text-to-image \
+  --chosen-by agent --reason "A restrained graphic treatment supports the requested icon." \
+  --presentation "single illustration" --out render-intent.json
+python scripts/render_contract.py validate-intent render-intent.json --draft
+```
+
+The selected-preset draft leaves its prompt wording to the author. Resolve the selected model's
+input workflow below, then fill `prompt_expression` with the exact authored span
+that describes the visible finish. A tag-based rendition searches its vocabulary;
+a descriptive rendition can use sufficient supplied knowledge directly.
+Include every regional expression in the final prompt as well.
+Preset names, choice reasons and provenance stay in the intent record.
+`validate-intent` without `--draft` requires that wording.
+The generation builder also checks that it actually appears in the authored prompt.
+This proves inclusion, not semantic correctness or model effectiveness; the agent reviews those separately.
+
+An operation-only declaration needs no presentation, selection reason or finish
+span. When a rendering declaration is selected, complete its actual prompt
+expression before generation and preserve every supplied constraint. Keep the
+declared text-free upscale behavior below.
+`schemas/render-intent.schema.json` owns the public structure.
+Dispatcher intent is owned by the editable generation choices or their selected Production Specification. A direct task can supply `generation.render_intent`; the authoring selector `{ "document": "delivery" }` binds the actual editable text. External image work retains the same intent as an applied task source.
+The chosen source's identity and current-state authority remain separate from rendering.
+

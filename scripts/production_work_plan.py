@@ -9,6 +9,7 @@ import copy
 from pathlib import Path
 
 import execution_contract as c
+import read_context
 from production_diagnostics import ProductionError, from_exception
 
 TYPE = 'production-work-plan'
@@ -468,6 +469,7 @@ def _result_applicability(root: Path, items: list[dict]) -> None:
             raise ValueError('A local authored delivery path belongs to result scope save.')
 
 
+@read_context.operation
 def create(root: Path, request_file: str | None = None, *, request: dict | None = None) -> dict:
     import work_ledger
     from pack_manager import generate_uuid7
@@ -861,11 +863,10 @@ def _initial_authority(root: Path, directory: Path, entry: dict, loaded, *,
     return True
 
 
-def _run(root: Path, directory: Path, entry: dict, spec: dict, *,
+def _run(root: Path, directory: Path, entry: dict, spec: dict, *, loaded,
          plan_answers: tuple[Path, dict] | None = None) -> bool:
     import production_operations as operations
     import production_execution as execution
-    loaded = operations.read_run(root, entry['run'])
     run, prepared, rows = entry['run'], loaded.prepared, loaded.rows
     events = {row['event'] for row in rows}
     scope = spec['result']['scope']
@@ -1032,7 +1033,8 @@ def _batch(root: Path, directory: Path, entry: dict, spec: dict, *,
         target = directory / name
         target.mkdir(parents=True, exist_ok=True)
         try:
-            if _run(root, target, child, spec, plan_answers=plan_answers):
+            if _run(root, target, child, spec, loaded=operations.read_run(root, child['run']),
+                    plan_answers=plan_answers):
                 progressed = True
                 child.pop('diagnostic', None)
                 continue
@@ -1146,8 +1148,9 @@ def _verify_entry(root: Path, entry: dict, spec: dict, task_id: str | None = Non
         for child in entry['panels'].values():
             _verify_entry(root, child, spec, task_id)
         return
+    loaded = None
     if entry.get('run') is not None and task_id is not None:
-        _require_run_source(root, entry, task_id)
+        loaded = _require_run_source(root, entry, task_id)
     record = entry.get('answers', {}).get('curation')
     if record is not None:
         import production_curation
@@ -1157,7 +1160,8 @@ def _verify_entry(root: Path, entry: dict, spec: dict, task_id: str | None = Non
         return
     if entry.get('run'):
         import production_operations as operations
-        loaded = operations.read_run(root, entry['run'])
+        if loaded is None:
+            loaded = operations.read_run(root, entry['run'])
         if spec['result']['scope'] == 'prepared-input':
             import work_ledger
             work_ledger._prepared_input_evidence(loaded)
@@ -1375,6 +1379,7 @@ def _project(root: Path, path: str, state: dict, definition: dict, *, observatio
     return result
 
 
+@read_context.operation
 def inspect(root: Path, path: str | None = None) -> dict:
     path = path or _current_path(root)
     if path is None:
@@ -1489,6 +1494,7 @@ def _refresh_entry(root: Path, directory: Path, entry: dict, spec: dict, *, task
             _renew_answer(root, directory, entry, 'execution', draft)
 
 
+@read_context.operation
 def refresh(root: Path, path: str) -> dict:
     """Read current inputs and answer bindings without preparing or applying effects."""
     file, initial, _ = _load(root, path)
@@ -1530,6 +1536,7 @@ def refresh(root: Path, path: str) -> dict:
         return _project(root, path, state, definition)
 
 
+@read_context.operation
 def advance(root: Path, path: str | None = None) -> dict:
     root = c._root(root)
     path = path or _current_path(root)
@@ -1570,8 +1577,8 @@ def advance(root: Path, path: str | None = None) -> dict:
                             continue
                         _publish(root, entry)
                         _save(file, state)
-                    _require_run_source(root, entry, state['task_id'])
-                    _run(root, directory, entry, spec, plan_answers=(file.parent, state))
+                    loaded = _require_run_source(root, entry, state['task_id'])
+                    _run(root, directory, entry, spec, loaded=loaded, plan_answers=(file.parent, state))
                 entry.pop('diagnostic', None)
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 from production_diagnostics import CompilationError

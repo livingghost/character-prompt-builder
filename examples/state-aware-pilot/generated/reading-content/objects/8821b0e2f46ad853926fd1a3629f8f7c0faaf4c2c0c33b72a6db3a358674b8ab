@@ -1,0 +1,17 @@
+## Failure policy
+
+Four shortcuts are refused:
+
+- guessing parser support from a model family name;
+- automatically adopting a sample quality or negative stack as a reusable default;
+- converting a Textual Inversion token into generic prose;
+- assuming a negative channel exists.
+
+The default restriction does not prohibit selecting individual documented controls
+for the current rendition. The author chooses their content, channel, placement
+and supported weight from the intended picture and exact-target evidence, even
+when no reusable recommendation string is declared. Keep that decision distinct
+from an automatic merge and from a claim of measured improvement.
+
+When guide advice conflicts with a reviewed model record or adapter, the model record and adapter own the transport. When interface behavior is unknown, keep the semantic prompt portable and stop before claiming unsupported syntax or parameters.
+

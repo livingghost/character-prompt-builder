@@ -1,0 +1,50 @@
+## Interface rendition
+
+[Production direction](production-direction.md#choose-the-expression) owns the
+depiction and its ongoing construction judgment. Use this guide to carry that
+meaning into the actual interface, including during revision. Interface
+evidence can expose a wording problem or a consequential limitation; resolve
+the affected question within that same direction and authorized scope.
+
+For an exact target, select the interface, its catalog record or acquired
+external contract, and one adapter. A family-oriented draft uses that family's
+supported common wording; model-specific recommendations stay with an exact
+selection. A portable rendition keeps interface-neutral wording while the
+target remains open. For a catalog target,
+resolve service weighting through [Explicit Prompt Weighting](prompt-weighting.md)
+and its family through `scripts/prompt_dialect.py --model <model-id>`.
+An external target uses only parser behavior its evidence supports. Rules for
+another family stay unapplied.
+
+Honor an explicitly requested input form within the target's evidenced capabilities.
+When the request leaves the form open, choose supported tags, prose or a mixture
+according to the meaning the picture needs. A tag-oriented model is not thereby
+restricted to tags when its input contract also supports natural language.
+Preserve the depiction, hierarchy, visible scope and necessary identity and
+construction detail while adapting its realization to the selected input. Apply
+parser-specific separators, attention syntax, LoRA notation, negative transport,
+embeddings or editor shortcuts only when the active interface supports that
+exact behavior.
+
+Investigate unresolved wording through the catalog, vocabulary or relevant
+source. For a tag-based rendition, use the mandatory search in
+[Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model) for its
+actual positive and negative terms. Reading a dictionary or knowing a term
+does not replace that search. Inspect candidate definitions, usage notes and
+the selected model's evidence. Prefer existing vocabulary, including a close
+synonym, when it preserves the intended meaning, scope and degree. Retain an
+authored phrase when available terms would lose or change a requirement and
+the selected input supports that wording. In a supported mixed rendition,
+necessary prose can supplement tags; dictionary absence does not require
+discarding that meaning. An explicit tags-only request keeps its exclusive form.
+Descriptive input needs no invented terminology investigation when its sources
+already suffice.
+
+Search results and guide examples supply candidates and grammar demonstrations.
+Membership establishes wording evidence rather than image correctness or
+learned effectiveness. Integrate useful wording at its selected scope; a source
+or populated field needs no separate clause when its meaning is already carried
+by the prompt and supplied media.
+
+The Skill-using agent decides which rules are relevant. The exact model or provider contract decides what the interface can receive. The guide governs rendition; image intent and visual authority remain with their owning plans.
+

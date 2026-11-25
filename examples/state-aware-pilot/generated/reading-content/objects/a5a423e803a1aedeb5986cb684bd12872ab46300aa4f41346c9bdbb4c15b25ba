@@ -1,0 +1,8 @@
+## Regression
+
+```bash
+python scripts/prompt_writing_guide_smoke_test.py
+```
+
+The regression uses a fictional temporary guide. It leaves every owner-maintained pack's current rules, examples, wording, and section count uninspected and unfixed as expectations.
+

@@ -1,0 +1,38 @@
+## Inspect the ledger mechanically
+
+```bash
+python scripts/state_protocol.py validate-ledger \
+  --base-state STUDIO/state/world-state-base.json \
+  --events STUDIO/state/events.jsonl \
+  --processes STUDIO/state/processes.json
+python scripts/story_timeline.py --studio STUDIO --inspect
+```
+
+Omit `--processes` when no process file is authored. `validate` still validates an
+individual artifact; `validate-ledger` adds complete-ledger and replay checks.
+`--inspect` prints the projection JSON without publishing HTML.
+Both return exit 1 when their inspection finds structural or state-resolution errors.
+A successfully written HTML can contain ledger errors; its summary then says
+`"status":"current","ledger_ok":false`. "Current" describes the projection's
+inputs, not a successful resolution of every scene.
+
+The existing schema and temporal validator own scene-local scope, target coverage,
+process references, duplicate IDs, missing links and supersession order. The same
+validator now reports locations and detects revision cycles iteratively.
+The same resolver checks simultaneous writes, array structure changes and
+interference with another event's preconditions. It also applies the existing
+process-before-event phase precedence.
+
+Normal evolution is not a contradiction. Different story orders can change the
+same path without a supersedes link. Gaps in order numbers are allowed. Independent
+simultaneous changes are allowed. The protocol rejects unordered interfering changes,
+including competing writes that happen to declare equal values.
+No rule compares free-form disclosure/effective labels as dates.
+
+Inspection checks the full input structure, then named replay boundaries: last
+declared coordinates, scene endpoints, simultaneous entity operations, preconditions,
+revisions and temporary changes. Coverage and unresolved query counts are recorded.
+An earlier failed operation blocks that query; the inspector does not skip it and
+assert a later state. Authorial meaning, unstated time ranges and narrative causality
+remain outside these mechanical checks.
+

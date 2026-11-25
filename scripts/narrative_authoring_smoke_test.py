@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -41,6 +42,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import narrative  # noqa: E402
 import narrative_coverage  # noqa: E402
 import narrative_index  # noqa: E402
+import narrative_entity  # noqa: E402
 import scene_plot as scene_plot_module  # noqa: E402
 
 NL = chr(10)
@@ -117,6 +119,43 @@ def scene_plot(series: Path, location: str) -> dict:
     }
 
 
+def check_canonical_templates(expect, base: Path) -> None:
+    """Native forms retain their whole source while generated copies are stale."""
+    from knowledge_documents import markdown_path, record_path
+    installed = base / "canonical-template-owner"
+    persona_id = "templates/narrative/personas/persona-template"
+    design_id = "templates/narrative/design/design-template"
+    records = {}
+    detail = "\n## Preserved source detail\n\nAn exact [relative reference](detail.md) remains in the authored form.\n"
+    for identifier in (persona_id, design_id):
+        value = json.loads((ROOT / record_path(identifier)).read_bytes())
+        value['sections'][0]['body'] += detail
+        records[identifier] = value
+        target = installed / record_path(identifier)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        generated = installed / markdown_path(identifier)
+        generated.parent.mkdir(parents=True, exist_ok=True)
+        generated.write_text("Stale generated Markdown is not the template source.\n", encoding="utf-8")
+    with mock.patch.object(narrative_entity, 'ROOT', installed):
+        form = narrative_entity.persona_form()
+        expect("persona form retains exact canonical front matter and body",
+               form == records[persona_id]['sections'][0]['body'] and form.startswith("---\n"))
+        expect("persona creation retains complete canonical detail",
+               detail in narrative_entity.persona_document("fixture-persona", "Fixture", "C01"))
+        expect("design creation retains complete canonical detail",
+               detail in narrative_entity.design_document("fixture-design", "Fixture"))
+        value = records[persona_id]
+        value['sections'].append({'id': 'unowned-fragment', 'body': '# Additional form content\n'})
+        (installed / record_path(persona_id)).write_text(json.dumps(value) + "\n", encoding="utf-8")
+        try:
+            narrative_entity.persona_form()
+        except ValueError as exc:
+            expect("native form refuses to discard another section", "one complete section" in str(exc), str(exc))
+        else:
+            expect("native form refuses to discard another section", False)
+
+
 def main() -> int:
     checks = 0
     failures: list[str] = []
@@ -133,6 +172,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="narrative-authoring-") as temp:
         base = Path(temp)
+        check_canonical_templates(expect, base)
 
         # A series directory is created, and what it creates answers the contract.
         series = base / "studio" / "story"

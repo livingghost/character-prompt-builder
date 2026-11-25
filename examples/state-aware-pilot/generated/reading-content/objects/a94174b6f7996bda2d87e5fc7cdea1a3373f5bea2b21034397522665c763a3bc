@@ -1,0 +1,11 @@
+## Conditional state authorities
+
+Read only the authority activated by the work:
+
+- stable identity coverage: [Character Identity Contract](../character-identity-contract.md); detailed species/individual layering: [Morphology and Species Contracts](../morphology-and-species-contracts.md);
+- temporal events and snapshot semantics: [State Event Ledger](../state-event-ledger.md); snapshot-to-prompt execution: [State-Aware Prompt Workflow](../state-aware-prompt-workflow.md); artifact discovery: [State Protocol Schema Index](../state-protocol-schema-index.md);
+- state and adoption records: [Shared State Protocol](../state-protocol.md). Before compilation, validate every incoming `shot-request` with `python scripts/shot_request.py <request.json>` and its required binding arguments;
+- view coverage, candidate generation, or adoption: [Reference Bundle Workflow](../reference-bundle-workflow.md);
+- observed-render drift ownership and repair: [State Write-back Routing](../state-writeback-routing.md);
+- identity testing on a documented video target: [Video-model Identity Evaluation Battery](../video-model-identity-evaluation-battery.md).
+

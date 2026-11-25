@@ -293,7 +293,7 @@ class RetargetTests(unittest.TestCase):
     def test_unusable_reading_is_not_fabricated(self):
         f.alternate_task(self.root)
         reading=c.load(self.root/'retarget/reading.json')
-        reading['documents'][0]['sha256']='0'*64
+        reading['documents'][0]['sections'][0]['sha256']='0'*64
         f.write(self.root/'retarget/reading.json',reading)
         with self.assertRaises(CompilationError):self.target(prepare=True)
         self.assertEqual(len(store.runs(self.root)),1)

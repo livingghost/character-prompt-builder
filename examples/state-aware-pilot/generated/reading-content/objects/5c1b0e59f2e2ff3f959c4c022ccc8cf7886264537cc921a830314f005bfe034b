@@ -1,0 +1,15 @@
+### Final-request dictionary evidence
+
+For an explicitly tag-based model, preparation requires the searched vocabulary
+selection for its text, target and parser. Verification performs the searches
+again against the current dictionary and selected dialect. Missing evidence or
+an unresolved wording choice cannot be replaced with an empty construction
+record or a claim that the terms were already understood.
+
+`prepare` also checks the actual sealed positive and negative text after model
+recommendations and transport conversion. Mechanical
+`problem` findings stop preparation. The complete dictionary and dialect evidence
+is saved in `execution_plan.prompt_check` for the existing rendition review.
+Inspect that evidence with the complete request before approving it. A known word
+can still be wrong for the intended anatomy or garment, and an unlisted phrase
+can express it correctly. Fix the authored wording when meaning is wrong.

@@ -1,0 +1,9 @@
+## Example and verification
+
+[The synthetic example](../../examples/prompt-weighting/README.md) generates a
+reproducible inspection report and a declared synthetic request without network
+I/O or approval. Tests are `prompt_weighting_smoke_test.py` and
+`prompt_weighting_execution_smoke_test.py`, plus existing generation, state-aware,
+transport and recommendation regressions. They use synthetic models and fixtures,
+never an owner's private pack. No browser-launching tests are added.
+

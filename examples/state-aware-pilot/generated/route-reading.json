@@ -1,660 +1,1002 @@
 {
   "documents": [
     {
-      "path": "references/runtime/authoring-work.md",
-      "sha256": "509a26b0a77985a0b6e049036cdcf0d90bef8ed638948d9db80ab90e515f646b",
-      "size": 21110,
-      "ranges": [
+      "document_id": "references/runtime/authoring-work",
+      "sections": [
         {
-          "start": 0,
-          "end": 21110,
-          "sha256": "509a26b0a77985a0b6e049036cdcf0d90bef8ed638948d9db80ab90e515f646b"
+          "section_id": "authoring-work",
+          "sha256": "eaad8beb6273569a5496e56fd65a8ee8722395ce7f19285a1bb6bdb98379e12f",
+          "size": 478
+        },
+        {
+          "section_id": "contents",
+          "sha256": "a63ad5259cd4f553225a8a8b152d6192c91a6ff86a3c0c5052c7ea3c73d80bd6",
+          "size": 392
+        },
+        {
+          "section_id": "begin-from-the-current-request",
+          "sha256": "3ffdf8d750ca7b30d26d5e3c11a3150ce68a1ecea3be5dd46cb668b06b02f04c",
+          "size": 1911
+        },
+        {
+          "section_id": "apply-sources-to-this-candidate",
+          "sha256": "85e338d5940548585dc4859d579755cf054cbe705ff45c21ababda1c88c6d8a0",
+          "size": 3909
+        },
+        {
+          "section_id": "compose-or-amend-actual-content",
+          "sha256": "be475df6a52b497ce99dea6f9ad99503a45f39a63114021d68264fba88978c77",
+          "size": 3301
+        },
+        {
+          "section_id": "compare-actual-candidates",
+          "sha256": "e082c9e0ccfc91ef1d658b5608e9ea547d677901a6d0baf3555e93d0adf29a18",
+          "size": 3426
+        },
+        {
+          "section_id": "inspect-and-deliver",
+          "sha256": "3a09dc5e8204e20fab6da41e22a63a7cd739ac7d18d49ce0174a23d05cc50351",
+          "size": 1542
+        },
+        {
+          "section_id": "save-or-execute-the-same-work",
+          "sha256": "85d204208b40c620207bad35f2dcde619b2dfcad5016be04fcbccb3a6fcffd89",
+          "size": 6151
         }
       ]
     },
     {
-      "path": "references/runtime/production-workflow.md",
-      "sha256": "3f7365a41e4c3e3b9e6766074565728bb06c89f893590b0cdf45f6cb34df4b23",
-      "size": 23313,
-      "ranges": [
+      "document_id": "references/runtime/production-workflow",
+      "sections": [
         {
-          "start": 0,
-          "end": 356,
-          "sha256": "79bad64f13af276851846ade44b8912f99bf96c3263bc9f7c2f30329605e9b35"
+          "section_id": "production-workflow",
+          "sha256": "79bad64f13af276851846ade44b8912f99bf96c3263bc9f7c2f30329605e9b35",
+          "size": 356
         },
         {
-          "start": 356,
-          "end": 3888,
-          "sha256": "f2b28b25de6103077b84dab972d8c9ed2d0ebd39c14b1d376ede782a0abe2589"
+          "section_id": "open-the-current-work",
+          "sha256": "f2b28b25de6103077b84dab972d8c9ed2d0ebd39c14b1d376ede782a0abe2589",
+          "size": 3532
         },
         {
-          "start": 3888,
-          "end": 9472,
-          "sha256": "bd3e3674bcef6b03e46926c8fb0108b9884f7dbbee24c7d9bbf662df2b77d71e"
+          "section_id": "read-the-current-stage",
+          "sha256": "1f48411260182d2ade7f112a1ec366cbcd70925fd1069b7e451f286e2cd99df6",
+          "size": 7055
         },
         {
-          "start": 9472,
-          "end": 16517,
-          "sha256": "74c129348ad1b51f29736d05ff3842c2d0f213414195d9ca83c8703971e5505c"
+          "section_id": "read-an-operation-without-editable-choices",
+          "sha256": "90b1e84f18529845ca536bdf653942e1bf7019e66e04658743462fb70ff2f134",
+          "size": 7089
         },
         {
-          "start": 16517,
-          "end": 19784,
-          "sha256": "fe66de082bf8457d21663c9c6b10afb43bbadf9a1e0f559907c45adf0d994065"
+          "section_id": "edit-and-produce-the-requested-artifact",
+          "sha256": "fe66de082bf8457d21663c9c6b10afb43bbadf9a1e0f559907c45adf0d994065",
+          "size": 3267
         },
         {
-          "start": 19784,
-          "end": 21082,
-          "sha256": "ac8182256cee7b1079f8e7de1d90f941b99f44eea0ff03aa617ff90e0e335b3d"
+          "section_id": "change-direction-without-losing-prior-work",
+          "sha256": "ac8182256cee7b1079f8e7de1d90f941b99f44eea0ff03aa617ff90e0e335b3d",
+          "size": 1298
         },
         {
-          "start": 21082,
-          "end": 22254,
-          "sha256": "32a851b6f20d49eea758012f4db1e9561af9193083b0a33f1d9085672e172d79"
+          "section_id": "continue-according-to-the-actual-result",
+          "sha256": "32a851b6f20d49eea758012f4db1e9561af9193083b0a33f1d9085672e172d79",
+          "size": 1172
         }
       ]
     },
     {
-      "path": "references/runtime/production-direction.md",
-      "sha256": "7dc6a05140ab6a180bbca1f503c4314d8f5f61597d10a8e5a71bcc19e555e1f5",
-      "size": 75020,
-      "ranges": [
+      "document_id": "references/runtime/production-direction",
+      "sections": [
         {
-          "start": 0,
-          "end": 1680,
-          "sha256": "31f1124e53e323e38189a9610804152277c51393feba0320d829fdc7cd5bfb9b"
+          "section_id": "production-direction",
+          "sha256": "31f1124e53e323e38189a9610804152277c51393feba0320d829fdc7cd5bfb9b",
+          "size": 1680
         },
         {
-          "start": 1680,
-          "end": 2334,
-          "sha256": "ad0ce10bd2b9c64780c822e6a237f73f55c2e90083c10dd2adf7067bbf01a3f5"
+          "section_id": "contents",
+          "sha256": "ad0ce10bd2b9c64780c822e6a237f73f55c2e90083c10dd2adf7067bbf01a3f5",
+          "size": 654
         },
         {
-          "start": 2334,
-          "end": 7414,
-          "sha256": "fd1d133da65b855f7a07fe19e5711f19b8aba546a51746363137d4c18a643ff2"
+          "section_id": "establish-the-character-for-this-use",
+          "sha256": "fd1d133da65b855f7a07fe19e5711f19b8aba546a51746363137d4c18a643ff2",
+          "size": 5080
         },
         {
-          "start": 7414,
-          "end": 10408,
-          "sha256": "dab5153fa02c9af3bbbaff829a13bf51cad7a1834e04155413dd8da55fb6ca94"
+          "section_id": "translate-established-facts-into-the-current-appearance",
+          "sha256": "dab5153fa02c9af3bbbaff829a13bf51cad7a1834e04155413dd8da55fb6ca94",
+          "size": 2994
         },
         {
-          "start": 10408,
-          "end": 19497,
-          "sha256": "dda9baa492b384e1a9bfcb984fea54b1052ace8aa7f31d7ed5507b7a73082185"
+          "section_id": "choose-the-expression",
+          "sha256": "a52b770e16ba2e473bada306f3ec2dc134eb7538bc34c87219a88fa42db275e0",
+          "size": 10935
         },
         {
-          "start": 19497,
-          "end": 20647,
-          "sha256": "832b58e715084f915cab31dd1d6377258948970be77573c616ff4f4ad5868af0"
+          "section_id": "carry-the-chosen-depiction-into-the-input",
+          "sha256": "832b58e715084f915cab31dd1d6377258948970be77573c616ff4f4ad5868af0",
+          "size": 1150
         },
         {
-          "start": 20647,
-          "end": 23898,
-          "sha256": "80c9e1ae2a9973d8752a12f0685acb3433c117e5c976248a84bf9287821f04f1"
+          "section_id": "choose-framing-from-the-intended-effect",
+          "sha256": "80c9e1ae2a9973d8752a12f0685acb3433c117e5c976248a84bf9287821f04f1",
+          "size": 3251
         },
         {
-          "start": 23898,
-          "end": 33417,
-          "sha256": "b1b24b004fddb6c95edf54c8c24bb18bd92ba239088fe3a714065bf0df3f183a"
+          "section_id": "form-a-prompt-from-an-image",
+          "sha256": "b1b24b004fddb6c95edf54c8c24bb18bd92ba239088fe3a714065bf0df3f183a",
+          "size": 9519
         },
         {
-          "start": 33417,
-          "end": 35266,
-          "sha256": "f4509f8489531995fdaf062557d487830dbddcfb85b25051b7f7f9a16cbf2f3e"
+          "section_id": "carry-the-selected-image-contribution-into-the-input",
+          "sha256": "f4509f8489531995fdaf062557d487830dbddcfb85b25051b7f7f9a16cbf2f3e",
+          "size": 1849
         },
         {
-          "start": 35266,
-          "end": 47670,
-          "sha256": "7c2dc440ea017dda1c4740ac687c5317e225c13b5d6e3f22e5cb1ffb561d1265"
+          "section_id": "form-a-prompt-from-an-idea",
+          "sha256": "7c2dc440ea017dda1c4740ac687c5317e225c13b5d6e3f22e5cb1ffb561d1265",
+          "size": 12404
         },
         {
-          "start": 47670,
-          "end": 54760,
-          "sha256": "7e9af75bb7c51ae6b2fd72cc163b96e4600b8f63fe345b69a2fba64bd1926ab2"
+          "section_id": "worked-depictions",
+          "sha256": "7e9af75bb7c51ae6b2fd72cc163b96e4600b8f63fe345b69a2fba64bd1926ab2",
+          "size": 7090
         },
         {
-          "start": 54760,
-          "end": 59756,
-          "sha256": "a474ae4bc436ab038b1a01967c2f9183707d829fd192a6dc81b1e32bbd0da2f6"
+          "section_id": "record-the-production-direction",
+          "sha256": "229020590ea5bc084b6520046dda0ee9a3ae307d2c6cc95dea7fe5dabf995354",
+          "size": 10148
         },
         {
-          "start": 59756,
-          "end": 60167,
-          "sha256": "accc6ce8563b72a8c22a3e0cf0be0c691951e588c3a33d863fc5c1f39773b449"
+          "section_id": "keep-authoring-context-out-of-consumer-instructions",
+          "sha256": "accc6ce8563b72a8c22a3e0cf0be0c691951e588c3a33d863fc5c1f39773b449",
+          "size": 411
         },
         {
-          "start": 60167,
-          "end": 62662,
-          "sha256": "9ff0f4b3fa75203f953bf532cc90debfccffaa3bd82cf64e5f8ddb9551ec51b9"
+          "section_id": "preserve-accepted-variation-at-its-declared-scope",
+          "sha256": "9ff0f4b3fa75203f953bf532cc90debfccffaa3bd82cf64e5f8ddb9551ec51b9",
+          "size": 2495
         },
         {
-          "start": 62662,
-          "end": 63799,
-          "sha256": "580427584a1dd19dcb59e04f71fb3daacaff403ff95b7f46d015234d46fe78b2"
+          "section_id": "an-image-of-an-action-is-not-the-action",
+          "sha256": "580427584a1dd19dcb59e04f71fb3daacaff403ff95b7f46d015234d46fe78b2",
+          "size": 1137
         }
       ]
     },
     {
-      "path": "references/runtime/production-authoring.md",
-      "sha256": "56bbc1116b1d8ade87cb2d0402d60719ca67212bcff5345cf0cb01959fdc5eef",
-      "size": 89126,
-      "ranges": [
+      "document_id": "references/runtime/production-authoring",
+      "sections": [
         {
-          "start": 0,
-          "end": 350,
-          "sha256": "696c3e7ebeb9edd3de7bf504af9066db3c6d0538ddefb982cc4b4d7596267554"
+          "section_id": "production-authoring",
+          "sha256": "696c3e7ebeb9edd3de7bf504af9066db3c6d0538ddefb982cc4b4d7596267554",
+          "size": 350
         },
         {
-          "start": 350,
-          "end": 380,
-          "sha256": "aea20d433018b7a04ca0a93c8cc2adca1dd09b0d42a21e93fe4f024e6ac5fe75"
+          "section_id": "assemble-authored-choices",
+          "sha256": "aea20d433018b7a04ca0a93c8cc2adca1dd09b0d42a21e93fe4f024e6ac5fe75",
+          "size": 30
         },
         {
-          "start": 380,
-          "end": 3868,
-          "sha256": "e04843073e85e6b42f1878a5aeb7f7c046ba76cd756d31ca80da6fcb9a5c3696"
+          "section_id": "discover-input-structures",
+          "sha256": "e04843073e85e6b42f1878a5aeb7f7c046ba76cd756d31ca80da6fcb9a5c3696",
+          "size": 3488
         },
         {
-          "start": 3868,
-          "end": 4515,
-          "sha256": "d313a1257591c94b279b009ed34fd900475c6518750230cc37ea7e59beeeb052"
+          "section_id": "select-a-production-specification",
+          "sha256": "d313a1257591c94b279b009ed34fd900475c6518750230cc37ea7e59beeeb052",
+          "size": 647
         },
         {
-          "start": 4515,
-          "end": 4894,
-          "sha256": "668123ed356d74bab079bd20f00af7c4acf11cc17b8553001f435c29e8aa6688"
+          "section_id": "identify-the-recorded-subjects",
+          "sha256": "668123ed356d74bab079bd20f00af7c4acf11cc17b8553001f435c29e8aa6688",
+          "size": 379
         },
         {
-          "start": 4894,
-          "end": 5480,
-          "sha256": "248438bbf02529bc5347247de2b2b4f711aa003bba8a92ae6d42761cbddae05e"
+          "section_id": "inspect-target-and-external-fields",
+          "sha256": "248438bbf02529bc5347247de2b2b4f711aa003bba8a92ae6d42761cbddae05e",
+          "size": 586
         },
         {
-          "start": 5480,
-          "end": 6263,
-          "sha256": "0a2a84cdc92fcdde01713a82c9a95266562843c94755a915bc4d9f45074fcc4f"
+          "section_id": "select-reference-inputs",
+          "sha256": "0a2a84cdc92fcdde01713a82c9a95266562843c94755a915bc4d9f45074fcc4f",
+          "size": 783
         },
         {
-          "start": 6263,
-          "end": 10140,
-          "sha256": "9d79fbb90a3b21db7e6614742c8ca328b4961e8d30e80caf9ec91f8b4a182920"
+          "section_id": "establish-the-editable-definition",
+          "sha256": "9d79fbb90a3b21db7e6614742c8ca328b4961e8d30e80caf9ec91f8b4a182920",
+          "size": 3877
         },
         {
-          "start": 10140,
-          "end": 10930,
-          "sha256": "43ea6d2cd8a3ac669eac7d6a6de73cb5c3641c603b1fb19078d393057108e26d"
+          "section_id": "keep-specialist-documents-at-their-owner",
+          "sha256": "43ea6d2cd8a3ac669eac7d6a6de73cb5c3641c603b1fb19078d393057108e26d",
+          "size": 790
         },
         {
-          "start": 10930,
-          "end": 12395,
-          "sha256": "f007d379d6ec482022e59db397b71d60480622f578b67593433e50fd5b34aa57"
+          "section_id": "select-execution-specific-inputs",
+          "sha256": "f007d379d6ec482022e59db397b71d60480622f578b67593433e50fd5b34aa57",
+          "size": 1465
         },
         {
-          "start": 12395,
-          "end": 12741,
-          "sha256": "ce628b30a1a7a2bfb437c50ca5c1b947f10de73b3c81042e5273fa6c3d846022"
+          "section_id": "continue-from-the-prepared-request",
+          "sha256": "ce628b30a1a7a2bfb437c50ca5c1b947f10de73b3c81042e5273fa6c3d846022",
+          "size": 346
         },
         {
-          "start": 12741,
-          "end": 13143,
-          "sha256": "bad0c3d133162745a8b9d0c7012bf18d48fa53849df2b2959d85ba3e1f773ddd"
+          "section_id": "bind-input-work-to-the-open-task",
+          "sha256": "bad0c3d133162745a8b9d0c7012bf18d48fa53849df2b2959d85ba3e1f773ddd",
+          "size": 402
         },
         {
-          "start": 13143,
-          "end": 16388,
-          "sha256": "d79a05f80fe19f8cb4dd80278fd1ba5252fac46db8b06911271324e985adc989"
+          "section_id": "acquire-a-production-source",
+          "sha256": "d79a05f80fe19f8cb4dd80278fd1ba5252fac46db8b06911271324e985adc989",
+          "size": 3245
         },
         {
-          "start": 18567,
-          "end": 19949,
-          "sha256": "283af1c29d450c97976123ff6faa0a93956877882e8657ffc02e00069115a929"
+          "section_id": "read-an-input-summary",
+          "sha256": "283af1c29d450c97976123ff6faa0a93956877882e8657ffc02e00069115a929",
+          "size": 1382
         },
         {
-          "start": 19949,
-          "end": 22884,
-          "sha256": "98b35a535a551134ac61611a242024f5ea6fb296b278303e0ec3c57c7eba7eac"
+          "section_id": "select-and-read-the-current-knowledge",
+          "sha256": "2b20d2ef49df20a99c1473be00a228d13c93f1f94b61e1de796cf7131b01151c",
+          "size": 2935
         },
         {
-          "start": 29971,
-          "end": 33784,
-          "sha256": "62a551c26ca79f0eaef73927a261e039fa230fc9f50cd6e45310f777a2d6ee58"
+          "section_id": "read-the-required-source-bodies",
+          "sha256": "214e576e9036e4d53749ed315296fb12e60d1e276fd8ad296dc9aaa9380544c9",
+          "size": 3828
         },
         {
-          "start": 33784,
-          "end": 35172,
-          "sha256": "26ef37484daf70d7ce5ea0918a42b28cb55bd5f6203601cd5f767da001a45e75"
+          "section_id": "choose-a-source-range",
+          "sha256": "e549de2ae13031fb9174be75aca6b38ede34a1ce812c704d3b52f0fe9bfe39f5",
+          "size": 1511
         },
         {
-          "start": 35172,
-          "end": 40216,
-          "sha256": "a217632d23ee5ba7e08333b1c4e3a21a465ecbed5053e27e0881875284f95bbf"
+          "section_id": "deliver-every-required-byte",
+          "sha256": "369f4dacb2c5e65f115f2f2a49f84ba8f19ebd59dd27b444fbe460436b0c1834",
+          "size": 5138
         },
         {
-          "start": 40216,
-          "end": 41088,
-          "sha256": "2f89e4b073119ac684eaba2d2b2e95cb7d8f2537c5e7a923b2149efd1712c342"
+          "section_id": "recover-an-interrupted-source-delivery",
+          "sha256": "2f89e4b073119ac684eaba2d2b2e95cb7d8f2537c5e7a923b2149efd1712c342",
+          "size": 872
         },
         {
-          "start": 41088,
-          "end": 42353,
-          "sha256": "753059cd14186a9a3bcf31db9115c8fda2b4c75cb18a9fa6f3d70233677daaee"
+          "section_id": "preserve-reading-scope-and-evidence",
+          "sha256": "4ec06f29266a9f93a83eaa33d5756c1aa61f3d5598866065cf0d0b5fd47ff4d3",
+          "size": 1317
         },
         {
-          "start": 42353,
-          "end": 46957,
-          "sha256": "7c2df550aa5f769d48d30f513eca613fa0a230407e83cebc1d1bee90f596f772"
+          "section_id": "reuse-complete-knowledge-in-this-context",
+          "sha256": "8f37120776591ce3860307849fbee86c7439001ec908cb650bf02c24e5bc8943",
+          "size": 4611
         },
         {
-          "start": 46957,
-          "end": 47944,
-          "sha256": "89a15a3b08d09c3591ff424667ad2c93a94bb1b15d62aeeaed4a04cb033b340c"
+          "section_id": "rebuild-knowledge-in-a-fresh-context",
+          "sha256": "89a15a3b08d09c3591ff424667ad2c93a94bb1b15d62aeeaed4a04cb033b340c",
+          "size": 987
         },
         {
-          "start": 47944,
-          "end": 48417,
-          "sha256": "c48c5d92f86a814f4f636698158529d83e063c8f1bf98796e79123f48d03067f"
+          "section_id": "read-an-acquired-model",
+          "sha256": "c48c5d92f86a814f4f636698158529d83e063c8f1bf98796e79123f48d03067f",
+          "size": 473
         },
         {
-          "start": 48417,
-          "end": 49392,
-          "sha256": "789a6189b9f19d3d6240d08b4dfbbe171790cdb7485c499be960cb41b55b85d3"
+          "section_id": "use-the-delivered-knowledge",
+          "sha256": "789a6189b9f19d3d6240d08b4dfbbe171790cdb7485c499be960cb41b55b85d3",
+          "size": 975
         },
         {
-          "start": 49392,
-          "end": 51319,
-          "sha256": "f18504f87f8d4c101f104c1a5fbd030044d5b4bab68d3b6353e2cc0fe409c473"
+          "section_id": "keep-the-reading-at-its-current-scope",
+          "sha256": "f18504f87f8d4c101f104c1a5fbd030044d5b4bab68d3b6353e2cc0fe409c473",
+          "size": 1927
         },
         {
-          "start": 51319,
-          "end": 52340,
-          "sha256": "d7425be4d3d5c057ba26e780f1bac69b891c297cf56a6a17a5715218f947b55d"
+          "section_id": "select-the-delivered-target-knowledge",
+          "sha256": "d7425be4d3d5c057ba26e780f1bac69b891c297cf56a6a17a5715218f947b55d",
+          "size": 1021
         },
         {
-          "start": 52340,
-          "end": 55287,
-          "sha256": "236e3cc2ff90076953d81929e414bab10c5fb91e1203b4ee792f2f0cf18808b7"
+          "section_id": "create-or-reopen-editable-work",
+          "sha256": "236e3cc2ff90076953d81929e414bab10c5fb91e1203b4ee792f2f0cf18808b7",
+          "size": 2947
         },
         {
-          "start": 55287,
-          "end": 57320,
-          "sha256": "a16530b0dcfa4dd3bad7010b202d67ce76ea2846152f36e21b79d91ee1d336bb"
+          "section_id": "prepare-an-enlargement",
+          "sha256": "a16530b0dcfa4dd3bad7010b202d67ce76ea2846152f36e21b79d91ee1d336bb",
+          "size": 2033
         },
         {
-          "start": 57320,
-          "end": 60171,
-          "sha256": "1db344291e78ce0554d8b24b29a3de56d1f1f68d4a0ccce4e193ca9a44c5b335"
+          "section_id": "start-an-existing-image-edit",
+          "sha256": "1db344291e78ce0554d8b24b29a3de56d1f1f68d4a0ccce4e193ca9a44c5b335",
+          "size": 2851
         },
         {
-          "start": 60171,
-          "end": 63107,
-          "sha256": "e3efef558a1f267aed1e27aa12c26b36be3a3f548a97d55770ef8a3eef933e6c"
+          "section_id": "edit-the-owning-authored-field",
+          "sha256": "e3efef558a1f267aed1e27aa12c26b36be3a3f548a97d55770ef8a3eef933e6c",
+          "size": 2936
         },
         {
-          "start": 63107,
-          "end": 64652,
-          "sha256": "cc27a575a3bc373488dbf9799cd70fffae20a67656d02f539515c7664a2ea99f"
+          "section_id": "select-dispatcher-image-inputs",
+          "sha256": "cc27a575a3bc373488dbf9799cd70fffae20a67656d02f539515c7664a2ea99f",
+          "size": 1545
         },
         {
-          "start": 64652,
-          "end": 65243,
-          "sha256": "a9f23afb8739bcda73cd9d803a3bcf3e9bc7920e849227dfdacec7fcfedd1e76"
+          "section_id": "preserve-authored-authority",
+          "sha256": "a9f23afb8739bcda73cd9d803a3bcf3e9bc7920e849227dfdacec7fcfedd1e76",
+          "size": 591
         },
         {
-          "start": 65243,
-          "end": 68325,
-          "sha256": "e38e91423a7220060a5f314740c4b76637fc011936ea59f920db5382806b9bdd"
+          "section_id": "select-and-change-the-target",
+          "sha256": "e38e91423a7220060a5f314740c4b76637fc011936ea59f920db5382806b9bdd",
+          "size": 3082
         },
         {
-          "start": 68325,
-          "end": 71429,
-          "sha256": "27b73fc2f6a67ef4e0d5b50cdac038681a0d23250842505beb29a3ef01ba33a8"
+          "section_id": "keep-branches-and-reopen-completed-work",
+          "sha256": "27b73fc2f6a67ef4e0d5b50cdac038681a0d23250842505beb29a3ef01ba33a8",
+          "size": 3104
         },
         {
-          "start": 82012,
-          "end": 87630,
-          "sha256": "d7ce3bdc6a62280a492643746602cde5c95d7e8d242525b7c4ea226f076b5c17"
+          "section_id": "resume-input-authoring",
+          "sha256": "d7ce3bdc6a62280a492643746602cde5c95d7e8d242525b7c4ea226f076b5c17",
+          "size": 5618
         },
         {
-          "start": 87630,
-          "end": 89126,
-          "sha256": "77ca0829216cf9fdf2c2499c346d17c44f3fcda4cc2100b18d6da5c68fcf521e"
+          "section_id": "scene-preparation-and-reusable-authoring-input",
+          "sha256": "77ca0829216cf9fdf2c2499c346d17c44f3fcda4cc2100b18d6da5c68fcf521e",
+          "size": 1496
         }
       ]
     },
     {
-      "path": "references/prompt-knowledge-boundary.md",
-      "sha256": "061814fb64555eebee9fc1e4b9fcec5bc2eabb87f0671def0bd985c6785ca9fe",
-      "size": 12313,
-      "ranges": [
+      "document_id": "references/prompt-knowledge-boundary",
+      "sections": [
         {
-          "start": 0,
-          "end": 12313,
-          "sha256": "061814fb64555eebee9fc1e4b9fcec5bc2eabb87f0671def0bd985c6785ca9fe"
+          "section_id": "prompt-knowledge-and-execution-boundary",
+          "sha256": "b3b96fd9c2d4eb252664baba31470508d8e022f65bc1ee0210a19121e7616695",
+          "size": 587
+        },
+        {
+          "section_id": "host-authority-applies-at-every-stage",
+          "sha256": "a705ccf36291c02e5295f81bb38ca379e791db8e1af21c58f0bd9521cb1b6982",
+          "size": 1585
+        },
+        {
+          "section_id": "preserve-relevant-knowledge-before-execution",
+          "sha256": "b9839044ccfffa8c0223b00b33a7fa5347e64ff7bdb573bc4ca1c9f49cc378ae",
+          "size": 1636
+        },
+        {
+          "section_id": "non-diegetic-source-artifacts",
+          "sha256": "dce8899342b9890ee0866543d5e47c05f99f71c3a6a8da8476d0726dd3a70935",
+          "size": 1306
+        },
+        {
+          "section_id": "sensitive-genre-prompt-knowledge",
+          "sha256": "e029ba744a25c3c85c96417748e0dfa351d5b7fe81fd85141176c0af5bf431d1",
+          "size": 1462
+        },
+        {
+          "section_id": "user-supplied-sensitive-source-specificity",
+          "sha256": "91e5718c7cb7ebad9362a6526e6e5f54da49663f6fe63dc70628ef2273361cbd",
+          "size": 1206
+        },
+        {
+          "section_id": "invention-and-injection-apply-equally-to-all-content",
+          "sha256": "1032312fb91d792ed77ce76b80bf6de7db2ebcec9dca950a43ace65c33fe9c57",
+          "size": 1170
+        },
+        {
+          "section_id": "searchability-is-part-of-fidelity",
+          "sha256": "c5768a6279ae48d21b8bcc8cd9669cd8a71cc55260b459795030ce840302f707",
+          "size": 761
+        },
+        {
+          "section_id": "composition-boundary",
+          "sha256": "a6dc7ab74fc0781d6ac7793a2956d4c72a095cc6ec2e3f24acf0b9ffe537c6c2",
+          "size": 443
+        },
+        {
+          "section_id": "execution-boundary",
+          "sha256": "b9305edf1753d5d6bd97380845da57b725780b8295e15e176448f75de26ad7ad",
+          "size": 1336
+        },
+        {
+          "section_id": "product-boundary",
+          "sha256": "6cfcfadff3cacf5ca1247c9c320d17e2ff66f9aaf36e03727509c41df1e90c6d",
+          "size": 821
         }
       ]
     },
     {
-      "path": "references/runtime/production-preparation.md",
-      "sha256": "459c01c98dfdaf6fcc1a31df304dcb4e8516d56a1e7c3e9836851773c89045f4",
-      "size": 17747,
-      "ranges": [
+      "document_id": "references/runtime/production-preparation",
+      "sections": [
         {
-          "start": 0,
-          "end": 17747,
-          "sha256": "459c01c98dfdaf6fcc1a31df304dcb4e8516d56a1e7c3e9836851773c89045f4"
+          "section_id": "production-preparation",
+          "sha256": "465bed5e1f11af9af231022757fe38547405124f1eeea664aca4ad2bc3b7c6a3",
+          "size": 257
+        },
+        {
+          "section_id": "prepare-one-complete-input",
+          "sha256": "e8edfb377170d119fc7b04120d5451c75611dfac00983d5c93f4dfee05a4cece",
+          "size": 11135
+        },
+        {
+          "section_id": "what-the-saved-content-establishes",
+          "sha256": "cac90339ec5edf0ee3c925c8b4086763cddf406e9b3cc7d2504461d26f0f4cef",
+          "size": 1616
+        },
+        {
+          "section_id": "digests",
+          "sha256": "b63fb753d18b3a9d86351bfbb9b316f89a39c30975967e89d2a0d2d4be1b66e9",
+          "size": 2797
+        },
+        {
+          "section_id": "unpublished-staging-and-interrupted-publication",
+          "sha256": "fa4e64f5e61d82ade7536b5c852d0fb66066fac75c42d4263177299847205cfb",
+          "size": 1942
         }
       ]
     },
     {
-      "path": "references/runtime/production-diagnostic-navigation.md",
-      "sha256": "db2fc0f470efb7c1fea6774f2dd3c9e0caf4cc4feb3c2ea158fca6481b4c7350",
-      "size": 6651,
-      "ranges": [
+      "document_id": "references/runtime/production-diagnostic-navigation",
+      "sections": [
         {
-          "start": 0,
-          "end": 6651,
-          "sha256": "db2fc0f470efb7c1fea6774f2dd3c9e0caf4cc4feb3c2ea158fca6481b4c7350"
+          "section_id": "handle-a-production-diagnostic",
+          "sha256": "211a5ccb1b2792c5c9bef8a7582af05049fcc2115c30a9b20daf71911d5c33b8",
+          "size": 214
+        },
+        {
+          "section_id": "exit-codes",
+          "sha256": "ceaec6ddc4e8a965f77f0471f7f2ca6bea3d5044be5fa94f19d1c01bc9b8648e",
+          "size": 1925
+        },
+        {
+          "section_id": "read-the-reported-failure",
+          "sha256": "1d2eaa32c07a46d6d0c8dff91be324cf8017d6d2abd8438ae80d8492e074cef7",
+          "size": 4512
         }
       ]
     },
     {
-      "path": "references/runtime/production-permissions.md",
-      "sha256": "7a50364a333b7a83ca73db51506b5526b6577e632a6a0e3c501e3db2c4c4a2ce",
-      "size": 33930,
-      "ranges": [
+      "document_id": "references/runtime/production-permissions",
+      "sections": [
         {
-          "start": 0,
-          "end": 3040,
-          "sha256": "450d41f71e432177342345eb619efa4551c6f9ea4e1d34d917e042c8e6e24546"
+          "section_id": "production-permissions",
+          "sha256": "450d41f71e432177342345eb619efa4551c6f9ea4e1d34d917e042c8e6e24546",
+          "size": 3040
         },
         {
-          "start": 3040,
-          "end": 5093,
-          "sha256": "dbcc9b7ac58151ce25837a3958c11161e1d64a92b3e441a77893303882f7bd53"
+          "section_id": "protected-criteria-across-runs",
+          "sha256": "dbcc9b7ac58151ce25837a3958c11161e1d64a92b3e441a77893303882f7bd53",
+          "size": 2053
         },
         {
-          "start": 17832,
-          "end": 19567,
-          "sha256": "962aeca3f8c50c5fabad1fbc94a08ed6b55f070cb936353cc29b34a4967b369d"
+          "section_id": "retain-a-direct-instruction-for-one-request",
+          "sha256": "962aeca3f8c50c5fabad1fbc94a08ed6b55f070cb936353cc29b34a4967b369d",
+          "size": 1735
         },
         {
-          "start": 27805,
-          "end": 29261,
-          "sha256": "189923c799850206fa752c21af10cffa90ade0bb860dfa90c0fe42584e8ac550"
+          "section_id": "stored-decisions-and-current-authority",
+          "sha256": "189923c799850206fa752c21af10cffa90ade0bb860dfa90c0fe42584e8ac550",
+          "size": 1456
         }
       ]
     },
     {
-      "path": "references/runtime/production-image-inputs.md",
-      "sha256": "08489395193ab54e5a77067a6765280dba9f1c49638f089e83dc6f1afd14df39",
-      "size": 4311,
-      "ranges": [
+      "document_id": "references/runtime/production-image-inputs",
+      "sections": [
         {
-          "start": 0,
-          "end": 4311,
-          "sha256": "08489395193ab54e5a77067a6765280dba9f1c49638f089e83dc6f1afd14df39"
+          "section_id": "image-input",
+          "sha256": "08489395193ab54e5a77067a6765280dba9f1c49638f089e83dc6f1afd14df39",
+          "size": 4311
         }
       ]
     },
     {
-      "path": "references/runtime/state-aware-series.md",
-      "sha256": "2315fdae7379dcc7043d7e28e92898e7ba3b259db5f86756876ae38349cb4cf1",
-      "size": 22718,
-      "ranges": [
+      "document_id": "references/runtime/state-aware-series",
+      "sections": [
         {
-          "start": 0,
-          "end": 22718,
-          "sha256": "2315fdae7379dcc7043d7e28e92898e7ba3b259db5f86756876ae38349cb4cf1"
+          "section_id": "state-aware-series-runtime",
+          "sha256": "5104183b1ba5c8eb54c0fde87e36b713590f5715dcf3678197aac5c39fd8433b",
+          "size": 997
+        },
+        {
+          "section_id": "contents",
+          "sha256": "b2e0e1c910f5f236e15e4f37b69c715187415f85077e8c35e35c3e5c0ff10fbd",
+          "size": 552
+        },
+        {
+          "section_id": "authority-graph",
+          "sha256": "ff2cc3beec62b6e4598089d4c2e65527dc916e3639f7b00c9d155289160e0a07",
+          "size": 2176
+        },
+        {
+          "section_id": "state-domains-and-visibility",
+          "sha256": "6dbcba2efe40cdd28be39d8614832476fa04c8eb160d3ddd35f855f609a24a88",
+          "size": 1473
+        },
+        {
+          "section_id": "morphology-and-grooming-continuity",
+          "sha256": "40ecaeec2450322f46ce95616d5469732b97365d1124a18c1f69f85d7d45b751",
+          "size": 2287
+        },
+        {
+          "section_id": "scene-production-specification",
+          "sha256": "956753d962f56e13651c963111c78dd4c67d4b92299e6d39ba695b18709d05df",
+          "size": 1758
+        },
+        {
+          "section_id": "rendered-reference-identity-transfer",
+          "sha256": "06720896ba725341c38512c7993126481f1ca53c0990528a282bb4f9be8647a9",
+          "size": 3315
+        },
+        {
+          "section_id": "reference-selection-and-materialization",
+          "sha256": "65be43ba59be6706c8a066ff34347b6e87d6d6aa368cbba4365587c940516322",
+          "size": 5755
+        },
+        {
+          "section_id": "conditional-state-authorities",
+          "sha256": "a94174b6f7996bda2d87e5fc7cdea1a3373f5bea2b21034397522665c763a3bc",
+          "size": 1146
+        },
+        {
+          "section_id": "optional-consumer-boundary",
+          "sha256": "b96d43cedaebb8410cf35057ac01f5faae1c93939b700491eab97c6f7fc44301",
+          "size": 1442
+        },
+        {
+          "section_id": "grounded-multi-unit-coordination",
+          "sha256": "fe225fb5e7a14de75b8f545789994ece8742d6397cffd147485e0701c906a1a2",
+          "size": 963
+        },
+        {
+          "section_id": "artifact-evidence-and-completion",
+          "sha256": "64611d84165ccedf4d048a22bcdfdbab1f48b342bdcab43f133ce606fa4e9773",
+          "size": 854
         }
       ]
     },
     {
-      "path": "references/runtime/story-timeline.md",
-      "sha256": "98c3f7d4266495d6a437ff0358b562b457db01cc291a4caec9e3ae2fc3061eb4",
-      "size": 27382,
-      "ranges": [
+      "document_id": "references/runtime/story-timeline",
+      "sections": [
         {
-          "start": 0,
-          "end": 27382,
-          "sha256": "98c3f7d4266495d6a437ff0358b562b457db01cc291a4caec9e3ae2fc3061eb4"
+          "section_id": "story-flow-timeline-and-ledger-inspection",
+          "sha256": "169fc47db97aef098359afeac26ef93706600ff23ac0c683a6b6cef1cb1b7dc0",
+          "size": 729
+        },
+        {
+          "section_id": "open-the-story-view",
+          "sha256": "3ca97c16a06bbbca41b2d9e6be9f46c21549e6789c6429df41778bdad72fe8fa",
+          "size": 3644
+        },
+        {
+          "section_id": "read-the-story-without-authoring-a-diagram",
+          "sha256": "47ea5ebecf94ffdb7f9a65726906c44618e586390b3c88ebcdd278e70ed661ec",
+          "size": 3573
+        },
+        {
+          "section_id": "see-branches-and-revisions-in-graph",
+          "sha256": "e11f49b0b62da41145accaf092fc39364b574d0b95d4918f5f9f41d9675e0185",
+          "size": 4868
+        },
+        {
+          "section_id": "inspect-events-and-resolved-state-in-axis",
+          "sha256": "eff6a81756367d219206d26337c8bde4f33e0f8a893eb5a8984b0e2391030fbb",
+          "size": 1865
+        },
+        {
+          "section_id": "inspect-the-ledger-mechanically",
+          "sha256": "50f6257be2e95c12c1d3aa879d23f76412384dc1e2baab05804b38efc256a01b",
+          "size": 2078
+        },
+        {
+          "section_id": "bind-scene-artwork-and-evidence-explicitly",
+          "sha256": "985591b779296b555c91d2e11d36161bfc8d8ad4f04fbbec7ac24bf8c5d36663",
+          "size": 1574
+        },
+        {
+          "section_id": "synchronization-failure-and-growth",
+          "sha256": "ed07b3f5c04d5c1bcf3c0a17ce27d920f79915c764d127e0e11999a6ea946bb9",
+          "size": 5699
+        },
+        {
+          "section_id": "diagnostic-codes",
+          "sha256": "7ff1e281ffe361a4909363f71ccc10da7e76b5f570fb7fce743924ce4268e2cf",
+          "size": 2690
+        },
+        {
+          "section_id": "synthetic-example-and-tests",
+          "sha256": "3a607ab51b64ae27fccb1bb1cd74cd80eee77f8ecebac1bf3d994d7bf1157d1d",
+          "size": 662
         }
       ]
     },
     {
-      "path": "references/runtime/studio-canon-references.md",
-      "sha256": "d585bb459c88be2fe7782ffdbc7b26df34159f1b350dac4850a12558697c03c1",
-      "size": 10635,
-      "ranges": [
+      "document_id": "references/runtime/studio-canon-references",
+      "sections": [
         {
-          "start": 0,
-          "end": 10635,
-          "sha256": "d585bb459c88be2fe7782ffdbc7b26df34159f1b350dac4850a12558697c03c1"
+          "section_id": "use-adopted-studio-artwork-as-a-state-aware-reference",
+          "sha256": "af845136026240908137cf07de6f3fba934d32f5e0de9258a859383e0774ac97",
+          "size": 338
+        },
+        {
+          "section_id": "choose-the-current-source-and-its-influence",
+          "sha256": "9cfc21d1eb8cea4d160a1d666f56a9dffd17443ce9dca62520234d1193f2056c",
+          "size": 5449
+        },
+        {
+          "section_id": "deliver-several-adopted-images-on-one-board",
+          "sha256": "e43a3e8c7227b591d72449dff6b7e95987d996ee62ced3fc6235d759ec147ed1",
+          "size": 2034
+        },
+        {
+          "section_id": "preserve-current-acceptance-and-recorded-recovery",
+          "sha256": "9a1b9f8f93cb06b2cebe5ac1b337266b2cadaa5c1d88678392d0d41f4bd087d7",
+          "size": 2094
+        },
+        {
+          "section_id": "keep-source-responsibilities-distinct",
+          "sha256": "0b59b2fb6cc7283cd5ee22136b5ebf3386a0bd02e0afc5e8dd7b486c0f8df6ad",
+          "size": 720
         }
       ]
     },
     {
-      "path": "references/runtime/generation-package.md",
-      "sha256": "f156608af663eb94631246f29a12867e7637acf4f56b69734ac4c92d66721114",
-      "size": 23384,
-      "ranges": [
+      "document_id": "references/runtime/generation-package",
+      "sections": [
         {
-          "start": 0,
-          "end": 667,
-          "sha256": "b05ae1d4c9c64ed2b7b277d09f2c80e5e34f22325af1396d8edc99155b224dce"
+          "section_id": "generation-package",
+          "sha256": "b05ae1d4c9c64ed2b7b277d09f2c80e5e34f22325af1396d8edc99155b224dce",
+          "size": 667
         },
         {
-          "start": 963,
-          "end": 10519,
-          "sha256": "f656abb50e91b687ef05eed92c64320f6bb5e992554877edb2aa1a0fc11965f6"
+          "section_id": "generation-package-1",
+          "sha256": "f656abb50e91b687ef05eed92c64320f6bb5e992554877edb2aa1a0fc11965f6",
+          "size": 9556
         },
         {
-          "start": 10519,
-          "end": 14103,
-          "sha256": "a58cc9980e8b2e4021a7f2dcd4dcc9207ada141e21cb40c65cc991d6a5826cfc"
+          "section_id": "verification-and-host-forwarding",
+          "sha256": "a58cc9980e8b2e4021a7f2dcd4dcc9207ada141e21cb40c65cc991d6a5826cfc",
+          "size": 3584
         },
         {
-          "start": 14806,
-          "end": 17037,
-          "sha256": "b02ab1e3c5ac4ead3f396060053e42a1304a1264f18ded38f29f2fe0e7bb13d4"
+          "section_id": "preview-a-prepared-request",
+          "sha256": "b02ab1e3c5ac4ead3f396060053e42a1304a1264f18ded38f29f2fe0e7bb13d4",
+          "size": 2231
         },
         {
-          "start": 22367,
-          "end": 23024,
-          "sha256": "699ca2a4ca5b6d7df78d135f3a6b615ae8da7dec917d64b74944a0a5bd38e05a"
+          "section_id": "failure-policy",
+          "sha256": "699ca2a4ca5b6d7df78d135f3a6b615ae8da7dec917d64b74944a0a5bd38e05a",
+          "size": 657
         }
       ]
     },
     {
-      "path": "references/runtime/prompt-writing-guide.md",
-      "sha256": "ae6c2fe3546ef3ea96a71281937b3d3082a455b042465381eda5326a6e11f4a9",
-      "size": 33066,
-      "ranges": [
+      "document_id": "references/runtime/prompt-writing-guide",
+      "sections": [
         {
-          "start": 0,
-          "end": 33066,
-          "sha256": "ae6c2fe3546ef3ea96a71281937b3d3082a455b042465381eda5326a6e11f4a9"
+          "section_id": "prompt-writing-guide-runtime",
+          "sha256": "9b2f973bdb30d5a057df96b701e1e5d93d264ebb60b478250556b2740da53b7a",
+          "size": 32
+        },
+        {
+          "section_id": "activation",
+          "sha256": "97dda680a7383a0e1102fef7cf03d2a4b7732af853de77251474285b0daa291f",
+          "size": 808
+        },
+        {
+          "section_id": "resolve-the-active-guide",
+          "sha256": "441d4b9ade3e24940d5fd24d2b39f32fc040cce15631dc93336ff2a2f42b3627",
+          "size": 3459
+        },
+        {
+          "section_id": "interface-rendition",
+          "sha256": "42bb2539319c7f39f9f3bf5e43193a5ed6158e8e178a4efea3e8da1f6027bbcb",
+          "size": 3165
+        },
+        {
+          "section_id": "choose-terms-for-their-intended-visual-sense",
+          "sha256": "f11bc4cadf7f5451f4cc17cba3756b050dd5bc4199db24c7c9cbe6c23ac998b6",
+          "size": 3003
+        },
+        {
+          "section_id": "carry-the-construction-into-supported-means",
+          "sha256": "55da3300057fa01e29eeb74ceb54230decd1b3981c82b0382021068bbcdbeb43",
+          "size": 9930
+        },
+        {
+          "section_id": "describe-the-intended-result-first",
+          "sha256": "e16b3f109288268bdac0181853a4c6b60e849ccd7829837e4beb1b9508d84aa6",
+          "size": 4911
+        },
+        {
+          "section_id": "weighting-and-prompt-pressure",
+          "sha256": "6079e8df3cb53db6ff4a5330d3c8acdce8102bec6478e5e2a7eefc8c7b29f998",
+          "size": 2726
+        },
+        {
+          "section_id": "controlled-comparison",
+          "sha256": "abcc83ed4899038e5b5c2313878309d8ba8175f0d3788b6b6f9f155568dcf5e6",
+          "size": 506
+        },
+        {
+          "section_id": "read-the-rendition-back-before-it-is-sent",
+          "sha256": "61a2de9b02867f8963a1beb6e09e50f052aa7183cff3e496b5a4a88f48103381",
+          "size": 3103
+        },
+        {
+          "section_id": "failure-policy",
+          "sha256": "8821b0e2f46ad853926fd1a3629f8f7c0faaf4c2c0c33b72a6db3a358674b8ab",
+          "size": 917
+        },
+        {
+          "section_id": "regression",
+          "sha256": "a5a423e803a1aedeb5986cb684bd12872ab46300aa4f41346c9bdbb4c15b25ba",
+          "size": 261
+        },
+        {
+          "section_id": "final-request-dictionary-evidence",
+          "sha256": "5c1b0e59f2e2ff3f959c4c022ccc8cf7886264537cc921a830314f005bfe034b",
+          "size": 936
         }
       ]
     },
     {
-      "path": "references/runtime/prompt-weighting.md",
-      "sha256": "a7e0cd10f907bd83e86647c702a731fc9e8bb4710df3a17ac9110b1e4af1ab24",
-      "size": 13287,
-      "ranges": [
+      "document_id": "references/runtime/prompt-weighting",
+      "sections": [
         {
-          "start": 0,
-          "end": 13287,
-          "sha256": "a7e0cd10f907bd83e86647c702a731fc9e8bb4710df3a17ac9110b1e4af1ab24"
+          "section_id": "explicit-prompt-weighting",
+          "sha256": "761d1a62ec44a8559b559fe07c1b788bcef1e773b27b6cbb81a38f50d0252c59",
+          "size": 419
+        },
+        {
+          "section_id": "choose-the-interface-before-writing-parser-syntax",
+          "sha256": "f1a8f81a05d6d552396a9bb7f4f99628c0d8463d0f3cced1c98398346dfb7737",
+          "size": 2594
+        },
+        {
+          "section_id": "author-the-matching-rendition",
+          "sha256": "ffd385a35724993445c778832e86343a9016471f9c29e31a87c8104fb4c2e91f",
+          "size": 2750
+        },
+        {
+          "section_id": "weights-and-conditioning-channels",
+          "sha256": "5235838d5716eda73b11a81749df70ff942e58eb6f3ca4886671e42d405068bc",
+          "size": 1771
+        },
+        {
+          "section_id": "inspect-the-complete-request-not-a-flattened-tag-list",
+          "sha256": "a68c4d44a7acb04219902eb409baed537c137d47117873ad742debdc249d313e",
+          "size": 1746
+        },
+        {
+          "section_id": "recommendations-and-shared-reference-instructions",
+          "sha256": "161a0f2b14111461f43bbb2334687935a7d00772dbf9811794e0f8b01a25c6b1",
+          "size": 2194
+        },
+        {
+          "section_id": "approval-recording-and-recovery",
+          "sha256": "b9583d3bdbea5393fbd48d45f24fac6578426eab4df0065fae55c45f5d20a36a",
+          "size": 808
+        },
+        {
+          "section_id": "example-and-verification",
+          "sha256": "7e3619a82ffe85f77700d79156f03e84a76b5d453f70ff34e36392fd1f7c0596",
+          "size": 487
+        },
+        {
+          "section_id": "sources",
+          "sha256": "ba48750283fce7c30273a3c9c649c6f6f453b28bad05a1ee115edb34a0a598dc",
+          "size": 518
         }
       ]
     },
     {
-      "path": "references/runtime/reference-delivery.md",
-      "sha256": "fbf7b6b603f132a89cb4e8fac5a4bd46480aa04bead47983a85d83601361cbff",
-      "size": 24024,
-      "ranges": [
+      "document_id": "references/runtime/reference-delivery",
+      "sections": [
         {
-          "start": 0,
-          "end": 394,
-          "sha256": "4ca4a8fcedc867624d58b4d6f3d9d46543e0e037e7a23935ccec67b90e3d1afe"
+          "section_id": "exact-reference-delivery",
+          "sha256": "4ca4a8fcedc867624d58b4d6f3d9d46543e0e037e7a23935ccec67b90e3d1afe",
+          "size": 394
         },
         {
-          "start": 394,
-          "end": 2867,
-          "sha256": "c1938e90800eb11cc028c4366ff1fa6ac34b744f9030ee060daa95b7cf0cee1a"
+          "section_id": "selection-and-authority",
+          "sha256": "c1938e90800eb11cc028c4366ff1fa6ac34b744f9030ee060daa95b7cf0cee1a",
+          "size": 2473
         },
         {
-          "start": 2867,
-          "end": 8551,
-          "sha256": "470acf46677c8dfca705ad8e21af5778aa438b323ab5c05b3c2b951131be8641"
+          "section_id": "resolve-the-attributes-needed-by-this-image",
+          "sha256": "470acf46677c8dfca705ad8e21af5778aa438b323ab5c05b3c2b951131be8641",
+          "size": 5684
         },
         {
-          "start": 8551,
-          "end": 11061,
-          "sha256": "4b96216ed8a04edcd8729622a7e84a114ed058da62e9c51cd8744915377c218a"
+          "section_id": "reference-identities-and-coverage",
+          "sha256": "4b96216ed8a04edcd8729622a7e84a114ed058da62e9c51cd8744915377c218a",
+          "size": 2510
         },
         {
-          "start": 11061,
-          "end": 14510,
-          "sha256": "baf1cf2f5118408207b18dd26919e215872d7faea4af3e6b19a887d587d5604c"
+          "section_id": "author-the-consumed-reference-direction",
+          "sha256": "baf1cf2f5118408207b18dd26919e215872d7faea4af3e6b19a887d587d5604c",
+          "size": 3449
         },
         {
-          "start": 14510,
-          "end": 18967,
-          "sha256": "6d105f59cfed0e2003cbc6bd175a5fd3c8da9e846ca48678f588136477cf7ed7"
+          "section_id": "bind-the-actual-transport",
+          "sha256": "6d105f59cfed0e2003cbc6bd175a5fd3c8da9e846ca48678f588136477cf7ed7",
+          "size": 4457
         },
         {
-          "start": 19389,
-          "end": 21226,
-          "sha256": "ce28ebb32f3a03e7edcddd2625ee488fe8e257e41cb014b8f39ce6088981014c"
+          "section_id": "bind-a-hosted-carrier-url",
+          "sha256": "ce28ebb32f3a03e7edcddd2625ee488fe8e257e41cb014b8f39ce6088981014c",
+          "size": 1837
         },
         {
-          "start": 22172,
-          "end": 22952,
-          "sha256": "9266278fe089424d53d120b943d83ad1e6860570a92480b2e20bee58b7896de5"
+          "section_id": "bind-external-media",
+          "sha256": "9266278fe089424d53d120b943d83ad1e6860570a92480b2e20bee58b7896de5",
+          "size": 780
         },
         {
-          "start": 22952,
-          "end": 24024,
-          "sha256": "86971bb5aacac284ffea8eaff46b0459bdaf23f096d75822ac601873df9efdaa"
+          "section_id": "retain-source-and-carrier-evidence",
+          "sha256": "86971bb5aacac284ffea8eaff46b0459bdaf23f096d75822ac601873df9efdaa",
+          "size": 1072
         }
       ]
     },
     {
-      "path": "references/runtime/render-contract.md",
-      "sha256": "78a8964b12edd96b8fea640249e5bfe5c681377d9169f5206c715a627889e3a9",
-      "size": 38759,
-      "ranges": [
+      "document_id": "references/runtime/render-contract",
+      "sections": [
         {
-          "start": 0,
-          "end": 510,
-          "sha256": "4587c903945194a79eb81b6aee15e038addce818512140211ae1884b06fbb40f"
+          "section_id": "rendering-choices-and-execution-controls",
+          "sha256": "4587c903945194a79eb81b6aee15e038addce818512140211ae1884b06fbb40f",
+          "size": 510
         },
         {
-          "start": 510,
-          "end": 6046,
-          "sha256": "a392f2fa5e3a155cb24337fe095a453dd43a4ba5de69492332e546a20cf65f74"
+          "section_id": "choose-the-visual-treatment",
+          "sha256": "a392f2fa5e3a155cb24337fe095a453dd43a4ba5de69492332e546a20cf65f74",
+          "size": 5536
         },
         {
-          "start": 6046,
-          "end": 10260,
-          "sha256": "27b9a45463a8f51ad09a2cd3e975211127cb64f6dd61c2e6df1d07da8c2d4d0d"
+          "section_id": "represent-the-selected-design",
+          "sha256": "27b9a45463a8f51ad09a2cd3e975211127cb64f6dd61c2e6df1d07da8c2d4d0d",
+          "size": 4214
         },
         {
-          "start": 10260,
-          "end": 13612,
-          "sha256": "6fcb9fdbef2f4f511656b553716a30f1c443df9ebe0c1238527f341bb72b26fc"
+          "section_id": "select-the-operation-and-optional-rendering-declaration",
+          "sha256": "6fcb9fdbef2f4f511656b553716a30f1c443df9ebe0c1238527f341bb72b26fc",
+          "size": 3352
         },
         {
-          "start": 13612,
-          "end": 16144,
-          "sha256": "5608e2dd8517edf876c5148be7bdb5a131a387f48f6154cca6859151e9d0233e"
+          "section_id": "read-the-models-guidance",
+          "sha256": "5608e2dd8517edf876c5148be7bdb5a131a387f48f6154cca6859151e9d0233e",
+          "size": 2532
         },
         {
-          "start": 16144,
-          "end": 22438,
-          "sha256": "bb96cf517bfcdeab50cdcb612409c38103038940a7faa18481e67e714bfe52ca"
+          "section_id": "prompt-input",
+          "sha256": "bb96cf517bfcdeab50cdcb612409c38103038940a7faa18481e67e714bfe52ca",
+          "size": 6294
         },
         {
-          "start": 22438,
-          "end": 28295,
-          "sha256": "edfbdf3caef0c3f420b0505b98236d8df5485b9590ed5b3adbf50d628bd00fcb"
+          "section_id": "apply-the-authors-model-selection-preferences",
+          "sha256": "edfbdf3caef0c3f420b0505b98236d8df5485b9590ed5b3adbf50d628bd00fcb",
+          "size": 5857
         },
         {
-          "start": 28295,
-          "end": 32137,
-          "sha256": "73a8004c847c8d084b4dcb2ece0b42d2ca1fe988552c42c715320b266d3ce900"
+          "section_id": "declare-controls-by-operation",
+          "sha256": "73a8004c847c8d084b4dcb2ece0b42d2ca1fe988552c42c715320b266d3ce900",
+          "size": 3842
         },
         {
-          "start": 32137,
-          "end": 34567,
-          "sha256": "068718fe6ef23d3ed3a9975bdb1017d9f3f2eda9eb2e5fdd8227f4cc317ec8f7"
+          "section_id": "resolve-and-inspect-the-exact-input",
+          "sha256": "068718fe6ef23d3ed3a9975bdb1017d9f3f2eda9eb2e5fdd8227f4cc317ec8f7",
+          "size": 2430
         },
         {
-          "start": 35813,
-          "end": 37581,
-          "sha256": "e9d51f1611be95ce2210dea4957aaeed170f2da2be2d6aeb47b82d7460729a40"
+          "section_id": "preserve-an-image-during-enlargement",
+          "sha256": "e9d51f1611be95ce2210dea4957aaeed170f2da2be2d6aeb47b82d7460729a40",
+          "size": 1768
         }
       ]
     },
     {
-      "path": "references/runtime/studio.md",
-      "sha256": "c744b8d9eea76442d87f500291fb34db34993f0bf799548df99ebb0f5e26a678",
-      "size": 44109,
-      "ranges": [
+      "document_id": "references/runtime/studio",
+      "sections": [
         {
-          "start": 0,
-          "end": 904,
-          "sha256": "458e43e92e40da62858f3b756d5525fd54ae5e08fc2858966ac2cf4dc8edc50b"
+          "section_id": "studio-runtime",
+          "sha256": "458e43e92e40da62858f3b756d5525fd54ae5e08fc2858966ac2cf4dc8edc50b",
+          "size": 904
         },
         {
-          "start": 1556,
-          "end": 2122,
-          "sha256": "b5e9d2a4c5cfe918320cfe32c29c7f0e859cde68d789be3ae10e28ac96a56cda"
+          "section_id": "why-a-studio",
+          "sha256": "b5e9d2a4c5cfe918320cfe32c29c7f0e859cde68d789be3ae10e28ac96a56cda",
+          "size": 566
         },
         {
-          "start": 2122,
-          "end": 5613,
-          "sha256": "9d63880439d16d7a18d8c99472105339908dee3e242aabee51ab397d1de7eafb"
+          "section_id": "layout",
+          "sha256": "9d63880439d16d7a18d8c99472105339908dee3e242aabee51ab397d1de7eafb",
+          "size": 3491
         },
         {
-          "start": 8463,
-          "end": 11352,
-          "sha256": "908bad0fc5528b8c55f59ae86039a6962c41c18edb19e221683a7fc2879fd406"
+          "section_id": "the-work-trail",
+          "sha256": "908bad0fc5528b8c55f59ae86039a6962c41c18edb19e221683a7fc2879fd406",
+          "size": 2889
         },
         {
-          "start": 11352,
-          "end": 15065,
-          "sha256": "6fc0ff0f2e43da24f5eccce22d181ffcd5169d2e2221c9922b55288d3081b5bf"
+          "section_id": "answers-returning-to-an-earlier-step-and-temporary-task-switches",
+          "sha256": "6fc0ff0f2e43da24f5eccce22d181ffcd5169d2e2221c9922b55288d3081b5bf",
+          "size": 3713
         },
         {
-          "start": 32236,
-          "end": 34704,
-          "sha256": "4ec2029b31b91b8860de13e86d7a83237eb07025004141ac539e09db013d0cd9"
+          "section_id": "session-entry",
+          "sha256": "4ec2029b31b91b8860de13e86d7a83237eb07025004141ac539e09db013d0cd9",
+          "size": 2468
         },
         {
-          "start": 34704,
-          "end": 36486,
-          "sha256": "e9ccd4845eccbc391679cfe06bc5acbff700e35d969f187793d1a55f537b09dd"
+          "section_id": "validation",
+          "sha256": "e9ccd4845eccbc391679cfe06bc5acbff700e35d969f187793d1a55f537b09dd",
+          "size": 1782
         },
         {
-          "start": 36486,
-          "end": 36734,
-          "sha256": "557c7edd0be3010f70ee09837cd576956652f3e2799b43c640b5b5d7c6673166"
+          "section_id": "what-leaves-a-studio",
+          "sha256": "557c7edd0be3010f70ee09837cd576956652f3e2799b43c640b5b5d7c6673166",
+          "size": 248
         }
       ]
     },
     {
-      "path": "references/runtime/world-realization.md",
-      "sha256": "4861b2bd73a563266f5991d5b5c9f520f559f65454b3988d90dbf93dd2780e74",
-      "size": 18460,
-      "ranges": [
+      "document_id": "references/runtime/world-realization",
+      "sections": [
         {
-          "start": 0,
-          "end": 18460,
-          "sha256": "4861b2bd73a563266f5991d5b5c9f520f559f65454b3988d90dbf93dd2780e74"
+          "section_id": "grounded-world-state-and-scoped-realization",
+          "sha256": "ae2c083f82314f7823a14038df5e59a655f15e9ffad7639fb6794522d2abdbb7",
+          "size": 337
+        },
+        {
+          "section_id": "activation-and-ownership",
+          "sha256": "fbe40a1fade9d0422dfae436315e5682beec32f23b2d770871a649f84b5eeb00",
+          "size": 1652
+        },
+        {
+          "section_id": "1-establish-scope-and-evidence-before-making-state-authoritative",
+          "sha256": "a856674a3be80e5ef795d2dff75b4d20d4ea9da2dead2dcf5e987afe8202a77b",
+          "size": 1699
+        },
+        {
+          "section_id": "2-separate-the-addresses-that-serve-different-jobs",
+          "sha256": "ef0b0cc6cdf8ba0617244a02eae9b2bbe0c409610644e7fedfef2fa26300a987",
+          "size": 2184
+        },
+        {
+          "section_id": "3-distinguish-occurrence-telling-and-execution",
+          "sha256": "994d233abe06a446a121d861e3038241440a05c0f720e883f86c53494e303e4c",
+          "size": 2124
+        },
+        {
+          "section_id": "4-resolve-a-units-expressive-contract",
+          "sha256": "58ce5da912c97e9532a2000a82338ad9636bc07ca899e844048ebbe8e0934948",
+          "size": 1186
+        },
+        {
+          "section_id": "5-pass-only-the-information-the-consumer-should-receive",
+          "sha256": "dc3cc958fc52c83be986c99493e44a99df9373a6e5f268737897533db3bd2304",
+          "size": 1339
+        },
+        {
+          "section_id": "6-inspect-correct-and-choose-without-changing-canon-by-accident",
+          "sha256": "05676707958123a310a96141ad5f2e0fd1b54754fe7003ee650882365781887a",
+          "size": 1064
+        },
+        {
+          "section_id": "local-realization-plan-and-cli",
+          "sha256": "2e1fac99dc2d5d3d8f44c304b42603f63e5615324c6902e87bbede7e600ae185",
+          "size": 6021
+        },
+        {
+          "section_id": "artifact-evidence-and-completion",
+          "sha256": "64611d84165ccedf4d048a22bcdfdbab1f48b342bdcab43f133ce606fa4e9773",
+          "size": 854
         }
       ]
     }
@@ -694,5 +1036,5 @@
   "route": "state-series",
   "scope": null,
   "source_kind": null,
-  "reading_key": "cce1bce6b495f233066b42df2bcce584"
+  "reading_key": "9fbf6fa872574d928c24e655b3425de7"
 }

@@ -22,7 +22,10 @@ def strings(value: Any, label: str, *, nonempty: bool = False) -> list[str]:
 
 def validate(direction: Any, sources: list[dict], criteria: list[dict], *, task_id: str | None = None) -> None:
     c.exact(direction, {'purpose', 'intended_effect', 'basis', 'decisions', 'source_allowances',
-                        'action_slice', 'limitations'}, 'direction')
+                        'action_slice', 'limitations'} |
+            ({'image_format'} if isinstance(direction, dict) and 'image_format' in direction else set()), 'direction')
+    if direction.get('image_format', 'single-still') not in {'single-still', 'multi-panel'}:
+        raise ValueError('image_format must be single-still or multi-panel')
     c.text(direction['purpose'], 'purpose')
     c.text(direction['intended_effect'], 'intended effect')
     source_ids = {s['id'] for s in sources}
@@ -45,7 +48,8 @@ def validate(direction: Any, sources: list[dict], criteria: list[dict], *, task_
     ids: set[str] = set()
     for index, decision in enumerate(decisions):
         c.exact(decision, {'id', 'basis', 'expression', 'realization', 'criteria', 'depends_on', 'deviations'} |
-                          ({'note'} if isinstance(decision, dict) and 'note' in decision else set()),
+                          ({key for key in ('note', 'representation') if key in decision}
+                           if isinstance(decision, dict) else set()),
                 'decision')
         ident = c.text(decision['id'], 'decision id')
         if ident in ids:
@@ -54,6 +58,15 @@ def validate(direction: Any, sources: list[dict], criteria: list[dict], *, task_
         c.text(decision['expression'], 'decision expression')
         if 'note' in decision:
             c.text(decision['note'], 'decision note')
+        if 'representation' in decision:
+            from production_expression import ROLES
+            representation = decision['representation']
+            c.exact(representation, {'role'} | ({'primary'} if isinstance(representation, dict)
+                                              and 'primary' in representation else set()), 'representation')
+            if representation['role'] not in ROLES:
+                raise ValueError('unknown representation role')
+            if 'primary' in representation:
+                c.text(representation['primary'], 'primary visible decision')
         if set(strings(decision['basis'], 'decision basis')) - applied:
             raise ValueError('decision cites an unknown or unused source')
         invalid_criteria = set(strings(decision['criteria'], 'decision criteria', nonempty=True)) - criterion_ids
@@ -161,11 +174,12 @@ def validate_variation_bindings(task: dict, source_hashes: dict[str, str]) -> No
 
 def consumer(direction: dict) -> dict:
     """Only selected realization enters a model-facing view, not the dossier."""
+    from production_expression import role
     return {'directives': [
         {'decision': d['id'], 'expression': d['expression'],
          'method': d['realization']['method'],
          'instructions': d['realization']['instructions']}
-        for d in direction['decisions']
+        for d in direction['decisions'] if role(d) not in {'author-only', 'unresolved'}
     ]}
 
 
@@ -191,11 +205,15 @@ def affected(task: dict, changed_sources: set[str], *, all_inputs: bool = False)
                     or d['realization']['capability_source'] in changed_sources
                     or any(x['source'] in changed_sources for x in d['deviations'])}
     while True:
-        expanded = affected_ids | {d['id'] for d in decisions if affected_ids.intersection(d['depends_on'])}
+        expanded = affected_ids | {d['id'] for d in decisions if affected_ids.intersection(d['depends_on'])
+                                   or d.get('representation', {}).get('primary') in affected_ids}
         if expanded == affected_ids:
             break
         affected_ids = expanded
     checks = {x for d in decisions if d['id'] in affected_ids for x in d['criteria']}
+    checks.update(item['id'] for item in task['criteria']
+                  if item.get('origin', {}).get('source') in changed_sources
+                  or item.get('observation', {}).get('baseline') in changed_sources)
     for allowance in task['direction']['source_allowances']:
         if (all_inputs or allowance['source'] in changed_sources
                 or allowance['scope'].get('source') in changed_sources):

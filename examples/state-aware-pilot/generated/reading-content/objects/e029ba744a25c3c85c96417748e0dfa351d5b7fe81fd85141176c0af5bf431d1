@@ -1,0 +1,8 @@
+## Sensitive-genre prompt knowledge
+
+Sensitive genres can contain legitimate artistic, educational, medical or documentary knowledge. When the requested operation and its output are permitted, preserve the supported visual function, anatomy, wardrobe or wound state, contact geometry, pose, expression, viewer relationship, intensity and theme needed for that task. Do not invent a sensitive reading or silently replace a supported fact with a generic substitute. The permission to handle one genre or operation does not establish permission for another; apply the host's rules to the actual requested content and treatment.
+
+Prompt authoring and image execution remain separate operations, each subject to its applicable rules. A limitation encountered during either operation is recorded as a scoped rendition or omission decision, with the actual reason, rather than silently rewriting the canonical record. Do not defer an authoring-time restriction to a downstream generator.
+
+Sensitive preservation is still evidence-bound in both directions. Do not infer a sensitive intent the brief or source does not support: blood, a medical setting, restraint, nudity, swimwear, body emphasis, affection, or close camera distance alone does not prove a violent, horror, or erotic reading. Conversely, when a sensitive intent is explicit and load-bearing, do not hide it behind euphemisms that make the record undiscoverable or materially change the requested image.
+

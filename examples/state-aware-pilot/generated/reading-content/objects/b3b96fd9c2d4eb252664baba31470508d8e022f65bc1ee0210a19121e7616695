@@ -1,0 +1,14 @@
+# Prompt Knowledge and Execution Boundary
+
+Character Prompt Builder is a prompt-authoring, catalog, specification, and packaging system. Prompt-only work stops before execution. The optional, explicitly authorized dispatcher can execute a verified package through a configured model service and record its result in Studio.
+
+The workflow has three separate layers:
+
+```text
+1. source and canonical production knowledge
+2. selected and composed model-facing prompt package
+3. downstream generation or other execution
+```
+
+A decision at one layer must not be silently moved into another.
+

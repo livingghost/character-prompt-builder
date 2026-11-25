@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -72,9 +73,32 @@ class Runner(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return str(path)
 
-    def run_quietly(self, selected, jobs):
+    def runner_source(self):
+        """Small declared source tree for scheduling and reporting contracts."""
+        source = self.work / "runner-source"
+        source.mkdir()
+        metadata = run_checks.load_package_metadata(ROOT)
+        for relative in metadata.release_include:
+            original, target = ROOT / relative, source / relative
+            if original.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                (target / "synthetic-runner-fixture.txt").write_text(
+                    "Synthetic source member for runner contract tests.\n", encoding="utf-8")
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(original, target)
+        for relative in ("scripts/run_checks.py", "config/default-pack-state.json", "packs/commons/pack.json"):
+            shutil.copyfile(ROOT / relative, source / relative)
+        (source / "MANIFEST.json").write_text(
+            json.dumps({"fixture": "synthetic runner source inventory"}) + "\n", encoding="utf-8")
+        return source
+
+    def run_quietly(self, selected, jobs, *, source=None):
+        source = self.runner_source() if source is None else source
         printed = io.StringIO()
-        with contextlib.redirect_stdout(printed):
+        with contextlib.redirect_stdout(printed), \
+                mock.patch.object(run_checks, "ROOT", source), \
+                mock.patch.object(run_checks, "DEFAULT_PACK_STATE", source / "config/default-pack-state.json"):
             code = run_checks.run(selected, jobs=jobs, out=self.out)
         return code, printed.getvalue()
 
@@ -131,12 +155,13 @@ class Runner(unittest.TestCase):
         self.assertIn(f"python: {context['python_executable']}", printed)
         self.assertLess(printed.index("workers:"), printed.index("[  1/"))
 
-    def test_elapsed_time_includes_source_copy_and_cleanup(self):
+    def test_elapsed_time_includes_source_copy_bytecode_and_cleanup(self):
         program = self.program("timed-environment", ENVIRONMENT)
         selected = [("environment", [sys.executable, program])]
         clock = [0.0]
         context = run_checks.execution_context(1)
         original_home, original_copy = run_checks.scratch_home, run_checks.copy_check_tree
+        original_bytecode = run_checks.prepare_bytecode
         original_run = run_checks.subprocess.run
         original_directory = tempfile.TemporaryDirectory
         summary_seen_during_cleanup = []
@@ -156,6 +181,11 @@ class Runner(unittest.TestCase):
             clock[0] += 3
             return result
 
+        def bytecode(root):
+            result = original_bytecode(root)
+            clock[0] += 5
+            return result
+
         out = self.out
 
         class TimedDirectory(original_directory):
@@ -168,19 +198,21 @@ class Runner(unittest.TestCase):
                 mock.patch.object(run_checks, "execution_context", return_value=context), \
                 mock.patch.object(run_checks, "scratch_home", side_effect=home), \
                 mock.patch.object(run_checks, "copy_check_tree", side_effect=copy), \
+                mock.patch.object(run_checks, "prepare_bytecode", side_effect=bytecode), \
                 mock.patch.object(run_checks.subprocess, "run", side_effect=execute), \
                 mock.patch.object(run_checks.tempfile, "TemporaryDirectory", TimedDirectory):
             code, printed = self.run_quietly(selected, jobs=1)
         self.assertEqual(code, 0, printed)
         summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
-        self.assertEqual(summary["seconds"], 10)
-        self.assertEqual(summary["timings_seconds"], {"setup": 1, "copy": 2, "commands": 3, "cleanup": 4})
+        self.assertEqual(summary["seconds"], 15)
+        self.assertEqual(summary["timings_seconds"], {"setup": 1, "copy": 2, "bytecode": 5, "commands": 3, "cleanup": 4})
+        self.assertGreater(summary["bytecode_files"], 0)
         self.assertEqual(summary["commands"][0]["seconds"], 3)
         self.assertEqual(summary_seen_during_cleanup, [False])
         observed = json.loads((self.out / "001.log").read_text(encoding="utf-8"))
         self.assertFalse(Path(observed["cwd"]).exists())
-        self.assertIn("in 10.0s with 1 workers", printed)
-        self.assertIn("elapsed phases: setup 1.000s; copy 2.000s; commands 3.000s; cleanup 4.000s", printed)
+        self.assertIn("in 15.0s with 1 workers", printed)
+        self.assertIn("elapsed phases: setup 1.000s; copy 2.000s; bytecode 5.000s; commands 3.000s; cleanup 4.000s", printed)
 
     def test_nonrelease_pack_inputs_and_owner_home_do_not_reach_commands(self):
         source, pack = self.source_with_nonrelease_pack()
@@ -190,8 +222,8 @@ class Runner(unittest.TestCase):
         owner_state.write_text("{unreadable synthetic owner state", encoding="utf-8")
         original = {path: path.read_bytes() for path in (owner_state, pack / "pack.json", pack / "records/record.json")}
         probe = self.program("catalog", CATALOG)
-        with mock.patch.object(run_checks, "ROOT", source), mock.patch.dict(os.environ, {"CPB_HOME": str(owner_home)}):
-            code, printed = self.run_quietly([("catalog", [sys.executable, probe])], jobs=1)
+        with mock.patch.dict(os.environ, {"CPB_HOME": str(owner_home)}):
+            code, printed = self.run_quietly([("catalog", [sys.executable, probe])], jobs=1, source=source)
         self.assertEqual(code, 0, printed)
         observed = json.loads((self.out / "001.log").read_text(encoding="utf-8"))
         metadata = run_checks.load_package_metadata(source)
@@ -209,6 +241,13 @@ class Runner(unittest.TestCase):
                 if path.is_file():
                     with self.subTest(path=str(path.relative_to(ROOT))):
                         self.assertEqual(path.read_bytes(), (copied / path.relative_to(ROOT)).read_bytes())
+        identity = run_checks.source_identity(copied)
+        self.assertEqual(identity['release'], run_checks.load_package_metadata(copied).version)
+        for key, name in (('runner_sha256', 'scripts/run_checks.py'), ('inventory_sha256', 'MANIFEST.json')):
+            self.assertEqual(identity[key], hashlib.sha256((copied / name).read_bytes()).hexdigest())
+        # The copied code identifies itself even if its original checkout changes.
+        (copied / 'scripts/run_checks.py').write_bytes(b'# A separate acquired runner.\n')
+        self.assertNotEqual(run_checks.source_identity(copied)['runner_sha256'], identity['runner_sha256'])
 
     def test_core_content_checks_keep_the_selected_release_runtime(self):
         from catalog_retrieval.runtime import using_pack_runtime
@@ -280,12 +319,69 @@ class Runner(unittest.TestCase):
         self.assertEqual((summary["passed"], summary["failed"]), (1, 2))
 
 
+class BytecodePreparation(unittest.TestCase):
+    def test_read_only_children_reuse_bytecode_and_detect_same_size_same_mtime_edits(self):
+        with tempfile.TemporaryDirectory(prefix="check-bytecode-") as temporary:
+            work = Path(temporary)
+            source = work / "original"
+            (source / "scripts").mkdir(parents=True)
+            original = source / "scripts" / "bytecode_fixture.py"
+            original.write_text("VALUE = 'first'\n", encoding="utf-8")
+            root = work / "copy"
+            run_checks.copy_runtime_tree(source, root, ("scripts",))
+            module = root / "scripts" / original.name
+            outside = work / "outside-cache"
+            with mock.patch.object(sys, "pycache_prefix", str(outside)):
+                self.assertEqual(run_checks.prepare_bytecode(root), 1)
+            cache, = (root / "scripts" / "__pycache__").glob("*.pyc")
+            cached = cache.read_bytes()
+            self.assertFalse(outside.exists())
+            self.assertFalse((source / "scripts" / "__pycache__").exists())
+
+            probe = (
+                "import json, pathlib, sys\n"
+                "sys.path.insert(0, str(pathlib.Path.cwd() / 'scripts'))\n"
+                "compiled = []\n"
+                "def observe(event, arguments):\n"
+                "    if event == 'compile' and str(arguments[1]).endswith('bytecode_fixture.py'):\n"
+                "        compiled.append(arguments[1])\n"
+                "sys.addaudithook(observe)\n"
+                "import bytecode_fixture\n"
+                "print(json.dumps({'value': bytecode_fixture.VALUE, 'compiled': compiled}))\n"
+            )
+            argv = [sys.executable, "-B", "-c", probe]
+            with mock.patch.dict(os.environ, {"PYTHONPYCACHEPREFIX": str(outside)}):
+                first = run_checks.run_one(1, "cached import", argv, work, root, child_workers=1)
+                before = module.stat()
+                module.write_text("VALUE = 'later'\n", encoding="utf-8")
+                os.utime(module, ns=(before.st_atime_ns, before.st_mtime_ns))
+                second = run_checks.run_one(2, "changed import", argv, work, root, child_workers=1)
+            self.assertEqual((first["exit"], second["exit"]), (0, 0))
+            self.assertEqual(json.loads((work / "001.log").read_text(encoding="utf-8")),
+                             {"value": "first", "compiled": []})
+            self.assertEqual(json.loads((work / "002.log").read_text(encoding="utf-8")),
+                             {"value": "later", "compiled": [str(module)]})
+            self.assertEqual((module.stat().st_size, module.stat().st_mtime_ns),
+                             (before.st_size, before.st_mtime_ns))
+            self.assertEqual(cache.read_bytes(), cached)
+            self.assertFalse(outside.exists())
+
+            # The release inventory does not carry the disposable import cache.
+            released = work / "release"
+            run_checks.copy_runtime_tree(root, released, ("scripts",))
+            self.assertEqual(sorted(path.relative_to(released).as_posix()
+                                    for path in released.rglob("*") if path.is_file()),
+                             ["scripts/bytecode_fixture.py"])
+            self.assertEqual(original.read_text(encoding="utf-8"), "VALUE = 'first'\n")
+
+
 class WorkerPolicy(unittest.TestCase):
-    def test_automatic_workers_follow_process_availability_up_to_four(self):
+    def test_automatic_workers_follow_process_availability_up_to_eight(self):
         with mock.patch.object(run_checks.os, "cpu_count", return_value=64), \
                 mock.patch.object(run_checks.os, "sched_getaffinity", return_value=set(range(32)), create=True):
             for available, expected, children in ((1, 1, 1), (2, 2, 1), (4, 4, 1),
-                                                  (9, 4, 2), (12, 4, 3), (64, 4, 4)):
+                                                  (7, 7, 1), (8, 8, 1), (9, 8, 1),
+                                                  (12, 8, 1), (16, 8, 2), (24, 8, 3), (64, 8, 4)):
                 with self.subTest(available=available), \
                         mock.patch.object(run_checks.os, "process_cpu_count", return_value=available, create=True):
                     context = run_checks.execution_context(None)
@@ -296,11 +392,12 @@ class WorkerPolicy(unittest.TestCase):
 
     def test_cpu_discovery_uses_affinity_then_reported_cpu_count(self):
         cases = (
-            ({1, 3}, 32, 2, "os.sched_getaffinity"),
-            (OSError("affinity unavailable"), 2, 2, "os.cpu_count"),
-            (NotImplementedError(), None, 1, "fallback"),
+            ({1, 3}, 32, 2, 2, "os.sched_getaffinity"),
+            (set(range(16)), 32, 16, 8, "os.sched_getaffinity"),
+            (OSError("affinity unavailable"), 64, 64, 8, "os.cpu_count"),
+            (NotImplementedError(), None, 1, 1, "fallback"),
         )
-        for affinity, logical, expected, source in cases:
+        for affinity, logical, available, expected, source in cases:
             with self.subTest(source=source), \
                     mock.patch.object(run_checks.os, "process_cpu_count", None, create=True), \
                     mock.patch.object(run_checks.os, "sched_getaffinity", create=True) as probe, \
@@ -311,7 +408,7 @@ class WorkerPolicy(unittest.TestCase):
                     probe.return_value = affinity
                 context = run_checks.execution_context(None)
                 self.assertEqual((context["available_cpus"], context["jobs"], context["cpu_source"]),
-                                 (expected, expected, source))
+                                 (available, expected, source))
 
     def test_explicit_workers_override_the_automatic_limit_and_cpu_count(self):
         with mock.patch.object(run_checks.os, "process_cpu_count", return_value=1, create=True):
@@ -321,6 +418,10 @@ class WorkerPolicy(unittest.TestCase):
         with mock.patch.object(run_checks.os, "process_cpu_count", return_value=9, create=True):
             self.assertEqual(run_checks.execution_context(1)["child_command_workers"], 4)
             self.assertEqual(run_checks.execution_context(3)["child_command_workers"], 3)
+            import documentation_contract_smoke_test as documentation_contract
+            with mock.patch.dict(os.environ):
+                os.environ.pop("CPB_CHECK_CHILD_WORKERS", None)
+                self.assertEqual(documentation_contract.help_workers(), 4)
 
 
 class Inventory(unittest.TestCase):
@@ -377,6 +478,11 @@ class Inventory(unittest.TestCase):
                                  [item for item in self.commands if item[0] == "scripts/pack_selector_smoke_test.py"])
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             run_checks.main(["--jobs", "0", "--list"])
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed), self.assertRaises(SystemExit) as help_exit:
+            run_checks.main(["--help"])
+        self.assertEqual(help_exit.exception.code, 0)
+        self.assertIn("capped at 8", " ".join(printed.getvalue().split()))
 
 
 if __name__ == "__main__":

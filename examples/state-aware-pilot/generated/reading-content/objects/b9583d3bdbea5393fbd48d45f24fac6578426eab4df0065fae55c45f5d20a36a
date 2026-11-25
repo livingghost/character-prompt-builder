@@ -1,0 +1,14 @@
+## Approval, recording and recovery
+
+Changing the grammar control, clause text, coefficient or the final negative channel
+changes the sealed request. The normal complete-request approval, current input
+checks and one-send execution claim apply. Recorded response recovery uses the
+fixed package, grammar choice and text; it does not convert an old request into a
+new grammar or send it again after a timeout. This extends the existing Production
+path, not an out-of-band generation shortcut.
+
+No Python `compel`, PyTorch, Transformers, browser, API SDK or other parser package
+is required. CPB uses a bounded standard-library inspector; the provider performs
+conditioning. Its supported structural grammar is not a replacement for every
+upstream parser extension or a prediction of provider image behavior.
+

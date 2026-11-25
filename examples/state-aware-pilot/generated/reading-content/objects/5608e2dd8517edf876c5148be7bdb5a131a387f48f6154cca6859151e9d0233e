@@ -1,0 +1,40 @@
+## Read the model's guidance
+
+After runtime activation, inspect the selected model and its exact service:
+
+```bash
+python scripts/render_contract.py models --operation upscale --service SERVICE_ID
+python scripts/render_contract.py model --model MODEL_ID --service SERVICE_ID
+python scripts/catalog_cli.py inspect <model-id>
+```
+
+`models` lists the matching models and offerings, their complete guidance cards,
+and an executable inspection action for each one. Omit `--service` to compare
+all registered offerings for the operation. Each action retains the selected
+pack runtime. `model` prints one complete guidance card; catalog inspection
+prints a card for each offering. These commands resolve every enabled pack.
+Pass the same state, cache, managed root, and extra pack roots to every model-aware command.
+The prompt-dialect command resolves the model, dialect, and writing guide in that same runtime.
+The prompt-dialect report and route reading with `--model` include the same cards.
+They expose recommended positive and negative text, merge mode, parameter recommendations,
+size choices, prompt slot order, evidence basis, limitations, and every mode's controls.
+The card also exposes the exact `prompt_input` declaration, its owning
+`prompt_dialect` where applicable, and `requires_vocabulary_search`.
+Read this output while choosing model-dependent means and before preparing
+model-specific wording or values. Check a consequential style or technique
+against its actual scoped guidance and observations; dictionary membership
+alone proves neither training membership nor the requested effect. A supported
+input field also does not establish expressive success.
+A model change means a new card, prompt review, parameter resolution, and
+authorization scope review. Retain the applicable visual intent while
+reassessing how the new target can realize it. Use evidenced wording and
+supported adaptations or references where appropriate; do not assume a medium
+name will transfer the appearance or silently substitute the subject or target.
+Never swap the selected provider or model for another image tool merely because it is available.
+
+Recommendations live in the model's existing `recommended_parameters`,
+`recommended_positive_prompt`, and `recommended_negative_prompt` fields.
+`execution_profile` belongs to the exact offering, or to a host-only model with no offering.
+Its controls point to recommendation names; they do not duplicate the values.
+One interface never inherits another interface's capabilities implicitly.
+

@@ -1,0 +1,86 @@
+## Choose the visual treatment
+
+Use [Production direction](production-direction.md#form-a-prompt-from-an-idea)
+to develop the commissioned content and its visual realization together.
+Choose which properties need control for this work and leave other choices to
+the image model. A complete prompt may specify the subject and requested
+content without naming a medium or prescribing a finish. That is a completed
+direction, not an unfinished taxonomy. Actual prompt and assigned-source
+requirements remain authoritative when no separate rendering declaration is
+selected.
+
+When selecting a treatment, compare what different choices make the viewer
+experience in the proposed picture. Form abstraction, mark rhythm, edges, value
+structure, color, light and surface behavior can change its force, pace, spatial
+relationships and emotional reading. Let that knowledge inform the conception
+as it develops. A fixed medium, adopted treatment or bounded edit retains its
+actual scope.
+
+When an exact target is selected, read its [model guidance](#read-the-models-guidance)
+while considering model-dependent means. Its checkpoint, active adaptations,
+input workflow and available reference or control paths constrain realization.
+An input grammar does not establish a model's range of styles. A rendering
+preset describes an authored intent, not a capability promised by every model.
+Consult [model evidence](model-evidence.md#keep-kinds-of-evidence-apart) for what
+the available basis actually establishes. With no target, develop a portable
+proposal without claiming that its treatment has been demonstrated.
+
+For an authored treatment, choose the behavior that makes the interpretation particular. Naming a
+medium leaves decisions about forms, marks, tonal relationships and surfaces
+open. Explain a treatment's contribution through what it does in this image;
+generic warmth, polish or readability alone cannot distinguish it from other
+plausible treatments. Resolve the visual behavior needed for the intended
+effect without turning every available technique into a prompt clause.
+
+When choosing additional rendering constraints, read `python scripts/render_contract.py presets` and
+use [discovery](sparse-discovery.md#conceive-the-open-picture) before committing
+to it. The presets expose construction envelopes, not a closed set of art
+directions or evidence that a treatment fits. Inspect relevant full knowledge
+for the concrete treatment being developed or compared, reusing complete
+material already delivered in the current context. Use a fitting preset or
+author a custom intent with `preset: null`. A custom intent records only the
+selected constraints among medium, dimensionality, linework, shading, surface
+and detail. Omit an axis when this intent adds no constraint on it; do not fill
+the field with an invented process, substrate or texture. Every supplied value
+must express an actual choice. An empty `axes` object is valid when no extra
+constraints from this taxonomy are selected. Absence neither selects a default
+nor removes a user requirement or an adopted source property.
+
+Carry selected visual constraints into the actual text or assigned media.
+Assess the requested depiction and the contributions that were selected;
+completion does not require prescribing every aspect the model can resolve.
+Preserve explicit choices and source requirements at their actual scopes.
+The six fields document selected treatment; none supplies an execution control.
+The `presentation` field records the resulting construction, such as a portrait,
+diagram, panel sequence or product view.
+A vector-like appearance does not promise a vector file; output encoding
+belongs to the interface controls.
+
+Selecting a named preset adopts its complete axis envelope, which must match
+the preset exactly. The `intent --preset` command creates that full selection.
+Use a custom declaration with `preset: null` when selecting only part of a
+preset's knowledge or authoring other constraints. No omitted custom axis is
+filled from a preset.
+
+Apply a selected profile or recipe at its assigned scope. A selection for its
+rendering treatment carries the relevant medium and visual behavior. Its
+sample camera, crop, pose, emotional register, palette, visibility, margins and
+coverage exclusions transfer only when the direction also selects those
+contributions. A source can supply a coherent complete presentation; preserve
+its related choices when that is the assigned use. Keep the actual adopted
+contributions in the existing direction and render intent.
+
+An authored rendering declaration records who chose it (`user` or `agent`) and why.
+Ask about a material ambiguity; otherwise choose deliberately within the user's open creative space.
+The base axes record selected constraints on the shared treatment. Regional overrides assign
+different treatment to a named subject, part, layer or area, with its reason
+and visible expression. A scope may overlap another or sit within one subject;
+it need not form a separate panel. Resolve which treatment governs each
+affected property and how the scopes meet. Author a custom intent when a
+selected combination is the treatment itself.
+Each regional override names a nonempty subset of the same known axes. It can
+select a local constraint even when the corresponding base axis is absent.
+The agent may choose a mixed treatment within delegated creative space.
+An explicit fixed medium or protected source region remains authoritative.
+The registry is a discovery aid, not a closed list of media.
+

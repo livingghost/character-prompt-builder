@@ -328,7 +328,7 @@ class SchemaDocuments:
                 raise ValueError(f"unregistered public schema: {path}")
             document = self.contracts().schema(relative.parts[0] + "/" + relative.parts[2])
         else:
-            canonical = path if self.source is not None else path.resolve()
+            canonical = public_path
             if canonical not in self._private:
                 raw = self.source.read_bytes(canonical) if self.source is not None else canonical.read_bytes()
                 self._private[canonical] = public_contract._checked_schema_bytes(raw)

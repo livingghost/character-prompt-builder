@@ -1,0 +1,9 @@
+## Sources
+
+Reviewed 2026-10-09. The first two are provider declarations; the last two are
+upstream grammar. A feature in upstream Compel is not proof of hosted model support.
+
+- [Runware prompts and weighting](https://runware.ai/docs/learn/prompts)
+- [Runware SDXL native control](https://runware.ai/docs/models/sdxl)
+- [Compel syntax reference](https://github.com/damian0815/compel/blob/main/doc/syntax.md)
+- [Compel parser implementation](https://github.com/damian0815/compel/blob/main/src/compel/prompt_parser.py)

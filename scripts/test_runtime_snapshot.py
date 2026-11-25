@@ -167,6 +167,7 @@ class RuntimeMembershipTests(unittest.TestCase):
 
     def test_route_reads_owned_resource_bytes_without_catalogue_or_source_reopens(self):
         import route_reading
+        from knowledge_documents import record_path
         from live_source_read import LiveSourceRead
         directory,descriptor=self.snapshot('named-resources')
         payload=c.load(directory/'snapshot.json')
@@ -180,10 +181,12 @@ class RuntimeMembershipTests(unittest.TestCase):
         c.atomic(directory/'snapshot.json',c.encoded(payload),replace=True)
         descriptor['sha256']=c.content_id(payload)
         skill=self.base/'synthetic-skill'
-        manifest={'routes':{'synthetic':{'default_operation':'prepare','features':['prompt-dialect'],'reads':['guide.md'],'stages':[]}},
+        manifest={'routes':{'synthetic':{'default_operation':'prepare','features':['prompt-dialect'],'reads':['guide'],'stages':[]}},
                   'features':{'prompt-dialect':{'reads':[],'source_roles':[]}},
                   'operation_contexts':{'prepare':{'reads':[], 'executions':{'dispatcher':[]}}}}
-        inputs={'config/execution-routes.json':c.encoded(manifest),'guide.md':b'Complete synthetic route.\n'}
+        guide={'sections':[{'id':'route','body':'Complete synthetic route.\n'}]}
+        inputs={'config/execution-routes.json':c.encoded(manifest),
+                record_path('guide'):c.encoded(guide)}
         for path,raw in inputs.items():c.atomic(skill/path,raw)
         sources=LiveSourceRead(self.root,skill,[{'space':'skill','path':path} for path in inputs])
         with read_context.public_call():
@@ -871,7 +874,7 @@ class ForcedReadBoundaryTests(unittest.TestCase):
 
     def test_each_navigation_comparison_observes_source_edits_without_blocking_saved_input(self):
         import route_reading
-        from production_read_model import RunSnapshot
+        from production_read_model import RunView
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root / 'synthetic.txt'
@@ -879,7 +882,7 @@ class ForcedReadBoundaryTests(unittest.TestCase):
             prepared = {'envelope_sha256': 'e' * 64, 'route_reading': {},
                         'task': {'route': 'synthetic', 'features': [], 'execution': 'authored'},
                         'dependencies': [{'space': 'studio', 'path': source.name, 'sha256': c.sha256_file(source)}]}
-            loaded = RunSnapshot(root, prepared, {}, [])
+            loaded = RunView(root, {}, prepared, {}, [], None, None, {}, {})
             with read_context.public_call(), patch.object(workflow, 'read_run', return_value=loaded), \
                  patch.object(route_reading, 'require_route_reading'):
                 workflow.assert_current(root, 'synthetic-run')

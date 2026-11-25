@@ -1,0 +1,26 @@
+### Edit the owning authored field
+
+| Authored area | Edit here | Builder responsibility |
+| --- | --- | --- |
+| `work-basis.json` | Acquire the request and source bytes through Authoring work; select applications, subjects and retained requirements. Acquire a deliberate adaptation as its own source. | Resolve current applications into task sources and preserve complete acquired originals alongside selected content |
+| `target` | One selected catalog model and service, acquired model file, or evidenced external interface | Acquire that target and derive its model identity, offering, specification bindings and reference transport inputs |
+| `authoring.task` | Direction, criteria and applicable task choices | Bind materialized inputs and the current source applications into the task |
+| `authoring.delivery.file` | Directly editable text, or a JSON document with an optional `field` key/index array; translation notes only for an actual translation | Read the exact selected content and bind its delivered bytes |
+| `authoring.documents` | Selected settings and specialist files with `{ "file": "path", "field": ["key"] }`; omit `field` to select the entire file | Read each editable owner, materialize derived content and bind task references |
+| `authoring.generation` | Count, seed, continuity and applicable generation choices | Combine these choices with the selected target in the declared generation input |
+| `authoring.references` | Ordered source selection, uses, exclusions, subject scope and transport choice | Rebuild the prepared set, attachment order, board placement and content hashes |
+| `authoring.upscale` | Selected source, scale, settings, guidance and applicable evidence | Build the upscale declaration for the selected target and reuse its valid evidence |
+| `validation` | The request-validation mode, selected contract or evidence, and execution policy | Resolve that evidence against the same acquired target and derive its exact binding |
+| `task_changes.semantic_edit` | The Studio path of the editable edit plan of an existing-image edit | Bind the plan to the scene reference, the applied `accepted-source` and the declared criteria |
+
+When a JSON application selects part of a source, the compiler can publish that
+selected content at the task source's `path` and retain the complete original
+under its derived `origin: {path, sha256}`. The source's derived `applications`
+contains `{id, pointer, subjects, requirement}` for each actual application.
+Its ordered pointers produce one selected value or, for several applications,
+an ordered array of their values. Snapshot checks bind that content to the
+complete original. Acquiring the exported task restores each application's
+subject and requirement relationships independently of canonical identity
+metadata. The compiler owns these files and bindings; acquire changed material
+or update the application through the source context command.
+

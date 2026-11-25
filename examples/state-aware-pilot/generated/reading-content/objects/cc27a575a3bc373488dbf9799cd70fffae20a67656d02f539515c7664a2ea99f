@@ -1,0 +1,25 @@
+### Select dispatcher image inputs
+
+`authoring.references.image_input` selects how a dispatcher image input is
+formed from the references. `null` writes no image input. The mirrored form `{}`
+uses the other reference choices, such as a Studio source in
+`additional_references`: preparation writes one image-input row per prepared
+source, with its reference ID, role, prepared carrier and the authority that
+preparation gave it as `use_for` and `do_not_transfer`. The carriers lie under
+the new input's directory; a semantic edit matches its scene reference to the
+applied `accepted-source` by the file's bytes. The explicit form is a plan with
+its own `references` rows (`id`, `role`, `file`, `use_for`, `do_not_transfer`,
+optional `subject_uses`), `external_request: null` and an optional
+`prepared_references` path. It then owns the reference order, and the other
+reference selections stay empty. Without `prepared_references`, each file is an
+ordinary supplied image. With it, the existing set keeps its sources, adoption
+and authority and each row takes the plan's reference ID. `choices.target`
+supplies the plan's model in both forms.
+
+`task_changes.semantic_edit` names the edit plan
+(`schemas/authoring/semantic-edit-plan.schema.json`) whose `source` is the scene
+reference ID. The edit draft writes it beside the choices; the draft and
+preparation report each unanswered part as
+`task_changes.semantic_edit.edit.target`, `.edit.change`, `.edit.preserve` or
+`.review_criteria`, with `file` naming the plan. Edit the plan file in place.
+

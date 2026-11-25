@@ -1,0 +1,8 @@
+# Explicit prompt weighting
+
+Use this alongside the [Prompt Writing Guide](prompt-writing-guide.md) when a target
+uses an explicit weighting grammar. A model's learned family (`prompt_dialect`) chooses its
+vocabulary and writing conventions. The selected text interface owns the parser;
+for executable CPB requests, the service, offering and execution mode declare it.
+A family name never authorizes a native control.
+

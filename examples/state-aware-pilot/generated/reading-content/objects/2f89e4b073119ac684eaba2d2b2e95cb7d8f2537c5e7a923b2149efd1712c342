@@ -1,0 +1,14 @@
+##### Recover an interrupted source delivery
+
+`actions.replay` rereads an actual delivered page; indexes have no source page to
+replay. If a host truncates text, replay with a smaller `--page-bytes` budget and
+follow its continuation through the rest of that page before proceeding. Replay
+retains the full required scope and its earlier delivery evidence. A successful
+command does not establish that truncated text was read. Studio status exposes
+the saved index, exact partial coverage and next reading action when no complete
+JSON response reached the agent.
+The reader records the selected continuation explicitly. Reading a later section
+first does not replace a subsequently selected earlier section or its byte budget
+with a guess based on source order. If no continuation was selected, status opens
+the retained index so the next source choice remains explicit.
+

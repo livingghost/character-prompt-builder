@@ -31,6 +31,7 @@ import narrative_index  # noqa: E402
 import narrative_init  # noqa: E402
 import scene_plot  # noqa: E402
 from execution_routes import resolve as resolve_route  # noqa: E402
+from knowledge_documents import markdown_path  # noqa: E402
 from narrative_authoring_smoke_test import scene_plot as make_scene  # noqa: E402
 
 
@@ -339,13 +340,13 @@ class RoutingTests(unittest.TestCase):
     def test_persona_route_and_full_form_are_direct_skill_links(self):
         text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         route = resolve_route("development", ["persona"], execution='authored', root=ROOT)
-        paths = {item["path"] for item in route["reads"]}
-        for relative in (
-            "references/runtime/narrative-development.md",
-            "templates/narrative/personas/persona-template.md",
+        documents = {item["document_id"] for item in route["reads"]}
+        for document_id in (
+            "references/runtime/narrative-development",
+            "templates/narrative/personas/persona-template",
         ):
-            self.assertIn(f"]({relative})", text)
-            self.assertIn(relative, paths)
+            self.assertIn(f"]({markdown_path(document_id)})", text)
+            self.assertIn(document_id, documents)
         self.assertIn("`development`", text)
         self.assertIn("`persona`", text)
         self.assertIn("persona", route["source_roles"])

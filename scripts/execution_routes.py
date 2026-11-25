@@ -6,9 +6,9 @@ import operation_context as _operation_context
 import argparse
 import ast
 import json
-import re
 from pathlib import Path
 from typing import Any, Callable
+from knowledge_documents import DocumentReader
 from execution_contract import load, local, read, digest, content_id, decode
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = 'config/execution-routes.json'
@@ -51,53 +51,6 @@ def require_scope(operation: str, execution: str, scope: str | None = None,
                          'choose --operation adopt or withdraw for that retained result')
 
 
-def markdown_headings(raw: bytes) -> list[tuple[int, str, int]]:
-    """Locate actual Markdown headings and keep fenced examples as source text."""
-    headings, offset, fence, previous = [], 0, None, None
-    for line in raw.splitlines(keepends=True):
-        text = line.decode('utf-8').rstrip('\r\n')
-        marker = re.match(r'^ {0,3}(`{3,}|~{3,})(.*)$', text)
-        if fence is not None:
-            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
-                fence = None
-            previous = None
-        elif marker:
-            fence = marker[1]
-            previous = None
-        else:
-            heading = re.match(r'^ {0,3}(#{1,6})(?:[ \t]+(.*?)|[ \t]*)$', text)
-            underline = re.match(r'^ {0,3}(=+|-+)[ \t]*$', text)
-            if heading:
-                title = re.sub(r'[ \t]+#+[ \t]*$', '', heading[2] or '').strip()
-                headings.append((offset, title or 'Untitled heading', len(heading[1])))
-            elif underline and previous is not None:
-                headings.append((previous[0], previous[1], 1 if underline[1][0] == '=' else 2))
-            previous = (offset, text.strip()) if text.strip() and not heading and not underline else None
-        offset += len(line)
-    return headings
-
-
-def document_sections(raw: bytes) -> list[dict]:
-    """Partition source bytes at headings; a selected section includes its full body.
-
-    The manifest names prerequisites and child sections explicitly. Selecting a
-    parent heading alone never silently includes or omits another required owner.
-    """
-    headings = markdown_headings(raw)
-    if not headings or headings[0][0]:
-        headings.insert(0, (0, 'Source opening', 0))
-    seen, result = {}, []
-    for index, (start, heading, level) in enumerate(headings):
-        anchor = re.sub(r'[^\w\- ]', '', heading.lower()).replace(' ', '-')
-        count = seen.get(anchor, 0)
-        seen[anchor] = count + 1
-        anchor += '-' + str(count) if count else ''
-        end = headings[index + 1][0] if index + 1 < len(headings) else len(raw)
-        result.append({'anchor': anchor, 'heading': heading, 'level': level,
-                       'start': start, 'end': end, 'sha256': digest(raw[start:end])})
-    return result
-
-
 def curation_selections(operation: str) -> list[tuple[str, str]]:
     """The actual destinations and independent source owners a curation read serves."""
     if operation == 'withdraw':
@@ -138,8 +91,11 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
             operation: str | None = None, root: Path = ROOT,
             scope: str | None = None, source_kind: str | None = None,
             authoring_scope: dict | None = None,
-            read_source:Callable[[str],bytes]|None=None) -> dict[str, Any]:
+            read_source:Callable[[str],bytes]|None=None,
+            document_reader: DocumentReader | None = None) -> dict[str, Any]:
+    """Select complete section bodies from their acquired document records."""
     read_source=read_source or (lambda path:read(local(root,path)))
+    document_reader = document_reader or DocumentReader(read_source)
     manifest_raw=read_source(MANIFEST)
     manifest=decode(manifest_raw)
     _require_name(manifest, 'route', route)
@@ -190,7 +146,7 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
         raise ValueError('the route manifest has no scoped reading owner for ' + operation)
     managed = profile['documents'] if profile is not None else {}
     deferred = profile.get('deferred_documents', {}) if profile is not None else {}
-    documents, owners, section_owners = [], {}, {}
+    documents, document_records, owners, section_owners = [], {}, {}, {}
     # Curation declares its source owners independently of the route defaults.
     # Other operations refine only documents the actual route/features selected;
     # a profile must never activate an otherwise unselected specialist.
@@ -207,46 +163,47 @@ def resolve(route: str, features: list[str] | None = None, *, execution: str,
                  and (authoring_scope is None or _matches_authoring(rule, authoring_scope))]
         if path in managed and not rules and (operation in {'adopt', 'withdraw'} or authoring_scope is not None):
             continue
-        raw = read_source(path)
-        raw.decode('utf-8')
-        source = {'path': path, 'sha256': digest(raw), 'size': len(raw)}
+        acquired = document_reader.acquire(path)
         complete = [rule for rule in rules if rule.get('whole_source')]
         if not rules or complete:
-            ranges = [{'start': 0, 'end': len(raw), 'sha256': source['sha256']}]
-            reasons = [{'anchor': None, **ranges[0], 'selected_by': selected_by,
+            selected_sections = list(acquired.sections)
+            reasons = [{'section_id': section.section_id, 'whole_source': True,
+                        'selected_by': selected_by,
                         'reason': (' '.join(dict.fromkeys(rule['reason'] for rule in complete))
-                                   if complete else 'Complete source required by ' + ', '.join(selected_by) + '.')}]
+                                   if complete else 'Complete source required by ' + ', '.join(selected_by) + '.')}
+                       for section in selected_sections]
         else:
-            available = {row['anchor']: row for row in document_sections(raw)}
+            available = {section.section_id: section for section in acquired.sections}
             wanted = {}
             for rule in rules:
                 reason = rule.get('reason')
                 if not isinstance(reason, str) or not reason.strip():
                     raise ValueError('scoped reading needs a section selection reason: ' + path)
-                for anchor in rule['sections']:
-                    if anchor not in available:
-                        raise ValueError('required reading section is absent: ' + path + '#' + anchor)
-                    wanted.setdefault(anchor, []).append(reason)
+                for section_id in rule['sections']:
+                    if section_id not in available:
+                        raise ValueError('required reading section is absent: ' + path + '#' + section_id)
+                    wanted.setdefault(section_id, []).append(reason)
             selection = (['scope:' + scope, 'source-kind:' + source_kind]
                          if operation in {'adopt', 'withdraw'} else ['operation:' + operation])
             if authoring_scope is not None:
                 selection.append('authoring-stage:' + authoring_scope['stage'])
                 selection.extend('authoring-profile:' + name for name in authoring_scope.get('profiles', []))
-            reasons = [{**available[anchor], 'selected_by': list(dict.fromkeys([*selected_by, *selection])),
-                        'reason': ' '.join(dict.fromkeys(values))}
-                       for anchor, values in wanted.items()]
-            reasons.sort(key=lambda row: row['start'])
-            ranges = [{key: row[key] for key in ('start', 'end', 'sha256')} for row in reasons]
+            selected_sections = [section for section in acquired.sections if section.section_id in wanted]
+            reasons = [{'section_id': section.section_id, 'whole_source': False,
+                        'selected_by': list(dict.fromkeys([*selected_by, *selection])),
+                        'reason': ' '.join(dict.fromkeys(wanted[section.section_id]))}
+                       for section in selected_sections]
             selected_by = list(dict.fromkeys([*selected_by, *selection]))
-        if not ranges:
+        if not selected_sections:
             continue
-        documents.append({**source, 'ranges': ranges})
+        documents.append({'document_id': path, 'sections': [section.metadata() for section in selected_sections]})
+        document_records[path] = acquired.record
         owners[path] = selected_by
         section_owners[path] = reasons
     return {'route':route,'operation':operation,'execution':execution,'scope':scope,'source_kind':source_kind,
             **({'authoring_scope': authoring_scope} if authoring_scope is not None else {}),
             'features':selected,'source_roles':sorted(roles), 'reads':documents,
-            'read_owners': owners, 'section_owners': section_owners,
+            'document_records': document_records, 'read_owners': owners, 'section_owners': section_owners,
             'stages':entry['stages'],'manifest_sha256':digest(manifest_raw)}
 
 
@@ -261,7 +218,13 @@ def unnamed(manifest: dict[str, Any], skill: str) -> list[str]:
 
 
 def validate(root: Path = ROOT) -> dict[str, Any]:
-    d=load(local(root,MANIFEST)); errors=[]
+    observed = {}
+    def source_bytes(path):
+        if path not in observed:
+            observed[path] = read(local(root, path))
+        return observed[path]
+    d=decode(source_bytes(MANIFEST)); errors=[]
+    documents = DocumentReader(source_bytes)
     implementations = {}
 
     def functions(script):
@@ -288,12 +251,12 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
             if path in profile['documents'] or not isinstance(reason, str) or not reason.strip():
                 errors.append(operation + ': a deferred document needs one reason and no selected section rules: ' + path)
             try:
-                read(local(root, path)).decode('utf-8')
+                documents.acquire(path)
             except (ValueError, OSError, TypeError) as exc:
                 errors.append(f'{operation}: {path}: {exc}')
         for path, rules in profile['documents'].items():
             try:
-                available = {row['anchor'] for row in document_sections(read(local(root, path)))}
+                available = {section.section_id for section in documents.acquire(path).sections}
                 for rule in rules:
                     allowed = {'sections', 'whole_source', 'reason', 'scopes', 'source_kinds', 'executions', 'features_any'}
                     if operation in {'authoring', 'amendment'}:
@@ -343,7 +306,8 @@ def validate(root: Path = ROOT) -> dict[str, Any]:
         scopes = curation_selections(chosen) if chosen in {'adopt', 'withdraw'} else [(None, None)]
         for scope, source_kind in scopes:
             resolve(route, features, operation=chosen, execution=execution, root=root,
-                    scope=scope, source_kind=source_kind)
+                    scope=scope, source_kind=source_kind, read_source=source_bytes,
+                    document_reader=documents)
     for name,route in d['routes'].items():
         try:
             for execution in EXECUTIONS:

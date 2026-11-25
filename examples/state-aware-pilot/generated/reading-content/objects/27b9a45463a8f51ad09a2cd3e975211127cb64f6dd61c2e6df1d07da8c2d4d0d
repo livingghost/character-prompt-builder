@@ -1,0 +1,65 @@
+### Represent the selected design
+
+Distinguish the subject's design from the marks and colors that represent it in
+this image. A material, local color, marking boundary, garment construction or
+body proportion can be a stable fact while its visible appearance changes with
+view, illumination and treatment. The
+[identity contract](../character-identity-contract.md#rendered-reference-transfer-boundary)
+owns those facts and authorized changes. Rendering owns their selected visual
+realization. Neither the identity source's entire appearance nor the treatment
+source's different subject becomes authoritative through that distinction.
+
+Resolve the mapping when it matters to the result. In an achromatic rendition,
+a colored garment can retain its cut, construction and pattern through distinct
+values and marks. Metal can retain its form and reflective behavior without
+retaining a gold hue. A flat rendition can distinguish materials through shape,
+value boundaries and selective marks rather than a photographic reflection.
+Foreshortening changes projected proportions without redefining the body.
+These are consequences of the selected representation. A redesign of the
+garment, an altered body plan or removal of a required marking remains a
+separate content decision.
+
+Choose the treatment's actual extent. Muting local colors, restricting them to
+a narrow hue range, and removing chroma from a region produce different
+relationships with its surroundings. A warm field need not warm every subject
+inside it. If the construction depends on different regions using different
+color or mark systems, define their boundaries and the resulting contrast in
+the prompt or assigned media. Qualifiers such as mostly or faint express real
+latitude; use them when that latitude is intended. Several small exceptions
+can together recolor most of a subject and undo the chosen regional contrast.
+Evaluate their combined area and visual weight before retaining them as
+recognition aids.
+
+Apply the mapping to the whole selected scope, including shadows, highlights,
+line color, lettering and surrounding fields when they share the treatment.
+Reconstruct their connections through
+[color and value](../finishing-layers-specification.md#color-and-value-as-a-shared-construction).
+A palette declaration followed by ordinary local-color descriptions can restore
+the source rendering object by object. Write the intended visible colors and
+their relationships; retain the underlying design facts at their source owner.
+The same applies to form and material. Resolve whether a surface uses flat
+planes, continuous volume, selective texture or another chosen behavior through
+the shared [drawing grammar](../finishing-layers-specification.md#shape-and-mark-as-one-drawing-grammar).
+A material's identity does not require its full physical shading. Detailed
+content can remain simplified at the scales where the picture depends on that
+simplification. Bind the selected behavior to the content in the actual input.
+
+Where the commission requires a local color to remain visibly that color,
+preserve it and compose the surrounding treatment accordingly. A color-coded
+comparison or faithful color inspection may require chromatic distinctions
+that an achromatic treatment cannot supply. Resolve that real conflict through
+Production direction. A request to retain a design without preserving its
+current rendering can instead support a new representation of the same facts.
+Do not require the user to restate every stable attribute as a technical
+rendering exception.
+
+Make source precedence executable in the actual rendition. Name the source of
+the form and the treatment applied to it, rather than combining an unrestricted
+instruction to preserve source appearance with a contradictory global style.
+Keep exact local-color requirements when applicable; otherwise express their
+selected appearance where repeating the source colors would direct the wrong
+picture. A regional override records that choice, but its text or media must
+also reach the model. Review identity and treatment separately and together:
+recognition must survive, and the old source rendering must not silently
+replace the treatment chosen for this image.
+

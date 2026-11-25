@@ -20,8 +20,9 @@ def count_words(text: str) -> int:
 
 
 def measure(scenario: dict, *, root: Path = ROOT) -> dict:
-    """Measure only the complete document ranges selected for this scenario."""
+    """Measure the complete section bodies selected for this scenario."""
     from execution_routes import resolve
+    from knowledge_documents import DocumentReader
     acquired = {}
 
     def read_source(path):
@@ -29,17 +30,20 @@ def measure(scenario: dict, *, root: Path = ROOT) -> dict:
             acquired[path] = (root / path).read_bytes()
         return acquired[path]
 
+    reader = DocumentReader(read_source)
     resolved = resolve(scenario['route'], scenario.get('features', []),
         execution=scenario['execution'], operation=scenario.get('operation'),
-        authoring_scope=scenario.get('authoring_scope'), root=root, read_source=read_source)
+        authoring_scope=scenario.get('authoring_scope'), root=root, read_source=read_source,
+        document_reader=reader)
     parts = []
     for document in resolved['reads']:
-        raw = acquired[document['path']]
-        selected = b''.join(raw[row['start']:row['end']] for row in document['ranges'])
-        parts.append({'path': document['path'], 'missing': False,
+        source = reader.acquire(document['document_id'])
+        selected = b''.join(source.section(row['section_id']).raw for row in document['sections'])
+        complete_size = sum(section.size for section in source.sections)
+        parts.append({'document_id': document['document_id'], 'missing': False,
             'words': count_words(selected.decode('utf-8')), 'selected_bytes': len(selected),
-            'source_bytes': len(raw), 'ranges': document['ranges'],
-            'selection_scope': 'complete-source' if len(selected) == len(raw) else 'selected-sections'})
+            'source_bytes': complete_size, 'sections': document['sections'],
+            'selection_scope': 'complete-source' if len(document['sections']) == len(source.sections) else 'selected-sections'})
     return {'operation': resolved['operation'], 'execution': resolved['execution'],
         'authoring_scope': resolved.get('authoring_scope'),
         'words': sum(row['words'] for row in parts),

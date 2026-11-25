@@ -198,9 +198,9 @@
   "features": {
     "persona": {
       "reads": [
-        "templates/narrative/personas/persona-template.md",
-        "references/narrative-authoring.md",
-        "references/runtime/prompt-vocabulary.md"
+        "templates/narrative/personas/persona-template",
+        "references/narrative-authoring",
+        "references/runtime/prompt-vocabulary"
       ],
       "source_roles": [
         "persona"
@@ -208,8 +208,8 @@
     },
     "authorial-intent": {
       "reads": [
-        "references/runtime/authorial-intent.md",
-        "templates/narrative/design/design-template.md"
+        "references/runtime/authorial-intent",
+        "templates/narrative/design/design-template"
       ],
       "source_roles": [
         "authorial-intent"
@@ -217,8 +217,8 @@
     },
     "performance": {
       "reads": [
-        "references/runtime/character-performance.md",
-        "references/performance-language-specification.md"
+        "references/runtime/character-performance",
+        "references/performance-language-specification"
       ],
       "source_roles": [
         "persona"
@@ -226,175 +226,175 @@
     },
     "world-view": {
       "reads": [
-        "references/runtime/world-realization.md"
+        "references/runtime/world-realization"
       ],
       "source_roles": []
     },
     "portrayal-principles": {
       "reads": [
-        "references/portrayal-principles.md"
+        "references/portrayal-principles"
       ],
       "source_roles": []
     },
     "narrative-files": {
       "reads": [
-        "references/narrative-protocol.md",
-        "references/narrative-authoring.md",
-        "references/runtime/story-timeline.md"
+        "references/narrative-protocol",
+        "references/narrative-authoring",
+        "references/runtime/story-timeline"
       ],
       "source_roles": []
     },
     "subject-domain": {
       "reads": [
-        "references/runtime/subject-domain-quick-reference.md"
+        "references/runtime/subject-domain-quick-reference"
       ],
       "source_roles": []
     },
     "references": {
       "reads": [
-        "references/runtime/reference-prompt-artifacts.md",
-        "references/visual-reference-activation-and-transport.md",
-        "references/derived-visual-evidence.md"
+        "references/runtime/reference-prompt-artifacts",
+        "references/visual-reference-activation-and-transport",
+        "references/derived-visual-evidence"
       ],
       "source_roles": []
     },
     "pack-runtime": {
       "reads": [
-        "references/runtime/pack-state-quickstart.md"
+        "references/runtime/pack-state-quickstart"
       ],
       "source_roles": []
     },
     "sparse-retrieval": {
       "reads": [
-        "references/runtime/sparse-discovery.md",
-        "references/creative-core.md",
-        "references/finishing-layers-specification.md"
+        "references/runtime/sparse-discovery",
+        "references/creative-core",
+        "references/finishing-layers-specification"
       ],
       "source_roles": []
     },
     "vocabulary": {
       "reads": [
-        "references/runtime/prompt-vocabulary.md"
+        "references/runtime/prompt-vocabulary"
       ],
       "source_roles": []
     },
     "prompt-dialect": {
       "reads": [
-        "references/runtime/prompt-writing-guide.md",
-        "references/runtime/prompt-weighting.md"
+        "references/runtime/prompt-writing-guide",
+        "references/runtime/prompt-weighting"
       ],
       "source_roles": []
     },
     "studio": {
       "reads": [
-        "references/runtime/studio.md"
+        "references/runtime/studio"
       ],
       "source_roles": []
     },
     "adoption": {
       "reads": [
-        "references/runtime/adoption-workflow.md"
+        "references/runtime/adoption-workflow"
       ],
       "source_roles": []
     },
     "gpt-image": {
       "reads": [
-        "references/adapters/gpt-image.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/gpt-image",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "sdxl": {
       "reads": [
-        "references/adapters/sdxl-comfyui.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/sdxl-comfyui",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "novelai": {
       "reads": [
-        "references/adapters/novelai.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/novelai",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "midjourney": {
       "reads": [
-        "references/adapters/midjourney-niji.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/midjourney-niji",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "unlisted-interface": {
       "reads": [
-        "references/adapters/unlisted-interface.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/unlisted-interface",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "grok": {
       "reads": [
-        "references/adapters/grok-imagine.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/grok-imagine",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "instruction-edit": {
       "reads": [
-        "references/adapters/instruction-edit.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/instruction-edit",
+        "references/runtime/model-evidence"
       ],
       "source_roles": []
     },
     "revision-guidance": {
       "reads": [
-        "references/runtime/revision-contract.md",
-        "references/runtime/production-variation.md"
+        "references/runtime/revision-contract",
+        "references/runtime/production-variation"
       ],
       "source_roles": []
     },
     "protocol-exchange": {
       "reads": [
-        "references/protocol-exchange.md",
-        "protocols/semantics.md"
+        "references/protocol-exchange",
+        "protocols/semantics"
       ],
       "source_roles": []
     },
     "story-context": {
       "reads": [
-        "references/runtime/story-context.md"
+        "references/runtime/story-context"
       ],
       "source_roles": []
     },
     "image-edit": {
       "reads": [
-        "references/runtime/image-editing.md"
+        "references/runtime/image-editing"
       ],
       "source_roles": []
     },
     "evidence-review": {
       "reads": [
-        "references/runtime/evidence-review.md"
+        "references/runtime/evidence-review"
       ],
       "source_roles": []
     },
     "reference-delivery": {
       "reads": [
-        "references/runtime/reference-delivery.md"
+        "references/runtime/reference-delivery"
       ],
       "source_roles": []
     },
     "scene-persona": {
       "reads": [
-        "references/runtime/scene-persona.md"
+        "references/runtime/scene-persona"
       ],
       "source_roles": []
     },
     "state-series": {
       "reads": [
-        "references/runtime/state-aware-series.md",
-        "references/runtime/story-timeline.md",
-        "references/runtime/studio-canon-references.md"
+        "references/runtime/state-aware-series",
+        "references/runtime/story-timeline",
+        "references/runtime/studio-canon-references"
       ],
       "source_roles": [],
       "execution_features": {
@@ -405,101 +405,101 @@
     },
     "craft-consultation": {
       "reads": [
-        "references/runtime/craft-consultation.md"
+        "references/runtime/craft-consultation"
       ],
       "source_roles": []
     },
     "source-material": {
       "reads": [
-        "references/runtime/source-material.md"
+        "references/runtime/source-material"
       ],
       "source_roles": []
     },
     "agent-evaluation": {
       "reads": [
-        "references/runtime/agent-evaluation.md"
+        "references/runtime/agent-evaluation"
       ],
       "source_roles": []
     },
     "repair-analysis": {
       "reads": [
-        "references/runtime/repair-analysis.md"
+        "references/runtime/repair-analysis"
       ],
       "source_roles": []
     },
     "geometry": {
       "reads": [
-        "references/prompt-composition-geometry.md",
-        "references/camera-framing-contract.md"
+        "references/prompt-composition-geometry",
+        "references/camera-framing-contract"
       ],
       "source_roles": []
     },
     "body-plan": {
       "reads": [
-        "references/morphology-and-species-contracts.md",
-        "references/species-architecture.md"
+        "references/morphology-and-species-contracts",
+        "references/species-architecture"
       ],
       "source_roles": []
     },
     "recurring-identity": {
       "reads": [
-        "references/character-identity-contract.md",
-        "references/runtime/prompt-vocabulary.md"
+        "references/character-identity-contract",
+        "references/runtime/prompt-vocabulary"
       ],
       "source_roles": []
     },
     "performance-language": {
       "reads": [
-        "references/performance-language-specification.md"
+        "references/performance-language-specification"
       ],
       "source_roles": []
     },
     "garment-growth": {
       "reads": [
-        "references/garment-geometry-specification.md",
-        "references/growth-geometry-specification.md",
-        "references/distinctive-detail-specification.md"
+        "references/garment-geometry-specification",
+        "references/growth-geometry-specification",
+        "references/distinctive-detail-specification"
       ],
       "source_roles": []
     },
     "production-spec": {
       "reads": [
-        "references/production-specification.md"
+        "references/production-specification"
       ],
       "source_roles": []
     },
     "finishing": {
       "reads": [
-        "references/creative-core.md",
-        "references/finishing-layers-specification.md"
+        "references/creative-core",
+        "references/finishing-layers-specification"
       ],
       "source_roles": []
     },
     "visual-evidence": {
       "reads": [
-        "references/derived-visual-evidence.md",
-        "references/visual-reference-activation-and-transport.md",
-        "references/reference-corpus-ingestion.md",
-        "references/reference-corpus-visual-technique-observation.md"
+        "references/derived-visual-evidence",
+        "references/visual-reference-activation-and-transport",
+        "references/reference-corpus-ingestion",
+        "references/reference-corpus-visual-technique-observation"
       ],
       "source_roles": []
     },
     "render-contract": {
       "reads": [
-        "references/runtime/render-contract.md"
+        "references/runtime/render-contract"
       ],
       "source_roles": []
     },
     "scene-mask-planning": {
       "reads": [
-        "references/runtime/scene-mask-planning.md"
+        "references/runtime/scene-mask-planning"
       ],
       "source_roles": []
     },
     "semantic-instruction-edit": {
       "reads": [
-        "references/runtime/semantic-instruction-edit.md",
-        "references/runtime/studio-canon-references.md"
+        "references/runtime/semantic-instruction-edit",
+        "references/runtime/studio-canon-references"
       ],
       "source_roles": [
         "accepted-source"
@@ -507,13 +507,13 @@
     },
     "generation-package": {
       "reads": [
-        "references/runtime/generation-package.md"
+        "references/runtime/generation-package"
       ],
       "source_roles": []
     },
     "studio-placement": {
       "reads": [
-        "references/runtime/studio-placement.md"
+        "references/runtime/studio-placement"
       ],
       "source_roles": []
     }
@@ -521,8 +521,8 @@
   "routes": {
     "development": {
       "reads": [
-        "references/runtime/narrative-development.md",
-        "references/runtime/cast-and-persona-depth.md"
+        "references/runtime/narrative-development",
+        "references/runtime/cast-and-persona-depth"
       ],
       "features": [],
       "stages": [
@@ -533,7 +533,7 @@
     },
     "performance": {
       "reads": [
-        "references/runtime/character-performance.md"
+        "references/runtime/character-performance"
       ],
       "features": [
         "persona",
@@ -547,7 +547,7 @@
     },
     "world-realization": {
       "reads": [
-        "references/runtime/world-realization.md"
+        "references/runtime/world-realization"
       ],
       "features": [
         "world-view"
@@ -560,7 +560,7 @@
     },
     "prompt-only": {
       "reads": [
-        "references/runtime/prompt-only-core.md"
+        "references/runtime/prompt-only-core"
       ],
       "features": [
         "render-contract"
@@ -573,7 +573,7 @@
     },
     "composition": {
       "reads": [
-        "references/runtime/prompt-composition.md"
+        "references/runtime/prompt-composition"
       ],
       "features": [
         "render-contract"
@@ -586,7 +586,7 @@
     },
     "reference-artifacts": {
       "reads": [
-        "references/runtime/reference-prompt-artifacts.md"
+        "references/runtime/reference-prompt-artifacts"
       ],
       "features": [
         "references",
@@ -601,7 +601,7 @@
     },
     "generation": {
       "reads": [
-        "references/runtime/image-generation.md"
+        "references/runtime/image-generation"
       ],
       "features": [
         "studio",
@@ -625,9 +625,9 @@
     },
     "state-series": {
       "reads": [
-        "references/runtime/state-aware-series.md",
-        "references/runtime/story-timeline.md",
-        "references/runtime/studio-canon-references.md"
+        "references/runtime/state-aware-series",
+        "references/runtime/story-timeline",
+        "references/runtime/studio-canon-references"
       ],
       "features": [
         "world-view",
@@ -652,7 +652,7 @@
     },
     "batch": {
       "reads": [
-        "references/runtime/batch-generation.md"
+        "references/runtime/batch-generation"
       ],
       "features": [
         "studio",
@@ -675,7 +675,7 @@
     },
     "repose": {
       "reads": [
-        "references/runtime/character-repose-workflow.md"
+        "references/runtime/character-repose-workflow"
       ],
       "features": [
         "reference-delivery",
@@ -699,8 +699,8 @@
     },
     "upscale": {
       "reads": [
-        "references/adapters/upscale.md",
-        "references/runtime/model-evidence.md"
+        "references/adapters/upscale",
+        "references/runtime/model-evidence"
       ],
       "features": [
         "studio",
@@ -717,8 +717,8 @@
     },
     "character-sheet": {
       "reads": [
-        "references/runtime/character-sheet-discipline.md",
-        "references/runtime/sheet-fill-workflow.md"
+        "references/runtime/character-sheet-discipline",
+        "references/runtime/sheet-fill-workflow"
       ],
       "features": [
         "authorial-intent",
@@ -742,7 +742,7 @@
     },
     "adoption": {
       "reads": [
-        "references/runtime/adoption-workflow.md"
+        "references/runtime/adoption-workflow"
       ],
       "features": [
         "adoption",
@@ -755,7 +755,7 @@
     },
     "revise": {
       "reads": [
-        "references/runtime/revision-contract.md"
+        "references/runtime/revision-contract"
       ],
       "features": [
         "revision-guidance"
@@ -768,7 +768,7 @@
     },
     "story-context": {
       "reads": [
-        "references/runtime/story-context.md"
+        "references/runtime/story-context"
       ],
       "features": [
         "story-context"
@@ -1051,142 +1051,142 @@
   "operation_contexts": {
     "author": {
       "reads": [
-        "references/runtime/authoring-work.md",
-        "references/runtime/production-workflow.md",
-        "references/runtime/production-direction.md",
-        "references/runtime/production-authoring.md",
-        "references/prompt-knowledge-boundary.md"
+        "references/runtime/authoring-work",
+        "references/runtime/production-workflow",
+        "references/runtime/production-direction",
+        "references/runtime/production-authoring",
+        "references/prompt-knowledge-boundary"
       ],
       "executions": {
         "authored": [
-          "references/runtime/production-authored-storage.md"
+          "references/runtime/production-authored-storage"
         ],
         "external": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-image-inputs.md",
-          "references/runtime/production-external-inputs.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-image-inputs",
+          "references/runtime/production-external-inputs"
         ],
         "dispatcher": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-image-inputs.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-image-inputs"
         ]
       }
     },
     "save": {
       "reads": [
-        "references/runtime/authoring-work.md",
-        "references/runtime/production-workflow.md",
-        "references/runtime/production-direction.md",
-        "references/runtime/production-authoring.md",
-        "references/prompt-knowledge-boundary.md"
+        "references/runtime/authoring-work",
+        "references/runtime/production-workflow",
+        "references/runtime/production-direction",
+        "references/runtime/production-authoring",
+        "references/prompt-knowledge-boundary"
       ],
       "executions": {
         "authored": [
-          "references/runtime/production-authored-storage.md"
+          "references/runtime/production-authored-storage"
         ],
         "external": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-image-inputs.md",
-          "references/runtime/production-external-inputs.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-image-inputs",
+          "references/runtime/production-external-inputs"
         ],
         "dispatcher": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-image-inputs.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-image-inputs"
         ]
       }
     },
     "prepare": {
       "reads": [
-        "references/runtime/authoring-work.md",
-        "references/runtime/production-workflow.md",
-        "references/runtime/production-direction.md",
-        "references/runtime/production-authoring.md",
-        "references/prompt-knowledge-boundary.md"
+        "references/runtime/authoring-work",
+        "references/runtime/production-workflow",
+        "references/runtime/production-direction",
+        "references/runtime/production-authoring",
+        "references/prompt-knowledge-boundary"
       ],
       "executions": {
         "authored": [
-          "references/runtime/production-authored-storage.md"
+          "references/runtime/production-authored-storage"
         ],
         "external": [
-          "references/runtime/production-preparation.md",
-          "references/runtime/production-diagnostic-navigation.md",
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-image-inputs.md",
-          "references/runtime/production-external-inputs.md"
+          "references/runtime/production-preparation",
+          "references/runtime/production-diagnostic-navigation",
+          "references/runtime/production-permissions",
+          "references/runtime/production-image-inputs",
+          "references/runtime/production-external-inputs"
         ],
         "dispatcher": [
-          "references/runtime/production-preparation.md",
-          "references/runtime/production-diagnostic-navigation.md",
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-image-inputs.md"
+          "references/runtime/production-preparation",
+          "references/runtime/production-diagnostic-navigation",
+          "references/runtime/production-permissions",
+          "references/runtime/production-image-inputs"
         ]
       }
     },
     "execute": {
       "reads": [
-        "references/runtime/production-workflow.md",
-        "references/prompt-knowledge-boundary.md"
+        "references/runtime/production-workflow",
+        "references/prompt-knowledge-boundary"
       ],
       "executions": {
         "authored": [
-          "references/runtime/production-authored-storage.md"
+          "references/runtime/production-authored-storage"
         ],
         "external": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-request-execution.md",
-          "references/runtime/production-external-execution.md",
-          "references/runtime/production-recovery.md",
-          "references/runtime/production-diagnostic-navigation.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-request-execution",
+          "references/runtime/production-external-execution",
+          "references/runtime/production-recovery",
+          "references/runtime/production-diagnostic-navigation"
         ],
         "dispatcher": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-request-execution.md",
-          "references/runtime/production-dispatch.md",
-          "references/runtime/production-recovery.md",
-          "references/runtime/production-diagnostic-navigation.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-request-execution",
+          "references/runtime/production-dispatch",
+          "references/runtime/production-recovery",
+          "references/runtime/production-diagnostic-navigation"
         ]
       }
     },
     "review": {
       "reads": [
-        "references/runtime/authoring-work.md",
-        "references/runtime/production-workflow.md",
-        "references/runtime/production-direction.md",
-        "references/prompt-knowledge-boundary.md"
+        "references/runtime/authoring-work",
+        "references/runtime/production-workflow",
+        "references/runtime/production-direction",
+        "references/prompt-knowledge-boundary"
       ],
       "executions": {
         "authored": [
-          "references/runtime/production-authored-storage.md"
+          "references/runtime/production-authored-storage"
         ],
         "external": [
-          "references/runtime/production-review.md"
+          "references/runtime/production-review"
         ],
         "dispatcher": [
-          "references/runtime/production-review.md"
+          "references/runtime/production-review"
         ]
       }
     },
     "adopt": {
       "reads": [
-        "references/runtime/production-workflow.md"
+        "references/runtime/production-workflow"
       ],
       "executions": {
         "authored": [
-          "references/runtime/production-authored-storage.md"
+          "references/runtime/production-authored-storage"
         ],
         "external": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-adoption.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-adoption"
         ],
         "dispatcher": [
-          "references/runtime/production-permissions.md",
-          "references/runtime/production-adoption.md"
+          "references/runtime/production-permissions",
+          "references/runtime/production-adoption"
         ]
       }
     },
     "withdraw": {
       "reads": [
-        "references/runtime/production-workflow.md"
+        "references/runtime/production-workflow"
       ],
       "executions": {
         "authored": [],
@@ -1198,7 +1198,7 @@
   "reading_scopes": {
     "adopt": {
       "documents": {
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -1207,7 +1207,7 @@
             "reason": "Locate the retained-result owner, its exact destination, and the separate completion of the requested decision."
           }
         ],
-        "references/runtime/production-permissions.md": [
+        "references/runtime/production-permissions": [
           {
             "sections": [
               "production-permissions",
@@ -1262,7 +1262,7 @@
             ]
           }
         ],
-        "references/runtime/production-adoption.md": [
+        "references/runtime/production-adoption": [
           {
             "sections": [
               "continue-the-intended-use-through-a-saved-plan"
@@ -1341,7 +1341,7 @@
             ]
           }
         ],
-        "references/runtime/adoption-workflow.md": [
+        "references/runtime/adoption-workflow": [
           {
             "sections": [
               "canonical-image-scope",
@@ -1394,7 +1394,7 @@
             ]
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "repair-a-display-after-a-committed-decision"
@@ -1485,7 +1485,7 @@
     },
     "withdraw": {
       "documents": {
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -1494,8 +1494,8 @@
             "reason": "Locate the separate sheet withdrawal owner while retaining the earlier production result."
           }
         ],
-        "references/runtime/production-permissions.md": [],
-        "references/runtime/production-adoption.md": [
+        "references/runtime/production-permissions": [],
+        "references/runtime/production-adoption": [
           {
             "sections": [
               "continue-the-intended-use-through-a-saved-plan"
@@ -1513,7 +1513,7 @@
             ]
           }
         ],
-        "references/runtime/adoption-workflow.md": [
+        "references/runtime/adoption-workflow": [
           {
             "sections": [
               "withdraw-current-canonical-reuse",
@@ -1522,7 +1522,7 @@
             "reason": "Withdraw only the exact current sheet adoption using actual author evidence, retain all original records, and never reinstate withdrawn use or revoke independent catalog exports."
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "slot-acceptance-and-history",
@@ -1535,7 +1535,7 @@
     },
     "prepare": {
       "documents": {
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -1549,7 +1549,7 @@
             "reason": "Open the actual work, author or amend the current input while preserving prior results, compile its exact request and distinguish preparation from later execution, review and curation."
           }
         ],
-        "references/runtime/production-direction.md": [
+        "references/runtime/production-direction": [
           {
             "sections": [
               "production-direction",
@@ -1571,7 +1571,7 @@
             "reason": "Author and compare the commissioned depiction, source use, framing, appearance and independent criteria before preparation; retain both image- and idea-based construction and accepted variation. Artifact review and result repair have their later operation owner."
           }
         ],
-        "references/runtime/production-authoring.md": [
+        "references/runtime/production-authoring": [
           {
             "sections": [
               "production-authoring",
@@ -1614,7 +1614,7 @@
             "reason": "Create or reopen the actual editable sources, preserve acquired material, read and apply the current knowledge, change the target and recover authoring. Curation destination procedures belong to the later selected decision."
           }
         ],
-        "references/runtime/production-permissions.md": [
+        "references/runtime/production-permissions": [
           {
             "sections": [
               "production-permissions",
@@ -1625,7 +1625,7 @@
             "reason": "Preparation preserves the actual issuer, grant scope, protected criteria and current authority evidence. Submission claims and select/adopt authorizations are read for those operations, not created by preparation."
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "studio-runtime",
@@ -1640,7 +1640,7 @@
             "reason": "Use the Studio and saved work trail, honor defaults and existing answers, resume the current task and validate its records. Image capture, send recovery, slot/canonical decisions and display publication have later operation owners."
           }
         ],
-        "references/runtime/generation-package.md": [
+        "references/runtime/generation-package": [
           {
             "sections": [
               "generation-package",
@@ -1652,7 +1652,7 @@
             "reason": "Prepare the complete package and preserve exact prompts, controls, lineage, bounded reference authority, hashes, verification assertions and sealed preview. Execute, provider-result recovery and concurrent dispatch remain later operations."
           }
         ],
-        "references/runtime/reference-delivery.md": [
+        "references/runtime/reference-delivery": [
           {
             "sections": [
               "exact-reference-delivery",
@@ -1668,7 +1668,7 @@
             "reason": "Prepare every selected source with its exact authority, attributes, coverage, authored image directions and actual transport binding. Upload occurs only under the execution contract."
           }
         ],
-        "references/runtime/render-contract.md": [
+        "references/runtime/render-contract": [
           {
             "sections": [
               "rendering-choices-and-execution-controls",
@@ -1694,7 +1694,7 @@
             ]
           }
         ],
-        "references/runtime/model-evidence.md": [
+        "references/runtime/model-evidence": [
           {
             "sections": [
               "model-request-evidence",
@@ -1709,7 +1709,7 @@
             "reason": "Prepare with attributed input evidence, actual validation mode, exact evidence selectors, reference policy and target-change limits. Schema publication, trial execution, observed-profile adoption and failed-generation diagnosis are separate procedures."
           }
         ],
-        "references/finishing-layers-specification.md": [
+        "references/finishing-layers-specification": [
           {
             "sections": [
               "visual-construction-and-finishing",
@@ -1741,7 +1741,7 @@
     },
     "authoring": {
       "documents": {
-        "references/runtime/authoring-work.md": [
+        "references/runtime/authoring-work": [
           {
             "sections": [
               "authoring-work",
@@ -1798,7 +1798,7 @@
             ]
           }
         ],
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -1836,7 +1836,7 @@
             ]
           }
         ],
-        "references/runtime/production-authoring.md": [
+        "references/runtime/production-authoring": [
           {
             "sections": [
               "production-authoring",
@@ -2003,7 +2003,7 @@
             ]
           }
         ],
-        "references/runtime/production-direction.md": [
+        "references/runtime/production-direction": [
           {
             "sections": [
               "production-direction"
@@ -2108,7 +2108,7 @@
             ]
           }
         ],
-        "references/runtime/production-permissions.md": [
+        "references/runtime/production-permissions": [
           {
             "sections": [
               "production-permissions",
@@ -2119,7 +2119,7 @@
             "reason": "Preserve the actual issuer, scoped instruction, protected requirements and current authority evidence; authoring and preparation grant no submission or curation permission."
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "studio-runtime",
@@ -2150,7 +2150,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-vocabulary.md": [
+        "references/runtime/prompt-vocabulary": [
           {
             "sections": [
               "prompt-vocabulary-runtime",
@@ -2188,7 +2188,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-writing-guide.md": [
+        "references/runtime/prompt-writing-guide": [
           {
             "whole_source": true,
             "reason": "Apply the complete writing contract to the actual selected-model rendition, retaining form, parser, meaning, source scope and failure limits.",
@@ -2211,17 +2211,29 @@
             ]
           }
         ],
-        "references/runtime/prompt-weighting.md": [
+        "references/runtime/prompt-weighting": [
           {
             "whole_source": true,
-            "reason": "Apply the complete selected weighting grammar and its scope to the actual written rendition and final request.",
+            "reason": "Author the actual weighting, clause and channel semantics with the complete selected interface and grammar knowledge.",
             "stages": [
-              "rendition",
+              "rendition"
+            ]
+          },
+          {
+            "sections": [
+              "explicit-prompt-weighting",
+              "choose-the-interface-before-writing-parser-syntax",
+              "inspect-the-complete-request-not-a-flattened-tag-list",
+              "recommendations-and-shared-reference-instructions",
+              "approval-recording-and-recovery"
+            ],
+            "reason": "Verify the selected parser, exact native channels, recommendation audit and complete request binding. Changed clause meaning or weighting returns to rendition.",
+            "stages": [
               "prepare"
             ]
           }
         ],
-        "references/runtime/render-contract.md": [
+        "references/runtime/render-contract": [
           {
             "sections": [
               "rendering-choices-and-execution-controls",
@@ -2292,7 +2304,7 @@
             ]
           }
         ],
-        "references/runtime/reference-delivery.md": [
+        "references/runtime/reference-delivery": [
           {
             "sections": [
               "exact-reference-delivery",
@@ -2371,7 +2383,7 @@
             ]
           }
         ],
-        "references/runtime/generation-package.md": [
+        "references/runtime/generation-package": [
           {
             "sections": [
               "generation-package",
@@ -2386,7 +2398,7 @@
             ]
           }
         ],
-        "references/runtime/model-evidence.md": [
+        "references/runtime/model-evidence": [
           {
             "sections": [
               "model-request-evidence",
@@ -2435,7 +2447,7 @@
             ]
           }
         ],
-        "references/runtime/production-image-inputs.md": [
+        "references/runtime/production-image-inputs": [
           {
             "whole_source": true,
             "reason": "Bind every selected image input, declared use and exact source authority before the native request is prepared.",
@@ -2456,7 +2468,7 @@
             ]
           }
         ],
-        "references/runtime/production-external-inputs.md": [
+        "references/runtime/production-external-inputs": [
           {
             "whole_source": true,
             "reason": "Author and validate the complete exact external request, source media mappings, provider schema and target evidence without making an external call.",
@@ -2465,7 +2477,7 @@
             ]
           }
         ],
-        "references/runtime/production-preparation.md": [
+        "references/runtime/production-preparation": [
           {
             "whole_source": true,
             "reason": "Compile and inspect one complete input, preserve exact publication evidence, and recover interrupted local publication without sending it.",
@@ -2474,7 +2486,7 @@
             ]
           }
         ],
-        "references/runtime/production-diagnostic-navigation.md": [
+        "references/runtime/production-diagnostic-navigation": [
           {
             "whole_source": true,
             "reason": "Resolve every reported input or publication failure at its actual editable owner and preserve unresolved evidence.",
@@ -2483,7 +2495,7 @@
             ]
           }
         ],
-        "references/runtime/production-authored-storage.md": [
+        "references/runtime/production-authored-storage": [
           {
             "sections": [
               "authored-revisions",
@@ -2509,7 +2521,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-only-core.md": [
+        "references/runtime/prompt-only-core": [
           {
             "sections": [
               "prompt-only-core",
@@ -2565,7 +2577,7 @@
             ]
           }
         ],
-        "references/runtime/image-generation.md": [
+        "references/runtime/image-generation": [
           {
             "sections": [
               "image-generation-runtime",
@@ -2646,7 +2658,7 @@
             ]
           }
         ],
-        "references/runtime/sparse-discovery.md": [
+        "references/runtime/sparse-discovery": [
           {
             "whole_source": true,
             "reason": "Develop open picture choices through the complete discovery procedure, inspect selected records and retain its runtime failure rules.",
@@ -2655,7 +2667,7 @@
             ]
           }
         ],
-        "references/creative-core.md": [
+        "references/creative-core": [
           {
             "whole_source": true,
             "reason": "Use complete creative-construction knowledge while developing the open picture.",
@@ -2668,13 +2680,30 @@
           },
           {
             "whole_source": true,
-            "reason": "The explicitly selected finishing specialist keeps its complete creative-construction foundation.",
+            "reason": "The explicitly selected finishing specialist keeps its complete creative-construction foundation while the picture is being conceived. Later stages preserve the saved construction without repeating those choices.",
+            "stages": [
+              "depiction"
+            ],
             "features_any": [
+              "finishing"
+            ]
+          },
+          {
+            "sections": [
+              "creative-core",
+              "meaning-before-vocabulary"
+            ],
+            "reason": "Carry the saved pictured relationships, modifier scope and intended degree into supported input wording without reopening conception.",
+            "stages": [
+              "rendition"
+            ],
+            "features_any": [
+              "sparse-retrieval",
               "finishing"
             ]
           }
         ],
-        "references/finishing-layers-specification.md": [
+        "references/finishing-layers-specification": [
           {
             "sections": [
               "visual-construction-and-finishing",
@@ -2699,9 +2728,191 @@
           },
           {
             "whole_source": true,
-            "reason": "The explicitly selected finishing specialist requires every original section, example and limitation at its declared scope.",
+            "reason": "The explicitly selected finishing specialist delivers every original section, example and limitation while developing or revising picture construction.",
+            "stages": [
+              "depiction"
+            ],
             "features_any": [
               "finishing"
+            ]
+          },
+          {
+            "sections": [
+              "visual-construction-and-finishing",
+              "1-purpose",
+              "2-the-five-finishing-layers",
+              "8-resolve-competition-and-choose-a-realizable-method",
+              "carry-the-construction-through-the-selected-interface",
+              "10-layer-specific-cautions"
+            ],
+            "reason": "Translate the saved construction through the actual interface, preserve each treatment layer and its authority, and identify unsupported means without inventing a new picture. Reopen depiction when the construction needs revision.",
+            "stages": [
+              "rendition"
+            ],
+            "features_any": [
+              "finishing"
+            ]
+          },
+          {
+            "sections": [
+              "visual-construction-and-finishing",
+              "1-purpose",
+              "2-the-five-finishing-layers",
+              "carry-the-construction-through-the-selected-interface",
+              "9-observation-contract",
+              "10-layer-specific-cautions"
+            ],
+            "reason": "Inspect the bound input against the saved construction and reference roles, retain its layer distinctions and evidence limits, and leave conception and artifact assessment with their own operations.",
+            "stages": [
+              "prepare"
+            ],
+            "features_any": [
+              "finishing"
+            ]
+          }
+        ],
+        "references/adapters/gpt-image": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/adapters/midjourney-niji": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/adapters/sdxl-comfyui": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/adapters/novelai": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/adapters/grok-imagine": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/adapters/instruction-edit": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/adapters/unlisted-interface": [
+          {
+            "whole_source": true,
+            "reason": "Apply the complete selected interface recipe when developing, expressing or binding the depiction. Definition establishes source meaning and retains any selected model guidance without beginning interface rendition.",
+            "stages": [
+              "depiction",
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/species-architecture": [
+          {
+            "whole_source": true,
+            "reason": "Establish the species or lineage possibility space and its individual realization while authoring the actual definition. Subsequent stages use that acquired definition and reopen this stage if it must change.",
+            "stages": [
+              "definition"
+            ]
+          }
+        ],
+        "references/morphology-and-species-contracts": [
+          {
+            "whole_source": true,
+            "reason": "Establish the complete species, individual, state and shot-projection contracts before deciding the character definition.",
+            "stages": [
+              "definition"
+            ]
+          },
+          {
+            "sections": [
+              "morphology-and-species-contracts",
+              "1-purpose",
+              "2-ownership-and-precedence",
+              "5-body-regions-and-topology",
+              "6-counts-and-instance-identity",
+              "7-limbs-hands-feet-digits-claws-and-terminal-structures",
+              "8-head-and-sensory-cluster",
+              "9-tails-wings-fins-tentacles-and-special-appendages",
+              "10-skin-fur-scales-feathers-shells-and-materials",
+              "11-special-organs-and-capabilities",
+              "12-expression-and-communication-grammar",
+              "13-individual-morphology-contract",
+              "14-identity-versus-state",
+              "17-resolved-morphology-for-a-shot",
+              "18-coverage-planning",
+              "19-which-authority-settles-what",
+              "22-frame-character-per-part-measurement-and-accessory-geometry"
+            ],
+            "reason": "Resolve the acquired individual into this view, including actual topology, expressive channels, state, dimensions, crop and source authority; species design and definition approval stay with definition.",
+            "stages": [
+              "depiction"
+            ]
+          },
+          {
+            "sections": [
+              "morphology-and-species-contracts",
+              "1-purpose",
+              "2-ownership-and-precedence",
+              "14-identity-versus-state",
+              "17-resolved-morphology-for-a-shot",
+              "19-which-authority-settles-what"
+            ],
+            "reason": "Preserve the saved individual, state and visible projection in actual input, including hidden-feature meaning and source authority, without designing or approving a species or individual again.",
+            "stages": [
+              "rendition",
+              "prepare"
+            ]
+          }
+        ],
+        "references/runtime/craft-consultation": [
+          {
+            "whole_source": true,
+            "reason": "Explore, inspect and apply complete craft knowledge while the definition or picture construction needs choices. Later stages consume the actual retained application and its source records; a new craft decision reopens its authoring stage.",
+            "stages": [
+              "definition",
+              "depiction"
             ]
           }
         ]
@@ -2709,7 +2920,7 @@
     },
     "execute": {
       "documents": {
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -2720,7 +2931,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/production-permissions.md": [
+        "references/runtime/production-permissions": [
           {
             "sections": [
               "production-permissions",
@@ -2735,7 +2946,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/image-generation.md": [
+        "references/runtime/image-generation": [
           {
             "sections": [
               "image-generation-runtime",
@@ -2749,7 +2960,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/generation-package.md": [
+        "references/runtime/generation-package": [
           {
             "sections": [
               "generation-package",
@@ -2764,7 +2975,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/prompt-writing-guide.md": [
+        "references/runtime/prompt-writing-guide": [
           {
             "sections": [
               "prompt-writing-guide-runtime",
@@ -2776,7 +2987,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/prompt-weighting.md": [
+        "references/runtime/prompt-weighting": [
           {
             "sections": [
               "explicit-prompt-weighting",
@@ -2787,7 +2998,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/reference-delivery.md": [
+        "references/runtime/reference-delivery": [
           {
             "sections": [
               "exact-reference-delivery",
@@ -2803,7 +3014,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/render-contract.md": [
+        "references/runtime/render-contract": [
           {
             "sections": [
               "rendering-choices-and-execution-controls",
@@ -2822,7 +3033,7 @@
             "reason": "Keep the exact provider request, media binding and external-host contract for this execution branch."
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "studio-runtime",
@@ -2839,7 +3050,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/character-sheet-discipline.md": [
+        "references/runtime/character-sheet-discipline": [
           {
             "sections": [
               "character-sheet-discipline",
@@ -2851,7 +3062,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/sheet-fill-workflow.md": [
+        "references/runtime/sheet-fill-workflow": [
           {
             "sections": [
               "sheet-fills-evidence-and-adoption",
@@ -2863,7 +3074,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/model-evidence.md": [
+        "references/runtime/model-evidence": [
           {
             "sections": [
               "model-request-evidence",
@@ -2874,7 +3085,7 @@
             "reason": "Execute the exact saved request with its complete authority, input interpretation, transport, capture and recovery conditions. New authoring and construction procedures belong to a reopened input."
           }
         ],
-        "references/runtime/batch-generation.md": [
+        "references/runtime/batch-generation": [
           {
             "sections": [
               "batch-generation-runtime",
@@ -2889,13 +3100,13 @@
         ]
       },
       "deferred_documents": {
-        "templates/narrative/design/design-template.md": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form.",
-        "references/runtime/authorial-intent.md": "Authoring establishes the portrayal choices. Execution consumes their saved source scope and exact request; review reads the complete applicable portrayal obligations."
+        "templates/narrative/design/design-template": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form.",
+        "references/runtime/authorial-intent": "Authoring establishes the portrayal choices. Execution consumes their saved source scope and exact request; review reads the complete applicable portrayal obligations."
       }
     },
     "review": {
       "documents": {
-        "references/runtime/authoring-work.md": [
+        "references/runtime/authoring-work": [
           {
             "sections": [
               "authoring-work",
@@ -2907,7 +3118,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -2918,7 +3129,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/production-direction.md": [
+        "references/runtime/production-direction": [
           {
             "sections": [
               "production-direction",
@@ -2930,7 +3141,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/image-generation.md": [
+        "references/runtime/image-generation": [
           {
             "sections": [
               "image-generation-runtime",
@@ -2941,7 +3152,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/generation-package.md": [
+        "references/runtime/generation-package": [
           {
             "sections": [
               "generation-package",
@@ -2951,7 +3162,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/prompt-writing-guide.md": [
+        "references/runtime/prompt-writing-guide": [
           {
             "sections": [
               "prompt-writing-guide-runtime",
@@ -2961,7 +3172,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/prompt-weighting.md": [
+        "references/runtime/prompt-weighting": [
           {
             "sections": [
               "explicit-prompt-weighting",
@@ -2970,7 +3181,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/reference-delivery.md": [
+        "references/runtime/reference-delivery": [
           {
             "sections": [
               "exact-reference-delivery",
@@ -2981,7 +3192,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/render-contract.md": [
+        "references/runtime/render-contract": [
           {
             "sections": [
               "rendering-choices-and-execution-controls",
@@ -2991,7 +3202,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "studio-runtime",
@@ -3006,7 +3217,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/character-sheet-discipline.md": [
+        "references/runtime/character-sheet-discipline": [
           {
             "sections": [
               "character-sheet-discipline",
@@ -3022,7 +3233,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/sheet-fill-workflow.md": [
+        "references/runtime/sheet-fill-workflow": [
           {
             "sections": [
               "sheet-fills-evidence-and-adoption",
@@ -3034,7 +3245,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/authorial-intent.md": [
+        "references/runtime/authorial-intent": [
           {
             "sections": [
               "authorial-intent-portrayal-identity-and-deliberate-change",
@@ -3047,7 +3258,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/model-evidence.md": [
+        "references/runtime/model-evidence": [
           {
             "sections": [
               "model-request-evidence",
@@ -3057,7 +3268,7 @@
             "reason": "Judge the saved artifact against its commission, complete source scopes and prepared criteria, preserving actual observation, evidence limits and recovery. Constructing a new depiction belongs to a reopened input."
           }
         ],
-        "references/runtime/batch-generation.md": [
+        "references/runtime/batch-generation": [
           {
             "sections": [
               "batch-generation-runtime",
@@ -3072,12 +3283,12 @@
         ]
       },
       "deferred_documents": {
-        "templates/narrative/design/design-template.md": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form."
+        "templates/narrative/design/design-template": "The design template is an authoring form. Execution and review consume the selected saved design as source evidence; reopening that design reads the complete form."
       }
     },
     "amendment": {
       "documents": {
-        "references/runtime/authoring-work.md": [
+        "references/runtime/authoring-work": [
           {
             "sections": [
               "authoring-work",
@@ -3115,7 +3326,7 @@
             ]
           }
         ],
-        "references/runtime/production-workflow.md": [
+        "references/runtime/production-workflow": [
           {
             "sections": [
               "production-workflow",
@@ -3136,7 +3347,7 @@
             ]
           }
         ],
-        "references/runtime/production-authoring.md": [
+        "references/runtime/production-authoring": [
           {
             "sections": [
               "production-authoring",
@@ -3267,7 +3478,7 @@
             ]
           }
         ],
-        "references/runtime/production-direction.md": [
+        "references/runtime/production-direction": [
           {
             "sections": [
               "production-direction"
@@ -3341,7 +3552,7 @@
             ]
           }
         ],
-        "references/runtime/production-permissions.md": [
+        "references/runtime/production-permissions": [
           {
             "sections": [
               "production-permissions",
@@ -3352,7 +3563,7 @@
             "reason": "Retained source content and earlier reading never waive protected criteria or supply new execution authority."
           }
         ],
-        "references/runtime/studio.md": [
+        "references/runtime/studio": [
           {
             "sections": [
               "studio-runtime",
@@ -3382,7 +3593,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-vocabulary.md": [
+        "references/runtime/prompt-vocabulary": [
           {
             "sections": [
               "prompt-vocabulary-runtime",
@@ -3419,7 +3630,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-writing-guide.md": [
+        "references/runtime/prompt-writing-guide": [
           {
             "whole_source": true,
             "reason": "Apply the complete writing contract when changing the rendition or its target grammar.",
@@ -3429,7 +3640,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-weighting.md": [
+        "references/runtime/prompt-weighting": [
           {
             "whole_source": true,
             "reason": "Use the complete selected weighting grammar when changing model-facing wording or target.",
@@ -3439,7 +3650,7 @@
             ]
           }
         ],
-        "references/runtime/render-contract.md": [
+        "references/runtime/render-contract": [
           {
             "sections": [
               "rendering-choices-and-execution-controls",
@@ -3518,7 +3729,7 @@
             ]
           }
         ],
-        "references/runtime/reference-delivery.md": [
+        "references/runtime/reference-delivery": [
           {
             "sections": [
               "exact-reference-delivery",
@@ -3615,7 +3826,7 @@
             ]
           }
         ],
-        "references/runtime/generation-package.md": [
+        "references/runtime/generation-package": [
           {
             "sections": [
               "generation-package",
@@ -3630,7 +3841,7 @@
             ]
           }
         ],
-        "references/runtime/model-evidence.md": [
+        "references/runtime/model-evidence": [
           {
             "sections": [
               "model-request-evidence",
@@ -3676,7 +3887,7 @@
             ]
           }
         ],
-        "references/runtime/production-image-inputs.md": [
+        "references/runtime/production-image-inputs": [
           {
             "whole_source": true,
             "reason": "Bind exact selected source media and declared subject uses when changing image inputs.",
@@ -3693,7 +3904,7 @@
             ]
           }
         ],
-        "references/runtime/production-external-inputs.md": [
+        "references/runtime/production-external-inputs": [
           {
             "whole_source": true,
             "reason": "Edit the exact external request and provider evidence at their actual owner.",
@@ -3712,7 +3923,7 @@
             ]
           }
         ],
-        "references/runtime/production-preparation.md": [
+        "references/runtime/production-preparation": [
           {
             "whole_source": true,
             "reason": "Compile the finished input, preserve publication evidence and retain local-publication recovery.",
@@ -3721,7 +3932,7 @@
             ]
           }
         ],
-        "references/runtime/production-diagnostic-navigation.md": [
+        "references/runtime/production-diagnostic-navigation": [
           {
             "whole_source": true,
             "reason": "Resolve final binding failures at their source owners without dropping unresolved evidence.",
@@ -3730,7 +3941,7 @@
             ]
           }
         ],
-        "references/runtime/production-authored-storage.md": [
+        "references/runtime/production-authored-storage": [
           {
             "sections": [
               "authored-revisions",
@@ -3749,7 +3960,7 @@
             ]
           }
         ],
-        "references/runtime/prompt-only-core.md": [
+        "references/runtime/prompt-only-core": [
           {
             "sections": [
               "prompt-only-core",
@@ -3793,7 +4004,7 @@
             ]
           }
         ],
-        "references/runtime/image-generation.md": [
+        "references/runtime/image-generation": [
           {
             "sections": [
               "image-generation-runtime"
@@ -3864,7 +4075,7 @@
             ]
           }
         ],
-        "references/runtime/authorial-intent.md": [
+        "references/runtime/authorial-intent": [
           {
             "whole_source": true,
             "reason": "A changed definition needs the complete identity and design-intent contract.",
@@ -3888,7 +4099,7 @@
             ]
           }
         ],
-        "templates/narrative/design/design-template.md": [
+        "templates/narrative/design/design-template": [
           {
             "whole_source": true,
             "reason": "Reopen the complete design form only when the definition or source authority changes.",
@@ -3897,7 +4108,7 @@
             ]
           }
         ],
-        "templates/narrative/personas/persona-template.md": [
+        "templates/narrative/personas/persona-template": [
           {
             "whole_source": true,
             "reason": "Develop a changed Persona at its complete definition owner.",
@@ -3906,7 +4117,7 @@
             ]
           }
         ],
-        "references/narrative-authoring.md": [
+        "references/narrative-authoring": [
           {
             "whole_source": true,
             "reason": "Read complete narrative-definition knowledge when revising the selected definition.",
@@ -3915,7 +4126,7 @@
             ]
           }
         ],
-        "references/runtime/narrative-development.md": [
+        "references/runtime/narrative-development": [
           {
             "whole_source": true,
             "reason": "Read complete character-development knowledge when the retained definition changes.",
@@ -3924,7 +4135,7 @@
             ]
           }
         ],
-        "references/runtime/cast-and-persona-depth.md": [
+        "references/runtime/cast-and-persona-depth": [
           {
             "whole_source": true,
             "reason": "Reassess actual cast and Persona depth only when changing their definition.",
@@ -3933,7 +4144,7 @@
             ]
           }
         ],
-        "references/character-identity-contract.md": [
+        "references/character-identity-contract": [
           {
             "whole_source": true,
             "reason": "A changed definition requires the full identity contract, source hierarchy and review obligations.",
@@ -3996,7 +4207,7 @@
             ]
           }
         ],
-        "references/morphology-and-species-contracts.md": [
+        "references/morphology-and-species-contracts": [
           {
             "whole_source": true,
             "reason": "A changed definition reopens the complete morphology and species contract.",
@@ -4032,7 +4243,7 @@
             ]
           }
         ],
-        "references/species-architecture.md": [
+        "references/species-architecture": [
           {
             "whole_source": true,
             "reason": "Species construction and catalog architectures belong to changed definitions; retained morphology is verified from its actual source.",
@@ -4041,7 +4252,7 @@
             ]
           }
         ],
-        "references/prompt-composition-geometry.md": [
+        "references/prompt-composition-geometry": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected geometry specialist when changing spatial construction or its exact wording.",
@@ -4052,7 +4263,7 @@
             ]
           }
         ],
-        "references/camera-framing-contract.md": [
+        "references/camera-framing-contract": [
           {
             "whole_source": true,
             "reason": "Apply the selected camera contract to the changed view and its declared visible consequences.",
@@ -4063,7 +4274,7 @@
             ]
           }
         ],
-        "references/runtime/character-sheet-discipline.md": [
+        "references/runtime/character-sheet-discipline": [
           {
             "whole_source": true,
             "reason": "A changed sheet definition needs the complete character, kind, form, inventory and layout discipline.",
@@ -4117,7 +4328,7 @@
             ]
           }
         ],
-        "references/runtime/sheet-fill-workflow.md": [
+        "references/runtime/sheet-fill-workflow": [
           {
             "sections": [
               "sheet-fills-evidence-and-adoption",
@@ -4138,7 +4349,7 @@
             ]
           }
         ],
-        "references/runtime/adoption-workflow.md": [
+        "references/runtime/adoption-workflow": [
           {
             "sections": [
               "adoption-workflow",
@@ -4154,7 +4365,7 @@
             ]
           }
         ],
-        "references/runtime/studio-placement.md": [
+        "references/runtime/studio-placement": [
           {
             "sections": [
               "correct-an-iterations-current-slot",
@@ -4169,7 +4380,7 @@
             ]
           }
         ],
-        "references/runtime/reference-prompt-artifacts.md": [
+        "references/runtime/reference-prompt-artifacts": [
           {
             "sections": [
               "prompt-artifact-reference-runtime",
@@ -4187,7 +4398,7 @@
             ]
           }
         ],
-        "references/visual-reference-activation-and-transport.md": [
+        "references/visual-reference-activation-and-transport": [
           {
             "sections": [
               "visual-reference-activation-and-transport",
@@ -4210,7 +4421,7 @@
             ]
           }
         ],
-        "references/derived-visual-evidence.md": [
+        "references/derived-visual-evidence": [
           {
             "whole_source": true,
             "reason": "Preserve the complete derived-visual-evidence contract when changing or retargeting selected reference artifacts.",
@@ -4221,7 +4432,7 @@
             ]
           }
         ],
-        "references/runtime/sparse-discovery.md": [
+        "references/runtime/sparse-discovery": [
           {
             "whole_source": true,
             "reason": "Open depiction development keeps the complete explicitly selected discovery procedure.",
@@ -4231,7 +4442,7 @@
             ]
           }
         ],
-        "references/creative-core.md": [
+        "references/creative-core": [
           {
             "whole_source": true,
             "reason": "Keep the selected creative foundation for changed definition or depiction decisions.",
@@ -4252,7 +4463,7 @@
             ]
           }
         ],
-        "references/finishing-layers-specification.md": [
+        "references/finishing-layers-specification": [
           {
             "sections": [
               "visual-construction-and-finishing",
@@ -4299,7 +4510,7 @@
             ]
           }
         ],
-        "references/runtime/production-variation.md": [
+        "references/runtime/production-variation": [
           {
             "sections": [
               "production-input-variants",
@@ -4318,7 +4529,7 @@
             ]
           }
         ],
-        "references/runtime/character-performance.md": [
+        "references/runtime/character-performance": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected performance specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4328,7 +4539,7 @@
             ]
           }
         ],
-        "references/performance-language-specification.md": [
+        "references/performance-language-specification": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected performance specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4338,7 +4549,7 @@
             ]
           }
         ],
-        "references/runtime/world-realization.md": [
+        "references/runtime/world-realization": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected world-view specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4348,7 +4559,7 @@
             ]
           }
         ],
-        "references/portrayal-principles.md": [
+        "references/portrayal-principles": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected portrayal-principles specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4358,7 +4569,7 @@
             ]
           }
         ],
-        "references/narrative-protocol.md": [
+        "references/narrative-protocol": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected narrative-files specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4368,7 +4579,7 @@
             ]
           }
         ],
-        "references/runtime/story-timeline.md": [
+        "references/runtime/story-timeline": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected narrative-files specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4378,7 +4589,7 @@
             ]
           }
         ],
-        "references/runtime/subject-domain-quick-reference.md": [
+        "references/runtime/subject-domain-quick-reference": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected subject-domain specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4388,7 +4599,7 @@
             ]
           }
         ],
-        "references/runtime/story-context.md": [
+        "references/runtime/story-context": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected story-context specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4398,7 +4609,7 @@
             ]
           }
         ],
-        "references/runtime/scene-persona.md": [
+        "references/runtime/scene-persona": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected scene-persona specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4408,7 +4619,7 @@
             ]
           }
         ],
-        "references/runtime/state-aware-series.md": [
+        "references/runtime/state-aware-series": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected state-series specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4418,7 +4629,7 @@
             ]
           }
         ],
-        "references/runtime/studio-canon-references.md": [
+        "references/runtime/studio-canon-references": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected state-series specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4428,7 +4639,7 @@
             ]
           }
         ],
-        "references/runtime/craft-consultation.md": [
+        "references/runtime/craft-consultation": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected craft-consultation specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4438,7 +4649,7 @@
             ]
           }
         ],
-        "references/runtime/source-material.md": [
+        "references/runtime/source-material": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected source-material specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4448,7 +4659,7 @@
             ]
           }
         ],
-        "references/runtime/agent-evaluation.md": [
+        "references/runtime/agent-evaluation": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected agent-evaluation specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4458,7 +4669,7 @@
             ]
           }
         ],
-        "references/runtime/repair-analysis.md": [
+        "references/runtime/repair-analysis": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected repair-analysis specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4468,7 +4679,7 @@
             ]
           }
         ],
-        "references/garment-geometry-specification.md": [
+        "references/garment-geometry-specification": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected garment-growth specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4478,7 +4689,7 @@
             ]
           }
         ],
-        "references/growth-geometry-specification.md": [
+        "references/growth-geometry-specification": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected garment-growth specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4488,7 +4699,7 @@
             ]
           }
         ],
-        "references/distinctive-detail-specification.md": [
+        "references/distinctive-detail-specification": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected garment-growth specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4498,7 +4709,7 @@
             ]
           }
         ],
-        "references/production-specification.md": [
+        "references/production-specification": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected production-spec specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4508,7 +4719,7 @@
             ]
           }
         ],
-        "references/runtime/scene-mask-planning.md": [
+        "references/runtime/scene-mask-planning": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected scene-mask-planning specialist when its definition or depiction changes; retained sources keep their existing bytes and constraints.",
@@ -4518,7 +4729,7 @@
             ]
           }
         ],
-        "references/runtime/image-editing.md": [
+        "references/runtime/image-editing": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected existing-image edit contract when changing the depiction, references, wording or target.",
@@ -4531,7 +4742,7 @@
             ]
           }
         ],
-        "references/runtime/semantic-instruction-edit.md": [
+        "references/runtime/semantic-instruction-edit": [
           {
             "whole_source": true,
             "reason": "Apply the complete selected existing-image edit contract when changing the depiction, references, wording or target.",

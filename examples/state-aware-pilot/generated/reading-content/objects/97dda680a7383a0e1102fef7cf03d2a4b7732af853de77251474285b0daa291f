@@ -1,0 +1,20 @@
+## Activation
+
+Use this runtime when a final prompt is rendered as portable text or for a named model or interface, or when the user asks about any of these:
+
+- prompt order
+- comma-separated tags
+- parentheses, square brackets, and explicit weights
+- LoRA strength
+- negative-prompt handling
+- Textual Inversion
+- prompt-length pressure
+- controlled comparison of one term
+
+Resolve the rendition at the scope requested. An exact model or interface uses
+its active record and one adapter; an external target can use acquired provider
+evidence while recording a missing catalog definition. A family-oriented text
+draft uses the applicable family guidance and keeps checkpoint and execution
+choices open. A portable prompt uses interface-neutral guidance. Preserve the
+depiction through each of these scopes.
+

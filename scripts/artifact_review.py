@@ -66,10 +66,10 @@ def attachment(raw: bytes) -> tuple[str, str]:
     return '.txt', 'text'
 
 
-def _object_file(directory: Path, item: dict, files: dict[str, bytes], preview_chars: int | None = None) -> dict:
+def _object_file(read_object, item: dict, files: dict[str, bytes], preview_chars: int | None = None) -> dict:
     optional_count(preview_chars, 'preview characters')
     assert_public_path(item['path'])
-    raw = c.object_read(directory, item['sha256'])
+    raw = read_object(item['sha256'])
     if item.get('size', len(raw)) != len(raw):
         raise ValueError('recorded file size does not match its saved bytes')
     suffix, kind = attachment(raw)
@@ -86,10 +86,12 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
     """Export editable report data for pinned inputs and every candidate."""
     optional_count(preview_chars, "preview characters")
     root = studio_root(root)
-    directory, prepared, consumer, rows = workflow.read_run(root, run)
+    loaded = workflow.read_run(root, run)
+    _, prepared, consumer, rows = loaded
+    read_object = loaded.evidence.read
     files: dict[str, bytes] = {}
     changes: list[dict] = []
-    for dep in prepared['dependencies']:
+    for dep in (*prepared['dependencies'], *loaded.implementation_dependencies):
         try:
             if workflow.current_sha256(root, dep) != dep.get('selection_sha256', dep['sha256']):
                 changes.append({'space': dep['space'], 'path': dep['path'], 'reason': 'content changed'})
@@ -99,7 +101,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
         for item in row['data'].get('files', []) + row['data'].get('evidence', []):
             assert_public_path(item['path'])
             # Validate every pinned object even if it is not displayed.
-            raw = c.object_read(directory, item['sha256'])
+            raw = read_object(item['sha256'])
             if len(raw) != item['size']:
                 raise ValueError('receipt file size mismatch')
             try:
@@ -114,7 +116,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
         dep = dependencies.get(('studio', source['path']))
         if dep is None:
             raise ValueError('declared source has no pinned studio dependency')
-        sources.append({**source, 'file': _object_file(directory, dep, files, preview_chars)})
+        sources.append({**source, 'file': _object_file(read_object, dep, files, preview_chars)})
     candidates = []
     for row in rows:
         if row['event'] != 'candidate':
@@ -124,9 +126,9 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
         candidates.append({'id': row['sha256'], 'note': row['data'].get('note', ''),
                            'limitations': row['data'].get('limitations', []),
                            'media': row['data'].get('media'),
-                           'files': [_object_file(directory, f, files, preview_chars) for f in row['data']['files']],
+                           'files': [_object_file(read_object, f, files, preview_chars) for f in row['data']['files']],
                            'reviews': [{'receipt': r['sha256'], 'review': r['data']['review'],
-                                        'evidence': [_object_file(directory, f, files, preview_chars)
+                                        'evidence': [_object_file(read_object, f, files, preview_chars)
                                                      for f in r['data'].get('evidence', [])]}
                                        for r in reviews]})
     selections = []
@@ -144,7 +146,7 @@ def build(root: Path, run: str, *, preview_chars: int | None = None) -> tuple[di
                         and all(item.get(key) == witness[key] for key in ('path', 'sha256', 'locator'))]
             if len(captured) != 1:
                 raise ValueError('selection has no exact saved owner-acceptance evidence')
-            evidence = [{**_object_file(directory, item, files, preview_chars),
+            evidence = [{**_object_file(read_object, item, files, preview_chars),
                          'locator': item['locator'], 'captured_at': item['captured_at']}
                         for item in captured]
         selections.append({'receipt': row['sha256'], **selection, 'evidence': evidence})

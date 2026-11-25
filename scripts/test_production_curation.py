@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
 import execution_contract as c
 import production_case_fixtures as f
 import production_curation as curation
+import production_fixtures as fixture
 import production_operations as workflow
 import production_store as store
 from production_fixtures import ACTOR
@@ -271,6 +273,20 @@ class CurationTests(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertIsNone(studio.StudioRead(self.root).sheet('robot')['slots']['base.front']['current'])
         self.assertFalse(any(row['event'] == 'adoption-claim' for row in store.event_rows(self.root, self.run)))
+
+    def test_delivery_only_keeps_a_later_independent_studio_placement(self):
+        import studio_placement
+        drafted = self.draft('delivery-only')
+        move = studio_placement.draft(self.root, 'robot', self.row['iteration_id'], 'scene.later')
+        move.update(by=ACTOR, at='2026-11-11T00:00:00Z',
+                    reason='Synthetic placement independent of delivery selection.')
+        studio_placement.reassign(self.root, move)
+        self.assertTrue(self.apply(drafted)['ok'])
+        row = studio.StudioRead(self.root).iteration('robot', self.row['iteration_id'])
+        self.assertEqual(studio.placement_slot(row), 'scene.later')
+        self.assertIsNone(studio.acceptance_state(self.root, 'robot', 'scene.later'))
+        verified = curation.verify(self.root, self.root / 'work/one-use', binding=drafted['binding'])
+        self.assertEqual(verified['current_use'], 'delivery')
 
     def test_one_assessment_is_recorded_separately_for_selection_and_adoption(self):
         authority = store.authority(self.root, self.task['task_id'])
@@ -697,6 +713,93 @@ class CurationTests(unittest.TestCase):
         result = self.apply(drafted, decision)
         self.assertTrue(result['ok'])
         self.assertEqual(result['result']['approval']['by'], decision['approval']['actor'])
+
+
+class ExternalCurationTests(unittest.TestCase):
+    """A captured host image can complete delivery without a Studio iteration."""
+
+    draft = CurationTests.draft
+    decide = CurationTests.decide
+
+    def setUp(self):
+        import work_ledger
+        from production_direction_smoke_test import png
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name)
+        self.enterContext(fixture.scratch_home(base / 'home'))
+        self.root = studio.init(base / 'studio', 'external-curation', 'Synthetic external selection fixture')
+        studio.add_character(self.root, 'field', 'general')
+        started = work_ledger.begin(self.root, 'Select the externally supplied synthetic field.', ['Receive and select.'])
+        f.write(self.root / 'prompt.txt', 'An explicitly synthetic constant field.')
+        self.task = {'task_id': started['task_id'], 'route': 'generation', 'features': [], 'sources': [],
+            'delivery': {'path': 'prompt.txt', 'translation_notes': 'Synthetic literal image instruction.'},
+            'criteria': [{'id': 'field', 'strength': 'hard', 'text': 'The supplied synthetic image is a constant field.'}],
+            'world_views': [], 'recording': {'character': 'field', 'slot': 'candidate', 'subject_map': {},
+                                           'sheet_panel': False, 'role': 'synthetic-example'}}
+        fixture.external_image_input(self.root, self.task)
+        fixture.task(self.root, self.task, artifact='image', execution='external', focus='supporting-setting')
+        f.write(self.root / 'task.json', self.task)
+        self.run = workflow.prepare(self.root, 'task.json')['run']
+        fixture.handoff(self.root, self.run, 'Synthetic host', 'manual')
+        token = fixture.grant(self.root, self.run, workflow.external_intent(self.root, self.run, 1))
+        workflow.claim_external(self.root, self.run, 1, token)
+        (self.root / 'image.png').write_bytes(png())
+        f.write(self.root / 'host-receipt.json', {'synthetic': True, 'status': 'received'})
+        workflow.receive_external(self.root, self.run, response_file='host-receipt.json',
+            artifacts=['image.png'], final=True, reason='Synthetic received file; no provider or artwork-quality claim.')
+        self.candidate = workflow.find(store.event_rows(self.root, self.run), 'candidate')['sha256']
+        review = workflow.draft_review(self.root, self.run, self.candidate)
+        review.update(reviewer=ACTOR, observations=[{'evidence': 'candidate', 'locator': {'kind': 'whole'},
+            'observation': 'The synthetic image is a constant field.',
+            'interpretation': 'The local fixture meets the declared synthetic criterion.',
+            'limitations': ['No artistic quality or actual user approval is asserted.']}],
+            conclusion='Explicit synthetic assessment.')
+        for check in review['checks']:
+            check.update(verdict='pass', observation_indices=[0], reason='Actual synthetic fixture observation.')
+        f.write(self.root / 'review.json', review)
+        workflow.review(self.root, self.run, 'review.json')
+        f.write(self.root / 'adoption-basis.txt', 'Synthetic permission to select this image for delivery only.')
+
+    def apply(self, drafted):
+        return curation.apply(self.root, self.root / 'work/delivery', self.decide(drafted),
+                              binding=drafted['binding'])
+
+    def test_received_external_candidate_completes_delivery_without_an_iteration(self):
+        self.assertEqual(studio.StudioRead(self.root).placed_iterations('field'), [])
+        drafted = self.draft('delivery-only')
+        self.assertNotIn('target', drafted['binding']['snapshot'])
+        result = self.apply(drafted)
+        self.assertTrue(result['ok'])
+        self.assertTrue(self.apply(drafted)['recovered'])
+        verified = curation.verify(self.root, self.root / 'work/delivery', binding=drafted['binding'])
+        self.assertEqual(verified['current_use'], 'delivery')
+        self.assertTrue(verified['historical_completion'])
+        workflow.verify_completion(self.root, self.run, self.task['task_id'])
+        rows = store.event_rows(self.root, self.run)
+        self.assertEqual(sum(row['event'] == 'selection' for row in rows), 1)
+        self.assertFalse(any(row['event'] in {'slot-acceptance', 'adoption-claim'} for row in rows))
+        self.assertEqual(studio.StudioRead(self.root).placed_iterations('field'), [])
+
+    def test_studio_destinations_still_require_the_exact_iteration(self):
+        before = store.event_rows(self.root, self.run)
+        for scope in ('studio-slot', 'sheet', 'catalog', 'withdraw'):
+            with self.subTest(scope=scope), self.assertRaises(ProductionError) as caught:
+                self.draft(scope)
+            self.assertEqual(caught.exception.diagnostic.code, 'STUDIO_CANDIDATE_REQUIRED')
+        self.assertEqual(store.event_rows(self.root, self.run), before)
+
+    def test_delivery_still_rejects_a_changed_review_before_selection(self):
+        drafted = self.draft('delivery-only')
+        review = c.load(self.root / 'review.json')
+        review['conclusion'] += ' A later independently recorded assessment.'
+        f.write(self.root / 'review-new.json', review)
+        workflow.review(self.root, self.run, 'review-new.json')
+        before = store.event_rows(self.root, self.run)
+        with self.assertRaises(ProductionError) as caught:
+            self.apply(drafted)
+        self.assertEqual(caught.exception.diagnostic.code, 'ADOPTION_DECISION_CHANGED')
+        self.assertEqual(store.event_rows(self.root, self.run), before)
 
 
 if __name__ == '__main__':

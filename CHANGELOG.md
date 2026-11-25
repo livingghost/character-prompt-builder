@@ -1,5 +1,129 @@
 # Changelog
 
+## 2026.11.25.6
+
+- Name each changed document by its document ID in reading-source diagnostics.
+  Preserve the structured change details and the current reading repair action.
+- Explain complete-section reuse across receipts separately from the byte
+  ranges delivered within one snapshot and immutable body.
+- Reuse the resolved Studio root within its store acquisition and the resolved
+  schema path within its document acquisition. Keep fresh public reads, SQL
+  snapshot checks and current source-byte acquisition at their existing owners.
+- Prepare fixed retrieval patterns and color terms once, preserving lexical
+  normalization, modifier scope and current record acquisition.
+- Create each private catalog database's schema and rows in one transaction.
+  Retain full synchronization, integrity verification and complete publication;
+  a failed commit leaves the published catalog unchanged.
+- Exercise runner scheduling, environment propagation, elapsed phases and
+  failure reporting with small declared source fixtures. Retain the complete
+  distribution, pack isolation, suite inventory and bytecode freshness checks.
+
+## 2026.11.25.4
+
+- Keep authored knowledge in document records with stable section IDs and
+  complete bodies. Render linked Markdown from those records. Runtime reading,
+  source pinning and native templates acquire the records directly.
+- Bind reading scope and reuse to complete section identities and content.
+  Page offsets measure delivery within a section; section selection and saved
+  evidence are independent of rendered Markdown positions and headings.
+- Update public contract seals at their authoritative knowledge body. Generate
+  candidate inventories from the exact candidate outputs and removals.
+- Render knowledge directly from its source records before sealing public
+  contracts and deriving catalog metadata. Compare generated text byte for
+  byte, including its authored line endings.
+- Acquire and publish current authority within its owning SQL reader. An
+  external commit during acquisition invalidates both the grant and its
+  verified history before a later read or writer transaction reuses them.
+- Verify that an event-body change with unchanged authority state, event count
+  and terminal digest is rejected at the next read and writer boundary.
+
+## 2026.11.25.3
+
+- Complete durable task and metadata publication even when the destination
+  already contains the requested bytes. A retry after replacement followed by
+  a failed directory flush repeats the durable write; another flush failure
+  remains an error. Preserve named-task ownership and absent current pointers.
+- Exercise these failure boundaries through public plan binding and generated
+  metadata writes, including repeated failure and successful recovery.
+
+## 2026.11.25.2
+
+- Declare stable knowledge-section IDs in their editable sources and compile
+  exact byte ranges into generated indexes. Runtime reading verifies those
+  indexes without parsing Markdown or retaining a second copy of each body.
+  Display-title changes preserve IDs; changed bytes require current delivery.
+  Reuse immutable validation derivatives for identical acquired source and
+  index bytes while independent observations still acquire both files.
+  Store the indexes under `generated/knowledge`, outside authored catalog
+  inputs, and include them in the installed release.
+- Keep native front-matter templates as complete knowledge units in their
+  original format. Retained reading navigation uses its acquired section
+  metadata independently of later installed source changes.
+  Prepared inputs pin only the selected documents and their acquired indexes.
+- Bind workspace target descriptions and their digests to the same acquired
+  publication, including when the on-disk target changes during inspection.
+- Classify each live source with one initial filesystem observation. Preserve
+  before/after handle checks and final pathname checks, and reject replacement
+  by another file before opening or by a symbolic link during reading.
+- Preserve identical generated metadata and unchanged work-plan milestone
+  records without rewriting them. Changed outputs retain durable publication;
+  replay repairs a stale current-task pointer without rewriting its saved task.
+- Identify the copied release, runner and source inventory in test output and
+  retained summaries. Enforce the repository guides' 32,000-byte limit when
+  generating them from their shared template.
+- Use up to eight available CPUs for independent check suites while budgeting
+  nested CLI-help checks separately with a maximum of four workers.
+
+## 2026.11.25.1
+
+- Retain pure Markdown heading and section structure by exact source bytes;
+  keep current source acquisition, route selection and reading checks separate.
+- Give each public work-plan operation one read scope and pass its acquired run
+  to later decisions. Preserve forced reads, external commits, rollback and
+  independent operations as fresh verification boundaries.
+- Remove resolved-route and issuance copies from saved prepared inputs. Keep
+  the complete checked issuance once in the publication ledger, and reference
+  installation pins as verified evidence decoded only for current comparisons.
+- Store an execution target's selected service once and resolve its offering
+  from the saved model, retaining exact model and service validation.
+- Prepare checked-hash Python bytecode once in the isolated test source copy,
+  include that preparation in the reported elapsed time and detect source edits
+  with unchanged size and timestamps. Share acquired ASTs across documentation
+  checks and release them after deriving the required facts.
+- Keep both generated repository guides within 32,000 bytes without removing
+  their detailed requirements. Require prompt revisions to express the desired
+  depiction affirmatively and omit process notes while preserving intent and
+  concrete constraints.
+
+## 2026.11.24.1
+
+- State intended emotions directly while preserving adopted individual distinctions.
+  Keep necessary scene premises and secondary figurative impressions at their
+  actual scope; review a still's visible result without demanding hidden facts,
+  unshown timing, unsupported comparisons or invented contrasting conditions.
+- Give hard review criteria an explicit request or adopted-source origin and an
+  observation scope. Reject promotion of an agent realization, incompatible
+  evidence, unresolved comparisons and unsupported sequence or duration claims
+  before publishing new input. Keep historical runs and images intact.
+- Distinguish visible direction, secondary impressions, necessary context,
+  private author material and unresolved representation. Bind an impression to
+  its independent primary depiction, omit private directives from the consumer,
+  and carry declared source dependencies into impact and review context.
+- Select complete authoring knowledge by the decisions made at each stage.
+  Preserve source originals and saved creative choices across interruption;
+  avoid requiring downstream rendition material before the character definition
+  or reopening completed conception solely to bind a finished request.
+- Show isolated pack-runtime flags in their actual command position, and make
+  the existing provisional-proposal path clear while a definition is developing.
+  Clarify which commands receive reading-context and report-view options when
+  continuing from a stage change.
+- Keep the current request source single when projecting an edited draft,
+  including before its separate catalog acquisition. Preserve earlier request
+  bytes and authored source checks across repeated preparation.
+- Allow delivery-only curation of a captured, reviewed image without requiring
+  a Studio iteration or binding unrelated placement changes. Keep exact Studio
+  recording checks for slot and canonical use.
+
 ## 2026.11.23.2
 
 - Preserve `READING_INVOCATION_CONFLICT` details in text reading errors and

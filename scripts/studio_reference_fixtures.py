@@ -143,7 +143,8 @@ def reference_task(case) -> tuple[str, dict]:
             'treatment':'preserve',
             'reason':'This synthetic trial uses the adopted image as its original identity source; '
                      'the assigned reference scope still excludes current clothing.',
-            'carriers':[{'kind':'reference','reference':reference,'use':'identity'}],'variation':None}]})
+            'carriers':[{'kind':'reference','reference':reference,'use':'identity'}],'variation':None}],
+                                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
     task['recording'].update(slot='scene.result', sheet_panel=False, subject_map={work_id:'robot'})
     task['generation'].update(references='studio-references.json', production_spec='reference-spec.json',
         request_validation='reference-validation.json', continuity={work_id:'recurring'})

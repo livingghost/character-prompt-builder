@@ -34,6 +34,7 @@ def criterion(source_ids: list[str], subjects: list[str], *, carrier: dict | Non
               evidence='image') -> dict:
     """Explicit synthetic review choices, never used by operational authoring."""
     return {'id': 'continuity', 'strength': 'hard', 'evidence': evidence,
+            'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'},
             'text': 'Compare the complete original identity sources and their conditions in this scene.',
             'identity_review': subjects,
             'identity_bindings': [{'source': ident, 'subject_ids': subjects, 'selectors': [''],
@@ -110,7 +111,8 @@ class IdentityAdapterTests(unittest.TestCase):
             self.compile(view)
         self.task['criteria'] = [{'id': 'whole-identity', 'strength': 'hard', 'evidence': 'image',
             'text': 'Compare the depicted identity with every applicable retained source at this view.',
-            'identity_review': ['A']}]
+            'identity_review': ['A'],
+                                     'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         retained = self.compile(view)
         self.assertEqual({row['id'] for row in retained['sources']}, expected)
         self.assertEqual(retained['bindings'], [])
@@ -141,7 +143,8 @@ class IdentityAdapterTests(unittest.TestCase):
         view = self.context(inputs=self.external)
         self.assertEqual([row['id'] for row in view['identity_sources']], ['reference:accepted-angle'])
         self.task['criteria'] = [{'id': 'whole', 'strength': 'hard', 'evidence': 'image',
-            'text': 'Compare the observed subject with the retained scoped originals.', 'identity_review': ['A']}]
+            'text': 'Compare the observed subject with the retained scoped originals.', 'identity_review': ['A'],
+                                     'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         report = self.compile(view)
         sources = {row['id']: row for row in report['sources']}
         self.assertEqual(sources['retained-angle']['authority'], authority)
@@ -721,7 +724,8 @@ class SubjectDeclarationGuidanceTests(unittest.TestCase):
                 'disposition': 'applied', 'locator': 'whole document', 'reason': 'Synthetic adopted definition.',
                 'identity': {'subject_ids': ['A'], 'selectors': ['']}}],
             'criteria': [{'id': 'whole', 'text': 'Compare the complete selected identity.',
-                'strength': 'hard', 'evidence': 'image', 'identity_review': ['A']}]}
+                'strength': 'hard', 'evidence': 'image', 'identity_review': ['A'],
+                             'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]}
         self.choices = {'target': None, 'external': None,
                         'authoring': {'task': self.task, 'documents': {}}}
         self.path = 'choices.json'

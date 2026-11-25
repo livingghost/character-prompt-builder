@@ -1,0 +1,57 @@
+#### Establish the editable definition
+
+The draft is an empty scaffold, not a character definition. For character work,
+[establish the subject for this use](production-direction.md#establish-the-character-for-this-use)
+before writing its rendition. Acquire the applicable original or task-local
+definition through [Authoring work](authoring-work.md). The saved
+`work-basis.json` owns the acquired sources, current applications and their
+subject assignments; the compiler derives `authoring.task.sources` from them.
+Use `authoring_guide.source_acquisition` to acquire or update a Production
+source through its complete source row, as described below. It derives hashes
+from actual bytes and retains Production role and identity metadata together.
+The [saved-basis context command](authoring-work.md#save-or-execute-the-same-work)
+owns core requests and application choices; its generic file acquisition does
+not declare a Production role or identity selection.
+The compiler selects this acquired basis in the public task's `work_basis`.
+For a directly authored ProductionTask, acquire the basis with those same core
+commands and select its actual path. Completed checking, saving and preparation
+capture the current task, delivery and selected documents, require the applicable
+character definition, and verify their source applications and subject bindings
+against the basis. Draft structure inspection allows this work to remain open.
+Preserve the concrete meanings and their
+[researched wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+together at that owner. An existing definition remains authoritative; do not
+replace it with a summary of the prompt being authored. The builder captures
+source bytes in `authored_basis` for independent review.
+For a selected Production Specification, project the relevant identity, current
+state and performance into its subjects. Carry the meanings needed for this
+depiction into the actual delivery, retaining authored phrases when tags alone
+lose detail. A saved definition or an internal source path is not model input.
+Explicit supporting setting work follows its declared scope.
+
+A task-local definition derived from the current Production Specification
+carries the compiler-derived `definition_owner` with `document: "production_spec"`
+and its `subject_id`. Reacquiring a public task restores that actual document
+as the editable owner. Its subject identity edits update the applied definition;
+removing a subject updates the corresponding applications. A definition retained
+as independent source material during composition keeps its source owner.
+Canonical and external definitions retain their own authority and ownership.
+
+Declare the subjects actually depicted in an image at their input owner. For
+new task-local work, select a Production Specification and declare its
+`/subjects`; an existing actual `recording.subject_map` also supplies its mapped
+subject IDs. Acquired source assignments alone do not declare the image's
+subjects. Use those same IDs in the source assignments and review criteria.
+Each identity-bearing subject needs a `hard` criterion in
+`authoring.task.criteria` whose `identity_review` names it and compares the whole
+subject with its complete applicable definition at that source's original
+authority. These declarations apply to task-local definitions as well as
+canonical ones; complete them while establishing the definition for this use.
+
+The [complete first-input example](../../examples/input-authoring/README.md)
+creates all selected inputs and prepares one reference-guided image in a fresh
+Studio with no previous run. Use it to understand the relationships; start the
+actual work from its own draft and actual authority. The [state-aware
+pilot](../../examples/state-aware-pilot/README.md) owns the additional complete
+state-derived artifacts when those features apply.
+

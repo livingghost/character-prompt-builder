@@ -1,0 +1,33 @@
+## Validation
+
+```bash
+python scripts/validate_studio.py <dir>
+```
+
+It refuses:
+
+- a manifest that is not what `init` writes;
+- a character listed without a directory, or on disk without a listing;
+- a character id that ends in a dot or differs from another only by case;
+- an iteration whose files are missing or whose hashes moved;
+- a slot accepted twice, or an accepted iteration whose copy under `accepted/` is missing or differs;
+- an acceptance history without the named replacement's acceptance in that historical slot, or a placement that disagrees with its original iteration evidence;
+- an imported iteration without `external-import` provenance, or a rejection that names no actor;
+- a Production row that stores an evaluation, disposition or other judgment field, or whose run cannot be read;
+- a Production candidate a dispatcher run recorded for this studio with no iteration row;
+- a stale sheet binding or an incomplete adoption step;
+- a gallery that differs from what the records produce;
+- a work trail the ledger cannot account for.
+
+A Production row names exactly its run and candidate, and its judgment comes from that run.
+An unreadable run is reported, never reclassified as an imported image.
+A candidate without a row names the command that records it (synthetic, trimmed):
+
+```text
+Error: production run 01a10325-016d-77e5-87f2-fdeae61b82c8: candidate 55a6aed965b7a6ea42d7f986ffc9ead442407539a92c9dc8d422fee0d5f0ab7d has no iteration row in characters/robot; python scripts/production_workflow.py resume --root C:\...\studio --run 01a10325-016d-77e5-87f2-fdeae61b82c8 records it
+1 error(s)
+```
+
+`studio.py status` reports the same stale bindings and incomplete adoption steps.
+`scripts/studio_smoke_test.py` exercises every check on a temporary studio.
+

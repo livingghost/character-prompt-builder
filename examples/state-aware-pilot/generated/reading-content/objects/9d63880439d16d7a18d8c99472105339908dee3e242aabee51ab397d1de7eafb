@@ -1,0 +1,51 @@
+## Layout
+
+Run initialization from an existing working directory. The requested new Studio
+path need not exist yet; `init --out` creates it. Set the command runner's
+working directory to that Studio only after initialization succeeds.
+
+```bash
+python scripts/studio.py init --out <dir> --studio-id <id> --title "<title>"
+```
+
+```text
+<studio>/
+  studio.json                 id, title, defaults, when it was created, the characters
+  credentials.json            optional private API key or environment source for each service
+  work/current.json           the open task: goal, steps, which are done, what is next, what it is blocked on
+  work/ledger.jsonl           task events and actual answers; append only
+  work/tasks/<task-id>/       current task snapshot and immutable prior revisions
+  work/batches/<batch-id>.json small attempt index; points to its owned result tree
+  work/activity/events/      immutable redacted operator events
+  work/activity/timeline.*   rebuildable chronological JSONL and Markdown views
+  logs/operations/<day>/<id>/ automatic CLI diagnostics, console streams and artifact hashes
+  characters/<id>/
+    sheet/                    the Character Sheet (sheet-data.json and its renders)
+    iterations/<it-id>/       one directory per generated image: result, request, response, package
+    iterations.jsonl          one record per iteration: slot, status, hashes, service, seed
+    accepted/<slot>.<ext>     the image accepted for each slot
+  packages/                   Generation Packages built here
+  runs/<run-id>/              the journal of one send: exact request and answer, package and downloaded results
+  prompts/                    reviewed prompt artifacts that belong to no single iteration
+  story/narrative/            a narrative series, when the studio holds authoring
+```
+
+`init` records project preferences and workflow defaults:
+
+- `default_render_profile`, `null` unless `--default-render-profile` names a selected project preference;
+- `default_creative_latitude`, `directed` unless `--default-creative-latitude` names another;
+- `default_interaction_mode`, `balanced` unless `--default-interaction-mode` names another;
+- `default_style_family`, `null` unless `--default-style-family` names a selected project preference.
+
+An unselected rendering preference leaves the treatment to the current
+[production direction](production-direction.md); initialization selects no
+medium, palette, light or emotional register. A catalog profile is available
+knowledge, not an implicit substitute for `null`. Preserve an explicitly
+selected project profile or family and apply its actual scope under the
+commission. Existing adopted treatments and the preserved parts of a local
+edit keep their authority; a new project preference does not rewrite them.
+
+`python scripts/studio.py character add <id> --studio <dir> [--profile ...]` adds a character with a blank sheet in `sheet/`; the Character Sheet workflow then runs in that folder as [Character Sheet Discipline](character-sheet-discipline.md) describes, with `SHEET_DIR` being `characters/<id>/sheet`.
+
+A narrative series is initialized into its own subdirectory, `python scripts/narrative_init.py --out <studio>/story ...`, and [Narrative Authoring](../narrative-authoring.md) owns its files. The studio manifest lists no series; `validate_studio.py` leaves the subdirectory to the narrative checks. Registering a visual character with `character add` comes when an image is wanted, not before.
+

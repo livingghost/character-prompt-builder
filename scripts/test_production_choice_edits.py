@@ -44,7 +44,8 @@ class ChoiceOwnerTests(unittest.TestCase):
 
     def test_add_replace_remove_arrays_and_escaped_object_members(self):
         self.choices = self.edit('/authoring/task/criteria/-',
-            {'id': 'output', 'text': None, 'strength': 'hard', 'evidence': 'text'}, operation='add')
+            {'id': 'output', 'text': None, 'strength': 'hard', 'evidence': 'text',
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}, operation='add')
         self.choices = self.edit('/authoring/task/criteria/0/text', 'Compare the actual authored text.')
         self.assertEqual(self.choices['authoring']['task']['criteria'][0]['text'],
             'Compare the actual authored text.')
@@ -130,7 +131,8 @@ class ChoiceOwnerTests(unittest.TestCase):
 
     def test_effective_task_changes_are_normalized_before_new_edit(self):
         self.choices['task_changes'] = {'criteria': [{'id': 'current', 'text': 'Existing current criterion.',
-            'strength': 'hard', 'evidence': 'text'}], 'direction': {
+            'strength': 'hard', 'evidence': 'text',
+                                                         'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}], 'direction': {
                 **self.choices['authoring']['task']['direction'], 'purpose': 'Previous effective purpose.'}}
         result = self.edit('/authoring/task/direction/purpose', 'Current edited purpose.')
         self.assertEqual(result['task_changes'], {})

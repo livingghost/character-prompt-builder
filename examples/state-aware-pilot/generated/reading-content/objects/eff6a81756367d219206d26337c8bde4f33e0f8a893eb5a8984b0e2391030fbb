@@ -1,0 +1,30 @@
+## Inspect events and resolved state in Axis
+
+The event lanes use actual `entity_type` values, with cards ordered by integer
+`effective_order` inside each timeline. Filter by timeline, entity type, explicit
+scene, recorded text, revisions or diagnostic presence. Cards are created a page
+at a time; linked images load lazily. Multiple-entity events can appear in more
+than one lane, retaining the same source event identity and line number.
+
+Each card retains changes, preconditions, cause, evidence, persistence, occurrence,
+canonical status, scene ID and supersession links. `effective_from`, `recorded_at`
+and `disclosed_at` appear as distinct values. A late recording does not move an
+old event to the end of story order. A scene-local card says which scene it applies
+to; the display invents no start/end time or band width for that scene.
+
+The selected-state pane displays a result from `temporal_state.resolve_world`.
+Choose a stored resolver viewpoint rather than asking JavaScript to replay events.
+Its fields link to actual before/after operation records and the base state.
+A trace names the event or process milestone, its entity-relative change and its
+absolute JSON Pointer. Container operations may affect several fields; inspect
+the recorded before/after values rather than treating proximity as causation.
+
+A record can be applied in the replay even if a later normal transition changes
+its value. This is different from being replaced by an editorial revision.
+Other labels distinguish future records, proposed/rejected records, expired or
+cleared changes, partial application and another scene's local changes.
+
+The page does not approve an interpretation or reconstruct missing evidence.
+A failed resolver view has no snapshot and explicitly asserts no state.
+Other independently resolved viewpoints remain labelled with their own coordinates.
+

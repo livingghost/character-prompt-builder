@@ -69,7 +69,7 @@ Construction questions may be empty; tag renditions need a searched vocabulary s
 
 ## Mandatory runtime activation gate
 
-Before definition vocabulary research, prompt, reference, sheet, generation or visual-state work, run `python scripts/pack_cli.py ready`. Supply `--state-file`, `--cache-dir` and `--managed-root` together for an explicit runtime; repeated `--pack-root` options add discovery roots. It initializes state once, preserves choices, lists active packs and maintains their browser catalog.
+Before definition vocabulary research, prompt, reference, sheet, generation or visual-state work, run `python scripts/pack_cli.py ready`. Explicit runtimes put `--state-file FILE --cache-dir DIR --managed-root DIR` and repeated `--pack-root DIR` discovery options before `ready`. It initializes state once, preserves choices, lists active packs and maintains their browser catalog.
 
 - Exit 0: proceed. Explain pack warnings' effects in plain terms.
 - Exit 1: each `decide:` line is the author's decision and names the command that settles it. Put new or unusable packs to the user before continuing; never continue on bundled commons alone while a discovered pack awaits that decision. Run the command the author chooses, then `ready` again. A pack the author disabled stays disabled and is not asked about again.

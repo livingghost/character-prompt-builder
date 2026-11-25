@@ -8,38 +8,35 @@ Generated file. Edit `hosts/shared/repository-guide.md.template`.
 <repo>/
   README.md CHANGELOG.md CONTRIBUTING.md DEPENDENCIES.md LICENSE
   package-manifest.toml pyproject.toml uv.lock .python-version requirements.txt
-  SKILL.md                                        the skill, and the plugin root
-  .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json      generated
-  hosts/shared/                                   templates for the generated
+  SKILL.md  skill and plugin root
+  .claude-plugin/ .codex-plugin/ .agents/ hooks/ MANIFEST.json  generated
+  hosts/shared/  templates for generated host files
+  knowledge/  section records; sources for linked Markdown
   references/ scripts/ schemas/ templates/ protocols/ config/ packs/ agents/
   examples/ .github/ .gitattributes .gitignore
 ```
 
-`SKILL.md` sits at the plugin root rather than under a `skills/` directory.
-The generated Codex manifest declares `skills: "./"` to name that root; the
-Claude manifest leaves the optional `skills` field unset. Keep these host
-configurations distinct and verify discovery under the selected host's contract.
+`SKILL.md` is at the plugin root, not under `skills/`. Codex declares
+`skills: "./"`; Claude omits optional `skills`. Preserve this distinction and
+verify discovery under the selected host's contract.
 
-The skill uses one uv environment for runtime work and validation. Follow
-[Dependencies](DEPENDENCIES.md#uv-project-environment) to synchronize it. Commands
-written with `python` run through `uv run --locked` or with the synchronized
-environment's interpreter. Paths are relative to the directory holding `SKILL.md`,
-which is wherever the skill is installed.
+Runtime and validation share one uv environment; synchronize per
+[Dependencies](DEPENDENCIES.md#uv-project-environment). Run `python` via
+`uv run --locked` or its interpreter. Paths are relative to its installed
+`SKILL.md` directory.
 
-The automatic session hook uses an already prepared environment and reports
-missing setup. It does not synchronize dependencies, write operation logs or
-refresh Studio projections. Explicit runtime commands below keep their own
-setup and update behavior.
+The automatic session hook uses a prepared environment and reports missing
+setup; it neither synchronizes dependencies nor writes operation logs or
+refreshes Studio projections. Explicit runtime commands own setup and updates.
 
-When the working directory is a Studio, preserve it and select the installed skill
-explicitly:
+Preserve a Studio working directory; select the installed skill explicitly:
 
 ```sh
 uv run --locked --project /absolute/path/to/character-prompt-builder python /absolute/path/to/character-prompt-builder/scripts/session_entry_points.py
 ```
 
-Use that same project and absolute script paths for later commands. Child tools
-inherit the selected environment's Python through `sys.executable`.
+Keep that project and absolute script paths for later commands. Children inherit
+its Python through `sys.executable`.
 
 ## Before anything reads a pack
 
@@ -47,80 +44,101 @@ inherit the selected environment's Python through `sys.executable`.
 python scripts/pack_cli.py ready
 ```
 
-Resolving the pack runtime is a session-entry precondition, not a maintenance
-step. `ready` exits 1 until the author settles each `decide:` line it prints.
-`scripts/session_entry_points.py` is what a host runs on `SessionStart`; it
-reports what the state file settles and says so where it cannot answer, because
-discovery reads every record in every root and that is the runtime's work.
+For an explicit pack runtime, place all global options before the subcommand:
 
-Compose and amend actual candidates through
-[Authoring work](references/runtime/authoring-work.md) for conversational delivery,
-saving and execution. Read the complete applicable knowledge. Saved work obtains
-runtime guidance and selected-model knowledge through the route reader under
-[Continue the requested operation](#continue-the-requested-operation-in-its-studio).
-Begin with its structural draft and reading action before following runtime
-links; the reader supplies the selected originals and their delivery evidence.
-Conversational work reads the same applicable documents directly. Reuse complete
-current material delivered in this context; a fresh context reads it again.
+```sh
+python scripts/pack_cli.py --state-file RUNTIME/state.json --cache-dir RUNTIME/cache --managed-root RUNTIME/packs ready
+```
+
+Supply all three paths together; put any `--pack-root ROOT` discovery options
+before `ready`. For every `pack_cli.py` subcommand, global options precede it
+and its own options follow.
+
+Resolve the pack runtime at session entry, not as maintenance. `ready` exits 1
+until the author settles each printed `decide:` line. On `SessionStart`, hosts
+run `scripts/session_entry_points.py` to report settled decisions and unanswered
+questions from state. The runtime discovers every record in every root.
+
+[Authoring work](references/runtime/authoring-work.md) owns compose and amend for
+conversational delivery, saving and execution. Read complete applicable knowledge.
+Saved work starts with the structural draft and reading action under
+[Continue the requested operation](#continue-the-requested-operation-in-its-studio),
+before other runtime links. Its reader supplies runtime and selected-model
+guidance, selected originals and delivery evidence. Conversational work reads
+the same documents directly. Reuse complete current material delivered in this
+context; fresh contexts reread it.
 
 ## Develop the current candidate
 
-Begin with the actual request and source applications. Choose `compose` to
-construct the current candidate or `amend` to change an actual baseline within
-the requested scope. Develop the character definition to the depth the current
-work needs, including its researched wording. Continue open details as the
-candidate develops. Authoring work owns the actual content and derives its
-difference from the baseline. Use its inspection and export actions for a
-conversational result; use Studio for requested saving or execution.
+Start from the actual request and source applications. Use `compose` for a
+candidate or `amend` for scoped changes to an actual baseline. Develop character
+definition, researched wording and open details as deeply as needed. Authoring
+work owns content and derives baseline differences. Inspect and export there
+for conversational results; use Studio for requested saving or execution.
+
+Show a useful provisional direction as soon as the request and sources support
+it. Leave unresolved choices open. Proposals do not finalize source applications,
+depiction, model input or assessment basis. Read the stage's complete applicable
+knowledge before those decisions; continue within existing delegation without
+a new approval gate for the proposal.
 
 ## Choose rendering and inspect model controls
 
-Image work includes feature `render-contract` for `references/runtime/render-contract.md` in that read.
-Use `python scripts/render_contract.py presets` when choosing an authored rendering treatment, then record who chose it and why. The operation alone is sufficient when rendering remains with the model.
-The selected-model route read supplies the complete guidance card, including input contracts, use-case advice and author preferences.
-`python scripts/render_contract.py model --model MODEL_ID` serves independent model inspection; production uses the card delivered with its selected route.
-An external target absent from the catalog uses acquired provider evidence and the ordinary external execution branch.
-Existing-image edits also require an exact semantic edit binding.
-Shared image inputs bind each subject's reference uses and the exact external request.
-Interpret source records into a depiction that the model can resolve from its actual prompt and media.
-Develop what is present, what happens and how its parts relate. Use constraints to refine that intended construction.
-Keep internal identifiers, source paths and production commentary in their owning records.
+For images, include `render-contract` for `references/runtime/render-contract.md`.
+Choose authored rendering with `python scripts/render_contract.py presets`;
+record who chose it and why. The operation alone suffices when rendering stays
+with the model. Selected-model route reads supply the complete guidance card:
+input contracts, use-case advice and author preferences.
+Use `python scripts/render_contract.py model --model MODEL_ID` for independent
+inspection; production uses its routed card. Uncataloged external targets use
+acquired provider evidence and ordinary external execution.
+Existing-image edits require exact semantic edit bindings. Shared inputs bind
+each subject's reference uses and the exact external request. Interpret source
+records into a depiction the model can resolve from its actual prompt and media.
+Develop what is present, what happens and how parts relate; constraints refine
+that construction. Keep internal identifiers, source paths and production
+commentary in their owning records.
+When revising prompts, exclude process notes (revision reasons, steps,
+deliberation and work commentary) from the output prompt. Preserve original
+intent and concrete constraints; reframe what the model should depict
+affirmatively, without inventing content or weakening necessary exclusions.
 Apply scoped model use-case guidance and current author selection preferences.
-The editable `render_intent` records the operation and binds any authored rendering declaration to its prompt span. A selected Production Specification can own it; an ordinary delivery can own it directly. External tasks retain a selected declaration as an applied source.
-Preparation shows the complete request. Dispatcher packages seal resolved controls; external bindings pin the authored request and evidence.
+Editable `render_intent` records the operation and binds authored rendering to
+its prompt span. A selected Production Specification or ordinary delivery can
+own it directly; external tasks retain selected declarations as applied sources.
+Preparation shows the complete request. Dispatcher packages seal resolved
+controls; external bindings pin the authored request and evidence.
 
 ## Continue the requested operation in its Studio
 
-Use [a production plan](references/runtime/production-work-plan.md) for saved
-work. Select its actual source and intended result directly,
-then follow the same continuation across preparation, execution, observation,
-review, selection and adoption:
+For saved work, use [a production plan](references/runtime/production-work-plan.md).
+Select the actual source and intended result, then continue through preparation,
+execution, observation, review, selection and adoption:
 
 ```sh
 python scripts/production_workflow.py plan --root STUDIO --request-file request.txt --route prompt-only --scope save
 python scripts/production_workflow.py advance --root STUDIO
 ```
 
-Retained results use `plan --root STUDIO --run RUN --scope sheet --influence identity`
-for actual sheet use, or their intended result scope. Multi-item declarations
-use `--file work-request.json`. Begin saved work here before directly reading
-the linked runtime documents; the plan's route supplies the complete current
-sections without a second broad preload.
+For retained results, use `plan --root STUDIO --run RUN --scope sheet --influence identity`
+for sheet use, or select the intended result scope. Multi-item declarations use
+`--file work-request.json`. Begin here before reading linked runtime documents;
+the route supplies complete current sections without another broad preload.
 
-The plan opens work when needed and retains each current answer file. Fill only
-the current authored choices; bindings and separate formal records are derived.
-After interruption, use the task's saved plan action. With its plan file,
-`plan` inspects historical results or refreshes changed pending judgments.
-Existing phase commands below inspect and repair their specific owners.
+The plan opens work as needed and retains each current answer file. Fill current
+authored choices; bindings and formal records are derived. After interruption,
+use the saved plan action. Given its plan file, `plan` inspects historical results
+or refreshes changed pending judgments. Phase commands below inspect and repair
+their specific owners.
 
-For retained input edits, select `--from-run RUN --operation amend` with the
-actual request and repeatable `--retain OWNER --change SCOPE`. The plan initializes
-`work-basis.json.change_scope`, which owns the current declaration. The runtime
-unions it with actual editable differences, selects complete amendment sections
-and advances only through the stages that need work. A retained view edit needs
-its actual identity, geometry and review contracts; a changed definition reopens
-its complete design knowledge. Read [the amendment scope](references/runtime/production-authoring.md#declare-a-retained-amendment)
-for the supported owners, exact source comparison and final validation boundaries.
+For retained input edits, use `--from-run RUN --operation amend`, the actual
+request and repeatable `--retain OWNER --change SCOPE`. The plan initializes
+`work-basis.json.change_scope` as the declaration owner. The runtime unions it
+with actual editable differences, selects complete amendment sections and
+advances through stages needing work. Retained view edits need their identity,
+geometry and review contracts; definition changes reopen complete design
+knowledge. [The amendment scope](references/runtime/production-authoring.md#declare-a-retained-amendment)
+defines supported owners, exact source comparison and final validation boundaries.
 
 ```sh
 python scripts/studio.py init --out STUDIO --studio-id <id> --title "<title>"
@@ -129,232 +147,212 @@ python scripts/production_workflow.py draft-inputs --root STUDIO --operation com
 python scripts/execution_routes.py read --root STUDIO --choices work/draft/choices.json
 ```
 
-New character drafts begin at `definition`, enlargement at `prepare`, and
-reopened unfinished work retains its saved stage. `draft-inputs --stage STAGE`
-selects another current scope. Continue the actual files through the current
-stage with
+New character drafts start at `definition`, enlargement at `prepare`; reopened
+unfinished work retains its stage. `draft-inputs --stage STAGE` selects another
+scope. Continue the actual files with
 `production_workflow.py stage-inputs --root STUDIO --choices work/draft/choices.json --stage STAGE`.
-Select `definition` for the character and source applications, `depiction` for
-the constructed candidate and independent criteria, `rendition` for its actual
-text and controls, or `prepare` for finished input binding. Read the returned
-stage's complete original sections before making its decisions. Stages preserve
-all editable files and earlier results; their structural readiness supplies no
-artistic completion or authority. Follow
+Use `definition` for character and source applications, `depiction` for the
+constructed candidate and independent criteria, `rendition` for actual text and
+controls, and `prepare` for finished input binding. Read the stage's complete
+original sections before its decisions. Stages preserve all editable files and
+earlier results; structural readiness supplies no artistic completion or authority.
+Follow
 [Read the current stage](references/runtime/production-workflow.md#read-the-current-stage).
 
-For direct phase commands, open the work task before drafting. Establish the character's concrete definition
-under [Production direction](references/runtime/production-direction.md#establish-the-character-for-this-use),
-using a task-local definition when that is sufficient. Studio registration is
-separate; a one-image definition needs no placeholder character record. Retain
-explicitly scoped setting-only work. During definition authoring, select feature
-`vocabulary` and follow [definition wording](references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
-The choices-based reader derives the current scope from its stage, composition,
-sources, references, execution and selected target. Inspect it again when those
-choices change; additional requirements can need delivery within the same stage.
-For operations without editable choices, select `author`, `save`, `prepare`, `execute`, `review`, `adopt` or `withdraw` for the current
-operation and take `authored`, `external` or `dispatcher` from the task's execution
-kind. Add the applicable specialist features. Include `--model MODEL`
-and the selected `--service SERVICE`, `--model-file FILE` for an acquired model,
-or `--dialect ID` for family-only work. For adoption, use the draft's reading action with its destination
+For direct phase commands, open the work task before drafting. Establish a
+concrete character definition under [Production direction](references/runtime/production-direction.md#establish-the-character-for-this-use);
+a task-local definition may suffice. Studio registration is separate; one image
+needs no placeholder character record. Preserve explicitly scoped setting-only
+work. Definition authoring selects `vocabulary` and follows
+[definition wording](references/runtime/prompt-vocabulary.md#define-a-character-with-usable-wording).
+The choices-based reader derives scope from stage, composition, sources,
+references, execution and target. Reinspect changed choices; new requirements
+can need delivery within the same stage.
+Without editable choices, select the current operation (`author`, `save`,
+`prepare`, `execute`, `review`, `adopt` or `withdraw`) and the task's execution
+kind (`authored`, `external` or `dispatcher`). Add applicable specialist features,
+`--model MODEL` and selected `--service SERVICE`, `--model-file FILE` for an
+acquired model, or `--dialect ID` for family-only work. For adoption, use the
+draft's reading action with destination
 `--scope delivery-only|studio-slot|sheet|catalog` and independent
 `--source-kind production-candidate|imported-iteration`. Sheet withdrawal uses
 `--operation withdraw --scope sheet` with the actual source owner. The reader
-indexes every required section and its selection reason for that complete
-operation, execution and destination contract. Whole-source internal headings
-expand with `--snapshot ID --index-source SELECTOR`; this navigation delivers no
-body. `selection_reason_ids` resolve in the shared `selection_reasons` map.
-Generated stage reads begin complete paged delivery. Use actions.index to inspect
-the scope or select exact sections. Continue until reading.record is issued.
-An earlier source-delivery record alone does not supply knowledge to a new context.
-The reader returns JSON by default. Add `--view text` to display every original
-body with its source range and short continuation controls, while retaining
-the complete JSON in the returned `response_file`. Each call uses a new file
-under `reading-responses` beside the ledger, or in `--response-dir DIRECTORY`.
-Its next action keeps that display and directory. Read selection reasons once
-through the index; complete metadata and other actions remain in the saved JSON.
-An explicitly requested index delivers no source body.
-Read each `body` segment, follow `actions.continue` within a selected section and
-`actions.next` for remaining required material, and retain the issued
-`reading.record`. A null continuation alone does not establish completion.
-Begin a model context with `plan --fresh-context` or `advance --fresh-context`.
-Carry the returned `--reading-context` in its subsequent actions. The reader
-automatically selects complete current-context readings, delivers missing or
-changed ranges and issues a record for the current scope. Generated draft
-reading actions use `--bind-choices` to attach that completed record to the
-exact unchanged draft. A concurrent edit returns the current owner's reading
-repair without overwriting authored content. Low-level readings can still use
-explicit `context_reuse.arguments`; each prior record keeps its original scope.
-Fresh contexts use `inspect-inputs --root STUDIO --choices FILE` to find the
-current stage and source files, then read its applicable bodies again with
+indexes every required section and reason for the complete operation, execution
+and destination contract. Expand whole-source sections with
+`--snapshot ID --index-source SELECTOR`; navigation delivers no body.
+`selection_reason_ids` resolve in shared `selection_reasons`.
+Generated stage reads start complete paged delivery. Use actions.index to inspect
+scope or select sections; continue until reading.record is issued. An earlier
+delivery record alone supplies no knowledge to a new context.
+The reader defaults to JSON. `--view text` displays every body, section identity
+and short continuation controls, retaining complete JSON in `response_file`.
+Each call creates a file in `reading-responses` beside the ledger, or
+`--response-dir DIRECTORY`. Next actions retain the display and directory.
+Read reasons once through the index; saved JSON retains full metadata and other
+actions. An explicit index delivers no body.
+Read each `body` segment; follow `actions.continue` within a section and
+`actions.next` for remaining material. Retain `reading.record`; a null
+continuation alone does not establish completion.
+Begin a model context with `plan --fresh-context` or `advance --fresh-context`
+and carry its `--reading-context` in later actions. The reader selects complete
+current-context readings, delivers missing or changed sections and issues the
+current scope's record. Generated draft actions use `--bind-choices` to attach
+it to the exact unchanged draft. Concurrent edits return the owner's reading
+repair without overwriting authored content. Low-level reads may use explicit
+`context_reuse.arguments`; prior records retain their original scopes.
+Fresh contexts locate the stage and source files with
+`inspect-inputs --root STUDIO --choices FILE`, then reread applicable bodies with
 `--fresh-context`, without earlier context IDs or `--known-reading` selections
-and without discarding production work. No historical receipt supplies knowledge after
-compaction. Earlier completed decisions remain actual source content; revisit
-them when the request or their applicability changes.
+and without discarding production work. Historical receipts supply no knowledge
+after compaction. Completed decisions remain source content; revisit them when
+the request or their applicability changes.
 
-Use the draft's `authoring_guide` and `explain-inputs --root STUDIO --choices FILE`
-to locate its editable files, schemas, logical contracts and complete examples.
-Edit the draft's files and authored choices. Task direction, independent criteria,
-source use, expression and controls stay with their responsible author. The
-compiler derives bindings, reference positions and file hashes:
+Find editable files, schemas, logical contracts and complete examples through the
+draft's `authoring_guide` and `explain-inputs --root STUDIO --choices FILE`.
+Edit its files and choices. Authors own task direction, independent criteria,
+source use, expression and controls; the compiler derives bindings, reference
+positions and file hashes:
 
 ```sh
 python scripts/production_workflow.py save --root STUDIO --choices work/draft/choices.json
 python scripts/production_workflow.py prepare --root STUDIO --choices work/draft/choices.json
 ```
 
-Select stage `prepare` and complete its current reading for finished input.
-Use the operation requested: `save` records authored text, while `prepare` makes
-an inspectable model request. `save --draft` preserves unfinished choices.
+For finished input, select stage `prepare` and complete its current reading.
+Use the requested operation: `save` records authored text; `prepare` makes an
+inspectable model request; `save --draft` preserves unfinished choices.
 Completed target-specific text uses the model's grammar and actual dictionary
-search for a tag target, including when no image is generated. `check --choices`
-is an optional diagnostic, and `build-inputs` exports the derived inputs when
-that separate output is needed. Ordinary descriptive preparation needs no unused
-plot, specification, creative-intent or retrieval placeholders. A selected
-specialist document still follows its full contract.
+search for tag targets, even without image generation. `check --choices` is an
+optional diagnostic; `build-inputs` exports derived inputs when needed separately.
+Ordinary descriptive preparation needs no unused plot, specification,
+creative-intent or retrieval placeholders. Selected specialist documents retain
+their full contracts.
 
-[Studio Runtime](references/runtime/studio.md) owns the workspace and candidates.
-[Production workflow](references/runtime/production-workflow.md) locates each
-complete operation contract. The status and session-entry reports expose the
-current source files, partial reading and next action. After a content edit,
-compile those source files again; previous saved revisions and prepared inputs
-remain intact. `draft-inputs --from-run --operation compose|amend` uses the saved
-work as the current operation's source. Supply a changed commission with
-`--request-file FILE`; continuation of the same commission can reuse its saved
-request. Use `--task-id` when reopening under another active work task. The
-registered goal names the work; the actual request remains the source for
-production and review.
+[Studio Runtime](references/runtime/studio.md) owns workspace and candidates;
+[Production workflow](references/runtime/production-workflow.md) locates complete
+operation contracts. Status and session-entry reports expose current sources,
+partial reading and next actions. Recompile edited sources; previous saved
+revisions and prepared inputs remain intact.
+`draft-inputs --from-run --operation compose|amend` uses saved work as its source.
+Supply changed commissions with `--request-file FILE`; unchanged commissions can
+reuse saved requests. Use `--task-id` to reopen under another active task. The
+registered goal names work; the actual request governs production and review.
 
-For dispatcher generation, preparation publishes the verified Generation Package,
-exact request and execution plan together. The author's actual authorization
-supplies the decisions for `draft-execution` and `execute`. Execution checks that
-authority, claims the operation, performs its handoff and records returned media.
-`resume` recovers that same operation after interruption. `status` exposes its
-submission, media and actual next command. `variant` prepares changed input;
-`repeat` prepares another run of the same input. Offering-attributed parameter
-contracts constrain the request before anything is sent.
-For another model or service, reopen with `draft-inputs --from-run --operation amend --model --service`
-and follow [Change the target](references/runtime/production-variation.md#change-the-target-explicitly).
-The current target and evidence selectors own regeneration of request validation;
-carry meaningful content and references through that same editable workflow.
+Dispatcher preparation publishes the verified Generation Package, exact request
+and execution plan together. Actual author authorization supplies decisions for
+`draft-execution` and `execute`. Execution verifies authority, claims the
+operation, performs the handoff and records media. `resume` recovers the same
+interrupted operation; `status` exposes submission, media and next command.
+`variant` prepares changed input; `repeat` prepares another run of the same input.
+Offering-attributed parameter contracts constrain requests before sending.
+To change model or service, reopen with `draft-inputs --from-run --operation amend --model --service`
+under [Change the target](references/runtime/production-variation.md#change-the-target-explicitly).
+Current target and evidence selectors own request-validation regeneration;
+carry meaningful content and references through the same editable workflow.
 
-The offering's service ID selects its Studio authentication configuration. [Studio authentication](references/runtime/studio-authentication.md)
-owns one entry per service in the Studio's private `credentials.json`:
-`api_key` holds its saved value, or `api_key_env` names its runtime environment
-variable. Follow the existing source and the owner's choice. Prepare the service
-entry before giving the owner the actual file path and JSON Pointer. Pause edits
-while the owner fills the saved string and saves. An environment source reads
-its named variable from the executing process. Once the chosen source is
-available, check that service and the target run's authentication selection and
-readiness, then continue its reported next action. The claim records the service
-and nonsecret source, including the variable name for an environment source.
-Authenticated recovery requires that recorded source; replacing its value
-supports rotation. Saved values remain available independently of environment
-variables. The private JSON is excluded from ordinary production inputs,
-artifact registration and Skill packaging. A whole Studio folder copy includes
-it. The value is supplied separately to the transport and sent only to its
-accepted host. Local key availability and submission authority are separate
-checks.
+The offering's service ID selects [Studio authentication](references/runtime/studio-authentication.md):
+one entry per service in private `credentials.json`. `api_key` holds a saved
+value; `api_key_env` names a variable in the executing process. Follow the
+existing source and owner's choice. Prepare the service entry, then give the
+owner its actual path and JSON Pointer. Pause edits while they fill and save the
+string. Once available, check the service and target run's authentication
+selection and readiness; continue its next action. The claim records service
+and nonsecret source, including an environment variable's name. Authenticated
+recovery requires that recorded source; replace its value for rotation. Saved
+values remain independent of environment variables. Exclude private JSON from
+ordinary production inputs, artifact registration and Skill packaging; a whole
+Studio copy includes it. Supply the value separately to transport, sending it
+only to its accepted host. Check local key availability and submission authority
+separately.
 
-External host tools use the same preparation, review and capture owners.
-Follow the execution contract's `draft-execution` and `execute` decisions,
-then invoke the returned host request once. `receive-external` takes the actual
-response and images, derives their records and settles that call. `task.image_input` binds original images,
-their uses and the exact provider request. `task.semantic_edit` owns requested
-changes, preservation and review of an existing image.
-For a further external trial, use `draft-inputs --from-run --operation compose|amend`,
-edit the chosen changes, then use `prepare --choices` on that draft.
-Use `status` or `resume` after interruption and recover the existing host result.
-During authoring, `inspect-inputs --root STUDIO` locates the open work task's
-saved choices, published inputs and partial route reading, including new edits
-beside an existing run. Continue those files
-and returned actions; the discovery record supplies no judgment or permission.
+External host tools share preparation, review and capture owners. Follow
+`draft-execution` and `execute` decisions, then invoke the returned host request
+once. `receive-external` derives records from the actual response and images and
+settles that call. `task.image_input` binds original images, their uses and exact
+provider request; `task.semantic_edit` owns changes, preservation and review of
+an existing image. For another trial, use
+`draft-inputs --from-run --operation compose|amend`, edit chosen changes and run
+`prepare --choices`. After interruption, use `status` or `resume` to recover the
+existing host result. During authoring, `inspect-inputs --root STUDIO` locates
+the open task's saved choices, published inputs and partial route reading,
+including new edits beside an existing run. Continue those files and actions;
+discovery supplies no judgment or permission.
 
 ## What the Skill conforms to
 
-Character Prompt Builder uses the
-[Agent Skills specification](https://agentskills.io/specification). Its format
-requires `name` and `description`, limited to 64 and 1024 characters respectively.
-The specification recommends keeping the main instructions below 5000 tokens,
-keeping `SKILL.md` below 500 lines, and making referenced material reachable
-without deep chains of links. Detailed resources are loaded when the task needs
-them. These recommendations do not establish identical refusal or delivery
-behavior across hosts.
+The [Agent Skills specification](https://agentskills.io/specification) requires
+`name` (up to 64 characters) and `description` (up to 1024 characters). It recommends main
+instructions below 5000 tokens, `SKILL.md` below 500 lines and reachable references
+without deep link chains. Load details as needed. Recommendations do not ensure
+identical refusal or delivery across hosts.
 
-This repository enforces its own entry document limits in `scripts/validate.py`.
-It rejects `SKILL.md` above 500 lines or 5000 estimated tokens, counting the whole
-file and rounding characters divided by four upward. The estimate is a local
-validation measure rather than a tokenizer result. Preserve complete detailed
-instructions in the routed resources when organizing the entry document.
+Local `scripts/validate.py` rejects `SKILL.md` above 500 lines or 5000 estimated
+tokens, counting the whole file as characters divided by four, rounded up.
+This is a validation estimate, not a tokenizer result. Preserve complete details
+in routed resources when organizing the entry document.
 
-The validator also checks that every reference document is reached from a
-`SKILL.md` link or from a route or feature `SKILL.md` names. Every script
-entrypoint other than a test module is named by routed documentation, and
-`scripts/run_checks.py` names every test module. Run scripts for supported
-operations; read their implementation when maintaining or investigating those
-operations. Verify host support and actual delivery separately from these local
-checks.
+The validator requires every reference to be reachable from a `SKILL.md` link or
+a route or feature it names. Routed documentation names every non-test script
+entrypoint; `scripts/run_checks.py` names every test module. Run scripts for
+supported operations; inspect implementation for maintenance or investigation.
+Verify host support and actual delivery separately from local checks.
 
 ## Source ownership and change discipline
 
 Apply [Agent workflow design](references/maintenance/agent-workflow-design.md)
-when changing authoring, execution or recovery. It owns the shared design
-criteria for agent judgment, derived inputs, phase context and task continuity.
+to authoring, execution or recovery changes. It owns criteria for agent judgment,
+derived inputs, phase context and task continuity.
 
-This repository owns its runtime, documentation, schemas, examples and tests.
-Data exchange follows explicit public artifact contracts.
+This repository owns runtime, docs, schemas, examples and tests;
+exchange uses explicit public artifact contracts.
 
-Apply a clean-state design: treat the new specification as if it had been present
-from the beginning. Reconsider the affected responsibilities, structure and
-implementation from first principles, and replace superseded paths at their
-owners instead of layering corrective exceptions over them.
+Apply clean-state design: treat the new specification as present from the start.
+Rethink affected responsibilities, structure and implementation from first
+principles. Replace superseded paths at their owners, without corrective layers.
 
 Do not preserve or guarantee compatibility with previous APIs, data formats,
-configuration or behavior. Do not retain or introduce compatibility layers,
-aliases, old-version branches or fallback paths for superseded contracts. Do not
-add tests whose sole purpose is to verify incompatibility with superseded behavior.
+configuration or behavior. Keep no compatibility layers, aliases, old-version branches or fallback
+paths for superseded contracts, or tests solely verifying incompatibility.
 
-Compatibility is not a maintenance requirement, and deliberate incompatibility
-is not a goal. Do not add rejection, deletion, reset or obstruction merely to
-prevent existing work from carrying forward. Preserve content, choices and
-evidence that remain meaningful under the current design; reassess their actual
-applicability when the selected inputs or target change. Do not invalidate
-otherwise applicable work solely because it originated before the change.
+Compatibility is not required; deliberate incompatibility is not a goal.
+Do not reject, delete, reset or obstruct work merely to prevent its
+continuation. Preserve meaningful content, choices and evidence; reassess their
+applicability when inputs or targets change. Age alone never invalidates
+otherwise applicable work.
 
-Keep generation provenance and later curation decisions separate. Placement or
-canonical withdrawal retains the exact result and historical completion; it
-records its own authored target and evidence. A retry of an earlier decision
-must not restore state that a later decision replaced. Follow the owning read
-and mutation boundaries in [Agent workflow design](references/maintenance/agent-workflow-design.md).
+Separate generation provenance from later curation. Placement or canonical
+withdrawal retains the exact result and historical completion, recording its own
+authored target and evidence. Retrying an earlier decision must not restore state
+replaced by a later one. Follow read and mutation ownership in
+[Agent workflow design](references/maintenance/agent-workflow-design.md).
 
-Scope ordinary navigation and display updates to the current or affected work.
-Keep explicit historical inspection and repair available. Reuse a derived
-display only under its complete content-dependency contract; it supplies no
-permission or validation result to an effect boundary. Author meaningful
-adoption choices once and derive their operation bindings without requiring
-manual hashes or intermediate authorization documents.
+Scope ordinary navigation and display updates to current or affected work;
+retain explicit historical inspection and repair. Reuse derived displays only under
+their complete content-dependency contract; they confer no permission or
+validation at effect boundaries. Author meaningful adoption choices once and derive
+operation bindings without manual hashes or intermediate authorization documents.
 
-Make first input authoring possible without Studio history or implementation
-inspection. Keep each selected authoring document at one editable file and
-derive its captured hashes at compilation. Expose actual schemas or logical
-validators, permitted fields, complete examples and source-aware repairs from
-the draft and public help. Required route knowledge has explicit indexed scope;
-indexes and partial sections never certify complete delivery.
+Enable first input authoring without Studio history or implementation inspection.
+Keep each selected document in one editable file; derive captured hashes at
+compilation. The draft and public help expose actual schemas or logical
+validators, permitted fields, complete examples and source-aware repairs.
+Explicitly index the scope of required route knowledge; indexes and partial sections never
+certify complete delivery.
 
-Describe content checks by the bytes and operation they actually cover. Local
-hashes and event records establish comparisons with a recorded baseline, not
-authenticated issuance or user signatures. Keep editable choices, retained
-revisions and actual authority distinct. Correct an inconsistent read at its
-owner; additional gates or duplicated author input need a demonstrated purpose
-and a cost proportionate to the failure they address.
+Describe checks by their actual bytes and operation. Local hashes and events
+compare recorded baselines; they do not authenticate issuance or user signatures.
+Distinguish editable choices, retained revisions and actual authority. Fix
+inconsistent reads at their owner. Added gates or duplicated author input need
+a demonstrated purpose and cost proportionate to the addressed failure.
 
-An explicitly selected prepared run executes its saved revision. Changes to
-editable choices, reading records, original files or current Studio placement
-are navigation and impact information, not a reason to require restoration of
-the originals. New preparation acquires the selected revision; a variant,
-repeat or ordinary reopened draft retains the source run's meaningful saved
-input until the author replaces it. A source-based restart retains original
-source scope and current protected requirements while reopening the realization. Keep current authority, saved-content validity and
-execution ownership as their own effect-boundary responsibilities.
+An explicitly selected prepared run executes its saved revision. Changed editable
+choices, reading records, originals or Studio placement inform navigation and
+impact; they do not require restoring originals. New preparation acquires the
+selected revision. Variants, repeats and ordinary reopened drafts retain the
+source run's meaningful saved input until replaced by its author. A source-based
+restart retains original source scope and current protected requirements while
+reopening realization. Current authority, saved-content validity and execution
+ownership retain separate effect-boundary responsibilities.
 
 Preserve necessary requirements, authored knowledge and the material needed for
 judgment under [Writing for a reader](#writing-for-a-reader). Update producers,
@@ -362,36 +360,34 @@ validators, templates and fixtures together when their contract changes.
 
 Creative defaults follow
 [Production direction](references/runtime/production-direction.md#form-a-prompt-from-an-idea).
-Ground the first proposed picture as a whole in the intended effect and actual
-source authority: emotional register, visual language, palette and light, mark
-and surface treatment, framing and visible detail. Derive exclusions and review
-criteria from those choices. Agent convenience and easy completeness checks do
-not justify requiring a whole figure, intact frame margins or any other fixed
-composition. Keep deliberate crop distinct from damaged anatomy, and preserve
-meaningful full-figure uses as well as selective views. Respect the author's
-declared style, adopted scenes and local edits when correcting an unchosen
-default. Correct habitual choices at their decision owners and contributing
-defaults; do not substitute another favorite mood, medium or shot, impose novelty
-quotas or random rotation, or prohibit media or prompt words.
-Generic authoring templates leave unchosen art direction unresolved. Scripts
-validate authored constraints without choosing the picture. Assess changed
-guidance with independent first proposals for different realistic briefs under
+Ground the whole first picture in intended effect and actual source authority:
+emotional register, visual language, palette and light, mark and surface treatment,
+framing and visible detail. Derive exclusions and review criteria from those
+choices. Convenience or easy completeness checks cannot require whole figures,
+intact margins or other fixed compositions. Distinguish deliberate crop from
+damaged anatomy; preserve meaningful full figures and selective views. Correct
+unchosen defaults while respecting declared style, adopted scenes and local edits.
+Correct habitual choices at their decision owners and contributing defaults;
+do not replace them with another favorite mood, medium or shot, novelty quotas,
+random rotation, or prohibitions on media or prompt words.
+Generic authoring templates leave unchosen art direction unresolved; scripts validate
+authored constraints without choosing pictures. Assess changed guidance through
+independent first proposals for different realistic briefs under
 [creative-direction evaluation](references/maintenance/testing.md#creative-direction-evaluation).
-Evaluate open creation from topics or actual sparse requests; adding focal
-content or stylistic cues to elicit a target picture invalidates that claim.
-Retain exact requests, first answers and failures. Compare art direction across
-the sample, not only camera choices: different subject names or scenes do not
-establish that a habitual mood, visual language, palette or surface has changed.
-First assess whether each proposal still develops the commissioned content,
-subject roles and stated use. A character becoming incidental to another
-subject is not improvement through variety. Open detail does not authorize an
-invented commission. Exact selected-model evidence constrains proposed means;
-portable wording and dictionary membership do not demonstrate a visual effect.
-Rendering choices may remain with the image model. A complete prompt need not
-name a medium or finish; authoring and preparation must not fabricate either
-to populate metadata. Preserve applicable explicit choices through retries.
-Report repeated choices as well as suitable variation, within the observed
-conditions and models and the causal evidence available.
+Evaluate open creation from topics or actual sparse requests. Added focal
+content or stylistic cues eliciting a target picture invalidate that claim.
+Retain exact requests, first answers and failures. Compare art direction across the sample,
+not only cameras: changed subject names or scenes do not establish changed mood,
+visual language, palette or surface. First check each proposal develops the
+commissioned content, subject roles and stated use. Making a character incidental
+to another subject is not improved variety. Open detail authorizes no invented
+commission. Exact selected-model evidence constrains proposed means; portable
+wording and dictionary membership do not demonstrate visual effects.
+Rendering may remain with the image model; complete prompts need not name a
+medium or finish. Authoring and preparation must not fabricate either for
+metadata. Preserve applicable explicit choices through retries. Report repeated
+choices and suitable variation within observed conditions, models and available
+causal evidence.
 
 - Keep implementation details local to their owning product and generate derived files from their declared sources.
 - Use explicit identifiers, evidence and declared constraints for mechanical checks; the responsible author evaluates meaning and acceptance.
@@ -399,71 +395,73 @@ conditions and models and the causal evidence available.
 - Place neutral synthetic examples under `examples/` and preserve the user's material in their own studio.
 - Give each text-encoding test one necessary non-ASCII fixture, distributing script coverage across tests.
 - Report executed checks separately from unverified behavior, including incomplete runs and environmental failures.
-- An agent acts on what a command prints, on `--help` and on a search of the documents and code.
-  A change that adds or alters a reported state or value, an option, a refusal or a diagnostic updates those surfaces with it:
-  the report gives the meaning or the next action, the diagnostic names its repair in `required_action` instead of the default text,
-  `--help` describes the option or value, and the routed document and the diagnostic code table say the same.
+- Agents act on command output, `--help` and searches of documents and code.
+  Changes to reported states or values, options, refusals or diagnostics update
+  those surfaces together: reports give meaning or next actions, diagnostics name
+  repairs in `required_action` instead of default text, and `--help` describes
+  options and values. Routed documents and diagnostic code tables agree with them.
   Follow [Context for judgment](references/maintenance/agent-workflow-design.md#context-for-judgment).
 
-Prepare a release commit only after local validation and packaging agree.
-Add its CHANGELOG section above the earlier ones, with what changed for a user.
-Squash intermediate maintenance edits into that release commit.
-Publish a UTC CalVer version with a push and inspect its matching CI run.
-Tags and hosted releases require a separate instruction.
+Commit a release only after local validation and packaging agree. Put its
+user-facing CHANGELOG above earlier sections; squash intermediate maintenance
+edits into that commit. Push a UTC CalVer version and inspect matching CI.
+Tags and hosted releases need a separate instruction.
 
 ## Working on this repository
 
 ```
-python scripts/rebuild_metadata.py   regenerate the derived files
-python scripts/run_checks.py         run every test suite once, in parallel
-python scripts/validate.py .         the repository-wide diagnostic
-python scripts/package.py            build the release and check the extracted copy
+python scripts/knowledge_document_build.py
+python scripts/seal_contract.py
+python scripts/rebuild_metadata.py # derive files
+python scripts/run_checks.py # every suite once, in parallel
+python scripts/validate.py . # repository-wide diagnostic
+python scripts/package.py # build release and check the extracted copy
 ```
 
-The product's own tests run from a temporary copy of its declared files, with
-source-owned CI and source-control settings when present. The checks enable the
-shipped packs alone. Release catalog validation uses those pack roots directly;
-independently authored packs have their own release gates.
+Tests run in a temporary copy of declared product files, including source-owned
+CI and source-control settings when present. Checks enable only shipped packs;
+release catalog validation uses their roots directly. Independent packs retain
+their own release gates.
 
 `.claude-plugin/`, `.codex-plugin/`, `.agents/`, `hooks/`, `MANIFEST.json` and
-`config/integration-capabilities.json` are generated from `[package]` in
-`package-manifest.toml`, and `config/implementation-files.json` from the import
-closure of the production modules, with the digest of each module. A
-preparation refuses an index whose modules changed since it was written. Edit
-the metadata and the templates, never the generated files.
+`config/integration-capabilities.json` derive from `[package]` in
+`package-manifest.toml`; `config/implementation-files.json` records the production
+modules' import closure and each module's digest. Preparation rejects an index
+whose modules changed since writing. Edit metadata, templates and knowledge
+records; rebuild generated files.
 
 ### Resume and evaluate a Skill change
 
-1. Resume from retained source, intermediate work, raw logs and pending findings.
-   Identify their revisions and hashes; a previous passing report covers its
-   recorded snapshot. Preserve the original user material and failed attempts.
-2. Give independent operators the fixed Skill, realistic requests and separate
-   Studios and runtimes. Use the user's requested model and reasoning effort,
-   recording the settings actually selected. Keep expected answers and the
-   diagnosis out of an unaided trial; record later assistance separately.
-3. Have operators review each other's raw actions and artifacts. Measure commands,
-   reading and search, edits, retries and recovery through the declared outcome.
-   Compare the actual result, cited source bytes and ledger, beyond exit codes.
-4. Trace mistakes to their preceding instructions, choices and recovery. Judge
-   recurrence, recovery cost and result impact before choosing a fix, no change
-   or further investigation. A recovered typo alone does not justify a new gate;
-   a demonstrably incorrect committed result can justify repair on its first occurrence.
-5. Repair the responsible source owner, exercise the affected task and verify the
-   resulting package. Keep required knowledge and judgment while reducing effort.
-   Distinguish fresh trials, assisted recovery, automated checks, synthetic cases,
-   environment skips and incomplete work in the report.
+1. Resume retained source, intermediate work, raw logs and pending findings;
+   identify revisions and hashes. Prior passing reports cover their recorded
+   snapshots. Preserve original user material and failed attempts.
+2. Give independent operators a fixed Skill, realistic requests and separate
+   Studios and runtimes. Use the user's model and reasoning effort; record
+   actual selections. Exclude expected answers and diagnoses from unaided
+   trials; record later assistance separately.
+3. Operators review each other's raw actions and artifacts. Measure commands,
+   reading, search, edits, retries and recovery through the declared outcome.
+   Compare actual results, cited source bytes and ledger beyond exit codes.
+4. Trace mistakes to preceding instructions, choices and recovery. Assess
+   recurrence, recovery cost and result impact before fixing, leaving unchanged
+   or investigating further. A recovered typo alone warrants no new gate; a
+   demonstrably wrong committed result can warrant repair on its first occurrence.
+5. Repair the source owner, exercise affected tasks and verify the package.
+   Reduce effort while preserving required knowledge and judgment. Distinguish
+   fresh trials, assisted recovery, automated checks, synthetic cases,
+   environment skips and incomplete work in reports.
 
 [Evaluation](references/maintenance/agent-workflow-design.md#workflow-trial-records)
-defines the evidence and comparison boundaries. These are maintenance procedures;
-ordinary creative work follows its own runtime path.
+defines evidence and comparison boundaries. Maintenance procedures are separate
+from ordinary creative work's runtime path.
 
-`AGENTS.md` and `CLAUDE.md` share this template. Regenerate them together. After
-implementation edits, refresh metadata before commands that enforce the module
-index. Rebuild affected canonical examples with their owning builders, then
-refresh metadata again after generated outputs change. Freeze the tested source
-and package hashes; later edits require the affected checks and required gates
-for the new revision. Keep source versions, lock metadata and the canonical ZIP
-filename consistent under [Release Validation](references/release/validation.md).
+Regenerate `AGENTS.md` and `CLAUDE.md` together from this template. After
+implementation edits, refresh metadata before commands enforcing the module index. Rebuild
+affected canonical examples with their owning builders; refresh metadata again
+after outputs change. Freeze tested source and package hashes. Later edits need
+affected checks and required gates for the new revision. Keep source versions,
+lock metadata and canonical ZIP names consistent under
+[Release Validation](references/release/validation.md).
 
 Follow [Maintenance testing](references/maintenance/testing.md) for check execution
 and subsystem coverage. [Release Validation](references/release/validation.md)
@@ -471,49 +469,47 @@ owns the publication sequence and acceptance conditions.
 
 ## Writing for a reader
 
-These rules apply to every file a person reads: README, CONTRIBUTING, CHANGELOG,
-the references, the templates, docstrings and commit messages.
+Apply these rules to every human-readable file: README, CONTRIBUTING, CHANGELOG,
+references, templates, docstrings and commit messages.
 
-- State what a thing does and who decides: "the tool records every returned
-  candidate" and "the author decides when a candidate becomes canon". Keep the
-  conditions, limits and evidence needed to apply those statements correctly.
-- Give sentences and paragraphs a clear purpose. Use lists for parallel items
-  or ordered steps, while preserving the relationships and explanations that
-  make the information usable. Length alone does not determine completeness.
-- Prefer familiar words and explain required product terms where the reader
-  encounters them. Retain the distinctions and definitions needed for each use.
-- Show a real example beside a claim about output. Include the input, output
-  and context needed to assess the claim, and label a synthetic fixture as such.
-  An excerpt must identify its scope and keep the evidence relevant to the claim.
-- Preserve supported behavior, authored knowledge and the material needed for
-  judgment when revising instructions. Before considering removal, examine the
-  mechanism, theory or function from multiple relevant perspectives and establish
-  that it is complete within its intended scope. Inspect its requirements,
-  implementation, dependent uses, examples and failure cases. Establishing that
-  completeness is a prerequisite; it does not itself justify any deletion.
-- A passing test suite, current nonuse or similar wording alone establishes
-  neither completeness nor lack of need. Preserve the material needed to examine
-  unresolved dependencies and to support future extensions of the intended
-  design. After establishing completeness, assess each proposed deletion's
-  effects and verify that every affected use retains its behavior, explanatory
-  basis and necessary information.
-- Repeated wording or a shorter replacement alone is insufficient reason to
-  delete material. Keep explanations that supply another perspective, expose a
-  dependency, support a different check or make a local procedure understandable.
-  Consolidate only when those functions survive, the complete owning source is
-  reachable, and the affected procedures and references remain usable. State the
-  reason in the change review and verify the resulting behavior and meaning.
-- Teach the desired result and the actions that produce it. Keep constraints
-  scoped to the properties or operations they govern, and carry the selected
-  content into the deliverable. Ground requirements in the commission,
-  applicable adopted definitions and intended use. Treat the author's chosen
-  method as a means whose success is judged against those requirements.
-- State durable product facts, rules and evidence in records and artifacts.
-  Keep task-specific work instructions, work reports, process notes, decision
-  histories, session narratives and conversation quotations out of product artifacts.
-  Generalize task-specific lessons into reusable guidance.
-  A measurement's evidence (when, what, the result) is a fact; the story of
-  producing it is not.
+- State behavior and decision ownership: "the tool records every returned
+  candidate"; "the author decides when a candidate becomes canon". Preserve
+  conditions, limits and evidence needed to apply each statement.
+- Give sentences and paragraphs a purpose. List parallel items or ordered steps,
+  preserving useful relationships and explanations. Length alone does not
+  establish completeness.
+- Prefer familiar words; explain required product terms at their point of use,
+  retaining necessary distinctions and definitions.
+- Place real examples beside output claims, with input, output and context
+  sufficient to assess them. Label synthetic fixtures. Excerpts identify their
+  scope and retain evidence relevant to the claim.
+- Preserve supported behavior, authored knowledge and judgment material when
+  revising instructions. Before considering removal, examine the mechanism,
+  theory or function from multiple relevant perspectives and establish
+  completeness within its intended scope. Inspect requirements, implementation, dependent
+  uses, examples and failures. Completeness is prerequisite, not justification
+  for deletion.
+- Passing tests, current nonuse or similar wording alone prove neither
+  completeness nor lack of need. Preserve material for unresolved dependencies
+  and future extensions of the intended design. Once completeness is established,
+  assess each deletion's effects and verify every affected use retains behavior,
+  explanatory basis and necessary information.
+- Repeated wording or shorter replacements alone do not justify deletion. Keep
+  explanations offering another perspective, exposing dependencies, supporting
+  different checks or clarifying local procedures. Consolidate only if these
+  functions survive, the complete owning source remains reachable, and affected
+  procedures and references stay usable. Explain the reason in change review;
+  verify resulting behavior and meaning.
+- Teach desired results and the actions producing them. Scope constraints to
+  their governed properties or operations; carry selected content into the
+  deliverable. Ground requirements in the commission, applicable adopted
+  definitions and intended use. Judge the author's chosen method against those
+  requirements.
+- Records and artifacts state durable product facts, rules and evidence.
+  Exclude task-specific work instructions, reports, process notes, decision
+  histories, session narratives and conversation quotations from product
+  artifacts. Generalize lessons into reusable guidance. Measurement evidence
+  (when, what, result) is a fact; its production story is not.
 - ASCII punctuation, no em or en dashes, English throughout.
 - For README changes, follow [Documentation checks](references/maintenance/testing.md#documentation-checks),
   including preservation of executable example blocks when their commands stay the same.

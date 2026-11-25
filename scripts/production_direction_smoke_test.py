@@ -921,11 +921,39 @@ class LifecycleTests(unittest.TestCase):
         run=self.prepare();fixture.handoff(self.root,run,'test host','manual');self.write('first.png',png())
         with self.assertRaises(ValueError):w.capture(self.root,run,'first.png','Unclaimed result')
     def test_static_candidate_cannot_pass_motion(self):
-        self.task['criteria'][0]['evidence']='motion';self.write('task.json',self.task)
+        self.task['criteria'][0].update(evidence='motion',strength='advisory');self.write('task.json',self.task)
         run,ca=self.candidate();d=self.review_data(run,ca);self.write('review.json',d)
         with self.assertRaises(ValueError):w.review(self.root,run,'review.json')
+    def test_unsupported_hard_requirements_stop_before_publication(self):
+        from production_compiler import check_task, prepare_task
+        from production_diagnostics import CompilationError
+        import production_store as store
+        original = copy.deepcopy(self.task['criteria'][0])
+        cases = [({'evidence': 'motion'}, 'MEDIUM_UNREPRESENTABLE_REQUIREMENT'),
+                 ({'origin': {'kind': 'agent-realization', 'decision': 'expression'}},
+                  'UNAUTHORIZED_REQUIREMENT_PROMOTION'),
+                 ({'observation': {'scope': 'context-only'}}, 'MEDIUM_UNREPRESENTABLE_REQUIREMENT')]
+        for change, code in cases:
+            with self.subTest(code=code, change=change):
+                self.task['criteria'][0] = {**original, **change}
+                self.write('task.json', self.task)
+                before = (self.root / 'task.json').read_bytes()
+                checked = check_task(self.root, 'task.json')
+                self.assertFalse(checked['publishable'])
+                self.assertIn(code, {item['code'] for item in checked['diagnostics']})
+                with self.assertRaises(CompilationError):
+                    prepare_task(self.root, 'task.json')
+                self.assertEqual(store.runs(self.root), [])
+                self.assertEqual((self.root / 'task.json').read_bytes(), before)
+    def test_prepared_review_retains_expression_scope_and_authority(self):
+        run = self.prepare()
+        basis = w.review_basis(self.root, run)
+        self.assertEqual(basis['image_format'], 'single-still')
+        self.assertEqual(basis['criteria'][0]['origin'], self.task['criteria'][0]['origin'])
+        self.assertEqual(basis['criteria'][0]['observation'], self.task['criteria'][0]['observation'])
+        self.assertEqual(basis['criteria'][0]['realizations'][0]['representation'], {'role': 'visible'})
     def test_two_static_images_still_cannot_pass_motion(self):
-        self.task['criteria'][0]['evidence']='motion';self.write('task.json',self.task)
+        self.task['criteria'][0].update(evidence='motion',strength='advisory');self.write('task.json',self.task)
         run,ca=self.candidate();self.write('second.png',png(128));d=self.review_data(run,ca)
         d['evidence']=[{'id':'after','path':'second.png','kind':'image','relation':'Another static pose.','limitations':['Trajectory is not observed.']}]
         d['observations'].append({**d['observations'][0],'evidence':'after'})

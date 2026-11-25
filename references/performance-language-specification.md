@@ -89,8 +89,10 @@ interpretations or continuity across a series. Its fields preserve that
 reasoning and evidence; prompt projection carries the selected act or reaction
 and the distinctions it needs.
 
-Emotion and intensity labels organize the record; they do not define the
-individual's expression. Describe how the selected degree appears in the
+Emotion and intensity labels organize the record and can directly state the
+intended appearance in the prompt. They need not uniquely determine a facial
+shape to be useful. Where an adopted individual distinction matters, describe
+how the selected degree appears in the
 available structures and their coordinated behavior. A stronger response can
 change some components and leave others steady; it need not enlarge every cue
 or advance through a fixed sequence. A phase or delay is relevant only when
@@ -331,6 +333,13 @@ Model-bound rendition search and verification remain separate from these
 source-level meaning associations.
 
 ## 8. Prompt projection
+
+State the intended emotion directly, then retain the chosen visible features
+needed for this character and situation. "Looks happy, with a slight smile"
+can be sufficient where no narrower expression is required. Avoid substituting
+metaphor, hidden psychology, invented contrasts or a sequence of tiny shape
+changes merely to avoid the emotion word. Detail is useful when it preserves
+meaning; length and brevity alone establish no expressive quality.
 
 Resolve the individual's concrete expression through
 [Character Performance](runtime/character-performance.md) before compressing it

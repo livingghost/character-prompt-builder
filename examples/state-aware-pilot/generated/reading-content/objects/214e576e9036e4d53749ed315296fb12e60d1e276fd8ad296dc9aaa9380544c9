@@ -1,0 +1,58 @@
+#### Read the required source bodies
+
+```bash
+python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval
+```
+
+This explicit command starts with a required-source index, with `mode: "index"`, an empty
+`body`, and `reading: null`. It reports the selected operation, execution, destination, source kind,
+features and model; each required document's stable ID, selected body byte count
+and selection owners. A whole-document requirement is shown once;
+its `section_count` reports declared sections without expanding them.
+Explicit required sections remain visible in `sections`, with stable `section_id`,
+`content_sha256`, `bytes` and `selection_reason_ids` referring to the complete explanations in
+the top-level `selection_reasons` map. Source rows use those same reason IDs.
+`sections_expanded` distinguishes an expanded section list from a whole-source
+overview. Shared reasons are printed once, so the applicable
+contract can be inspected before delivery. `progress.required_bytes` measures the complete
+selected material, while `remaining_bytes` excludes section bytes already
+delivered in this snapshot and explicitly known complete bodies. Navigation
+establishes no source delivery and issues no reading key, even when an earlier
+same-context reading supplies every required body. `selection_scope` distinguishes
+`complete-source` from `selected-sections`. `selection_summary` reports the
+stage, declared change scope, selected profiles and bytes attributed to each
+route, feature and operation. Shared bytes can have several selection owners;
+those attributed totals are not additive. `progress.fresh_context_bytes` is
+the complete current reading size. `progress.same_context_new_bytes` removes
+only explicit complete same-context reuse, independently of page progress.
+
+Source states have explicit meanings: `pending` has no delivered bytes;
+`partial` has some delivered ranges and still needs the rest; `delivered` has
+complete source coverage in this snapshot; and `known` comes from an explicitly
+selected complete reading whose required source content is unchanged. An
+unrelated edit elsewhere in the document can leave that content reusable.
+`same_context_required`
+identifies snapshot coverage or known readings already retained when this response
+began. A fresh index or first delivery page has neither; its new source text arrives
+in that response. A later page, index or status view over delivered ranges relies
+on retaining their earlier text. The index reports these state meanings, and
+`read --help` lists them.
+
+Generated authoring and recovery actions select `--all` for the current stage.
+Their first response delivers a bounded body page; follow `actions.continue`
+until `reading` is non-null. `actions.index` exposes this same complete source
+index when its scope or individual sections need inspection. Input inspection
+continues an unfinished page first, then offers all remaining required material
+in bounded pages after a selected section ends.
+
+Inspect the selected scope as needed. Choose the operation actually in progress
+and the specialists the task uses. For example, `studio-placement` selects the
+complete contract for correcting an existing iteration's current scene or slot;
+ordinary image creation does not select that correction. Preparation and execution
+receive the complete [diagnostic-handling contract](production-diagnostic-navigation.md).
+Consult the linked global code catalog when resolving the reported failure.
+The declared section sets retain the prerequisites, authority, constraints,
+exceptions and recovery required for that operation and destination. Stable section IDs
+guide navigation within those required bodies; selecting a section in the
+index never removes other required sections.
+

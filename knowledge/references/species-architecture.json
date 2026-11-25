@@ -1,0 +1,112 @@
+{
+  "sections": [
+    {
+      "id": "species-architecture-reference",
+      "body": "# Species architecture reference\n\n"
+    },
+    {
+      "id": "conditional-catalog-examples",
+      "body": "## Conditional catalog examples\n\nEvery literal catalog ID in this document is actionable only when its owning pack is present, enabled by the selected state, and the exact ID resolves in the active catalog. If an example ID is absent, use the morphology contracts and geometry guidance directly, search enabled records for genuinely matching knowledge, or proceed without record support. Never substitute an unrelated ID or assume that an external-pack example belongs to the default pack.\n\n"
+    },
+    {
+      "id": "canonical-morphology-layer",
+      "body": "## Canonical morphology layer\n\nSpecies scaffold heuristics are diagnostic aids, not the complete anatomy record. For a recurring subject, original species, hybrid, ordinary animal, creature, robot, or android, use the canonical stack in [Morphology and species contracts](morphology-and-species-contracts.md):\n\n1. `species-morphology-profile` declares the valid body topology, feature counts, attachments, surfaces, expression channels, capabilities, population variation, meaningful absences, and near-species differences.\n2. `individual-morphology-contract` resolves exact measurements, counts, instance IDs, markings, asymmetries, damage, grooming, nails or claws, tools, and personal expression behavior for one subject.\n3. `resolved-morphology` carries the shot-visible anatomy after state, pose, clothing, crop, and occlusion are applied.\n\nDo not use a scaffold family as a substitute for the species profile. A fictional species can be defined entirely through direct topology and feature records without borrowing a real species noun.\n\nA species noun in a prompt is both an identity statement and a geometry vote: every mention can re-summon that species' default proportions from the generator prior. This reference records prompt-prior scaffold families so authors and composing agents can diagnose facial architecture before choosing geometry wording. It is not a complete biological taxonomy, and it does not authorize a silent species substitution. Enabled `module` records in category `species` stay deliberately minimal; `schemas/pack-record-file.schema.json` describes each `scaffold.family` value.\n\n"
+    },
+    {
+      "id": "how-to-use",
+      "body": "## How to use\n\nWhen the user or Character Identity Contract states a species, preserve that identity. Read the target design's face, compare its ear shape, ear set, ear orientation, muzzle reach, muzzle depth, nose proportions, jaw mass, cheek volume, and eye placement against the scaffold families below, then write species-neutral geometry that supports the requested identity.\n\nUse a second species noun only when the user approves a disclosed scaffold modification. The agent must state which identity wording is being supplemented, which scaffold noun is being introduced, and why the change is necessary. A Character Identity Contract outranks the scaffold heuristic.\n\nReverse calibration follows the same order: measure the reference geometry first and compare it with the family rows and the species record's `scaffold`. Preserve the approved identity and use direct geometry wording for any mismatch. Ears carry three independent axes: shape, set, and orientation. A diagnosis or record states all three.\n\nMixed designs are normal in kemono and hybrid art. Their coat, tail, markings, horns, mane, hairstyle, and other visual carriers can preserve identity while the face uses carefully described geometry. The package still treats any different species noun as an explicit modification, not an invisible implementation detail.\n\nAn enabled pack may also carry curated `creature-anatomy` module records that state one lineage's anthro anatomy grammar (surface, ears, muzzle, limbs, appendage, and lineage-tied dimorphism). Retrieve the matching record by lineage name and use it as generic species-neutral anatomy knowledge beneath the identity contract: it supplies the drawable baseline, while the user's declared species and the identity contract keep authority over the actual subject.\n\nEvery species record names its family in `scaffold.family`, with `scaffold.confidence` `direct` or `nearest`. The family `direct-geometry-required`, with confidence `fallback`, means no family supplies a strong enough prior, so the prompt carries the geometry directly. See `references/prompt-composition-geometry.md` and the troubleshooting entry \"Calibrate the species scaffold while preserving the identity anchor.\"\n\n"
+    },
+    {
+      "id": "reference-based-feline-and-canine-disambiguation",
+      "body": "## Reference-based feline and canine disambiguation\n\nThe user statement and Character Identity Contract are the species authority. A stylized reference may enlarge feline ears, sharpen one ear tip, compress a canine muzzle, or distort the outer contour through low-angle perspective. Those effects do not authorize a silent family relabel.\n\nWhen feline and canine silhouettes appear ambiguous, inspect three correlated systems before choosing geometry language:\n\n1. **Muzzle projection and shadow:** a large-feline muzzle is short, deep, broad, and nearly parallel-sided, so its side-plane and under-muzzle shadow remain compact and block-like. A canine muzzle projects farther and narrows toward the nose, producing a longer wedge-shaped shadow.\n2. **Ear architecture:** large felines usually carry rounded or softly squared tips with substantial base width; wolf-like and upright-eared canines usually carry pointed tips and a high-set triangular outline. Record shape, set, and orientation separately. Stylized exceptions remain possible, so ears support the decision rather than deciding it alone.\n3. **Nose-pad depth and placement:** a stylized feline nose pad often reads relatively thin front-to-back and sits close to the blunt facial front. A canine nose pad usually reads thicker and projects at the terminal end of the muzzle. Use form and cast shadow rather than black color alone.\n\nMarkings, fangs, ruffs, and body mass are weaker family cues because both families share them in anthropomorphic art. Route the complete face through one selected scaffold, then preserve the supplied coat, markings, identity details, and expression.\n\n"
+    },
+    {
+      "id": "family-architectures",
+      "body": "## Family architectures\n\n"
+    },
+    {
+      "id": "canine-wolves-foxes-jackals-dholes-dogs-coyote-raccoon-dog",
+      "body": "### Canine (wolves, foxes, jackals, dholes, dogs, coyote, raccoon-dog)\n\nEars usually tall, pointed, upright, and set high on the skull, with breed-specific\nfolding or shortening where the approved identity requires it. The muzzle projects\nforward relative to its depth and usually tapers along its length. The nose pad sits\nat the forward tip and often reads as a thicker rounded volume with a visible lower\nedge or underside in profile and low-angle views. A visible stop separates brow and\nbridge. The jaw follows the taper and the chin stays comparatively light. In flat 2D\nart, the projecting muzzle often produces a longer wedge-shaped shadow beneath the\nfront of the face. Carriers include brush tail, fangs, and neck ruff. The noun summons\na forward-projecting tapered snout and pointed-ear prior; dog breeds shift it\n(bullmastiff and boxer shorten and deepen it, borzoi lengthens it, fennec enlarges the\nears), and the raccoon-dog remains canine despite the raccoon-like mask.\n\n"
+    },
+    {
+      "id": "feline-tigers-lions-leopards-jaguar-panther-cougar-lynx-cats",
+      "body": "### Feline (tigers, lions, leopards, jaguar, panther, cougar, lynx, cats)\n\nEars usually short, rounded, wider than tall, and set toward the sides, with rounded\nupright tips; stylized kemono designs may lengthen or sharpen the ear silhouette, so\near shape remains supporting evidence rather than the sole classifier. The muzzle is\nshort and deep, with compact reach against generous bridge-to-jaw depth and side\nplanes that stay near parallel toward a blunt front. The nose is broad and wider than\ntall, often reading in stylized art as a flatter thin dark plate set high on the muzzle,\nwith the mouth directly beneath and a compact chin. Heavy jaw and cheek mass keep the\nfront broad. In flat 2D art, the compact muzzle often produces a short block-like shadow\nbeneath the nose and mouth rather than a long wedge. Carriers include long tail,\nretractile claws, chest ruff in stylization, and mask, stripe, or rosette markings. The\nnoun summons the short deep face for free; lynx and caracal add ear tufts, cheetah\nlightens the build and narrows the face, and house cats enlarge the eyes and shorten the\nmuzzle further.\n\n"
+    },
+    {
+      "id": "ursine-brown-black-polar-panda-sun-bear",
+      "body": "### Ursine (brown, black, polar, panda, sun bear)\n\nEars small, round, set wide and high on a massive skull. Muzzle short to\nmedium and thick, round in cross-section, ending in a rounded ball with a\nlarge nose pad wrapping forward. Little visible stop; the forehead flows\ninto the bridge. Heavy neck, jowly jaw. Carriers: stub tail, huge paws,\nshoulder hump on brown bears. The noun summons roundness everywhere; polar\nlengthens and lowers the head, panda carries the eye patches.\n\n"
+    },
+    {
+      "id": "hyena-spotted-striped-brown",
+      "body": "### Hyena (spotted, striped, brown)\n\nFeliform despite the dog-like look. Ears rounded (spotted) or tall and\npointed (striped), set wide. Muzzle broad, deep, blunter than a canine's,\non a massive skull with an extremely heavy jaw. High shoulders sloping to\nlow hips. Carriers: spotted or striped coat, mane along the spine, bone-\ncrushing grin. The noun summons the sloped back and heavy neck.\n\n"
+    },
+    {
+      "id": "mustelid-otters-ferret-badger-wolverine-skunk",
+      "body": "### Mustelid (otters, ferret, badger, wolverine, skunk)\n\nEars small, low, rounded. Muzzle short and rounded on a small skull, the\nhead flowing into a long low flexible body. Carriers: thick tapering tail,\nshort limbs, masks and dorsal stripes. Wolverine and badger deepen the jaw\nand widen the skull toward a small-bear read.\n\n"
+    },
+    {
+      "id": "procyonid-raccoon-red-panda",
+      "body": "### Procyonid (raccoon, red panda)\n\nEars short, rounded, often pale-rimmed. Muzzle short and pointed with a\ndelicate taper, on a rounded face with a bandit mask. Carrier: the ringed\ntail. Distinct from the raccoon-dog, which is canine.\n\n"
+    },
+    {
+      "id": "bovid-and-caprine-bull-bison-buffalo-yak-goat-ram",
+      "body": "### Bovid and caprine (bull, bison, buffalo, yak, goat, ram)\n\nEars lateral, often below the horns. Muzzle long, deep, and squared, with\na broad flat front and wide-set nostrils on a naked muzzle pad. Horns are\nthe primary carrier and sit on the skull, ahead of the ears. Massive neck\non bulls and bison; goats and rams lighten the skull and add the beard and\nthe rectangular pupil.\n\n"
+    },
+    {
+      "id": "cervid-deer-elk-reindeer-moose",
+      "body": "### Cervid (deer, elk, reindeer, moose)\n\nEars large, lateral, mobile. Muzzle long and slim with a soft taper and a\nsmall dark nose; moose deepens and overhangs it heavily. Antlers, not\nhorns, are the carrier, branching and seasonal. Slim neck against the\nbovids' mass.\n\n"
+    },
+    {
+      "id": "equine-horse-zebra",
+      "body": "### Equine (horse, zebra)\n\nEars tall, mobile, set high. Head long and deep as one wedge from brow to\nlip, with the nostrils flaring at a squared front and the mouth low. Mane\nalong the crest and the tail carrier. Zebra adds the stripe system.\n\n"
+    },
+    {
+      "id": "suid-boar-warthog",
+      "body": "### Suid (boar, warthog)\n\nEars pointed to rounded, lateral. Muzzle long and cylindrical, ending in\nthe flat mobile disc of the snout. Tusks curve from the lower jaw, and the\nwarthog adds facial wattles. Heavy wedge-shaped skull into a thick neck.\n\n"
+    },
+    {
+      "id": "lagomorph-rabbit-hare",
+      "body": "### Lagomorph (rabbit, hare)\n\nEars very tall, the dominant carrier. Muzzle tiny and rounded with the\nsplit lip and constant nose; large eyes set lateral and high. Hare\nlengthens limbs and ears and leans the face.\n\n"
+    },
+    {
+      "id": "rodent-squirrel-rat-mouse",
+      "body": "### Rodent (squirrel, rat, mouse)\n\nEars round, prominent. Muzzle small, pointed, whiskered, with prominent\nincisors as the carrier. Squirrel carries the plume tail, rat the naked\ntapering one.\n\n"
+    },
+    {
+      "id": "marsupial-kangaroo",
+      "body": "### Marsupial (kangaroo)\n\nEars tall, rounded-tipped, mobile. Muzzle long, slim, deer-like with a\nclean taper. Carriers: the counterbalancing tail, the long haunches, the\npouch line in stylization.\n\n"
+    },
+    {
+      "id": "primate-gorilla",
+      "body": "### Primate (gorilla)\n\nEars small, flat to the skull. Face flat with a heavy brow ridge, broad\nflat nose, and a deep protruding jaw; the muzzle reads as jaw mass, not as\na snout. Carriers: the sagittal crest, silver saddle, knuckle-walk arms.\n\n"
+    },
+    {
+      "id": "crocodilian-and-monitor-crocodile-alligator-monitor-komodo",
+      "body": "### Crocodilian and monitor (crocodile, alligator, monitor, komodo)\n\nHead one long flat wedge, jaw-dominant, the eyes and nostrils riding on\ntop. Alligator rounds the snout that the crocodile keeps in a V; monitors\nnarrow it and add the forked tongue. Ears are absent as shapes; carriers\nare scale plates, dorsal ridge, and the heavy tail.\n\n"
+    },
+    {
+      "id": "avian-eagle-raven-owl",
+      "body": "### Avian (eagle, raven, owl)\n\nThe beak replaces the muzzle entirely: raptors hook it, corvids straighten\nit, owls bury a short one in the facial disc. Ears are absent as external\nshapes (owl tufts are feathers). Carriers: feather regions, talons, tail\nfans. A face calibrated in muzzle language cannot land on an avian\nscaffold; the beak needs its own geometry.\n\n"
+    },
+    {
+      "id": "marine-shark-orca",
+      "body": "### Marine (shark, orca)\n\nNo external ears. Shark carries the underslung jaw beneath a pointed\nrostrum with gill slits as the signature; orca carries the rounded\nmelon-fronted head, the eye patch, and the dorsal fin. Smooth-skin\nsurfaces, not fur.\n\n"
+    },
+    {
+      "id": "mythic-dragon-gryphon-hellhound-werewolf-dire-wolf",
+      "body": "### Mythic (dragon, gryphon, hellhound, werewolf, dire wolf)\n\nComposite by definition: state which family supplies each region. A\ndefault dragon reads reptilian-equine in the head with horns free-placed;\na gryphon is avian forward of the shoulders and feline behind; hellhound\nand dire wolf are heavy canines with the mass turned up; a werewolf is a\ncanine scaffold on a human frame. Because the priors are weaker here, the\nprompt must carry more of the geometry itself.\n\n"
+    },
+    {
+      "id": "confusable-pairs",
+      "body": "## Confusable pairs\n\nCanine versus feline is the costly one: both carry fangs, ruffs, and\ntails, but the ears (tall pointed high versus short rounded low) and the\nmuzzle ratio (long tapering versus short deep parallel) separate them at a\nglance, and a short-deep-faced design prompted as a wolf will fight the\ncanine prior indefinitely. Raccoon versus raccoon-dog share the mask and\nsplit at the skeleton: procyonid ringed tail against canine build. Hyena\nversus canine split at the sloped back, the rounded ears, and the outsized\njaw. Bear versus heavy canine split at the ball muzzle with the wrapping\nnose pad against the blunt-fronted muzzle with the nose riding high.\nFennec versus small feline split at the muzzle taper despite the shared\near scale.\n\n"
+    },
+    {
+      "id": "reference-diagnosis-when-feline-and-canine-cues-compete",
+      "body": "## Reference diagnosis when feline and canine cues compete\n\nThe user or approved Character Identity Contract is authoritative. The diagnostic is\nthere to preserve that identity, not to replace it. In stylized 2D references, classify\nfrom a bundle of evidence rather than one conspicuous feature.\n\nUse this order:\n\n1. **Muzzle reach and depth.** A large feline keeps a short deep muzzle with a broad\n   front and near-parallel side planes. A canine projects farther and usually tapers.\n2. **Shadow footprint.** When perspective or coat markings obscure the visible outline,\n   inspect the shadow under the nose, lip line, and lower muzzle. A compact feline face\n   tends to make a short block-like shadow; a projecting canine muzzle tends to make a\n   longer wedge-shaped shadow.\n3. **Nose profile.** A stylized large feline often carries a flatter thin dark nose plate\n   high on the compact front. A canine often carries a thicker rounded nose pad at the\n   forward end of the muzzle.\n4. **Ear-tip architecture.** Rounded large-feline tips and pointed canine tips are useful\n   supporting evidence. Stylization, cropping, pose, and hybrid design can alter this cue,\n   so it does not overrule stronger muzzle, nose, and shadow evidence.\n5. **Cheek and jaw mass.** Large felines keep broad cheek pads and a heavy compact jaw.\n   Canines retain more forward flow from bridge through muzzle and a lighter tapering chin.\n\nDescribe the complete approved scaffold affirmatively. If a generator keeps drifting, search the active catalog for a correction that explicitly covers feline/canine face-scaffold drift, inspect the resolved record, and review all five axes before changing any species wording. Core guidance must not assume that an optional pack supplies a particular correction ID.\n\n"
+    },
+    {
+      "id": "reverse-lookup",
+      "body": "## Reverse lookup\n\nTall pointed high-set ears with a long tapering muzzle, a longer wedge-shaped muzzle shadow, and a thicker nose pad at the terminal tip: canine. Short rounded or softly squared ears with a short deep parallel-sided muzzle, a compact block-like muzzle shadow, a relatively thin broad nose high and close to a blunt front, and heavy jaw mass: feline. Small round\nwide-set ears on a massive round skull, ball muzzle with a wrapping nose\npad: ursine. Rounded ears, heavy blunt jaw, high shoulders over low hips:\nhyena. Small low ears on a small head leading a long low body: mustelid.\nMask face, short pointed muzzle, ringed tail: procyonid. Horns ahead of\nlateral ears over a squared deep muzzle: bovid. Branching antlers over a\nslim soft-tapered muzzle: cervid. One long deep head-wedge with a squared\nlip front and high ears: equine. Cylinder muzzle ending in a flat disc,\nlower tusks: suid. Ears taller than the skull over a tiny muzzle:\nlagomorph. Prominent incisors under a small pointed muzzle: rodent. Flat\nface, brow ridge, jaw mass without a snout: primate. One flat jaw-wedge\nwith top-mounted eyes: crocodilian. A beak: avian. No ears and smooth\nskin: marine. When a reference matches one row in the face and another in\nthe body, scaffold the face by its row and state the body's family\nseparately.\n"
+    }
+  ]
+}

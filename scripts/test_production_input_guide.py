@@ -93,7 +93,7 @@ class InputGuideTests(unittest.TestCase):
                          '/properties/authoring/properties/task/properties/direction')
         self.assertEqual(row['value_state'], 'supplied')
         self.assertEqual(row['declaration']['permitted_keys'], [
-            'action_slice', 'basis', 'decisions', 'intended_effect', 'limitations',
+            'action_slice', 'basis', 'decisions', 'image_format', 'intended_effect', 'limitations',
             'purpose', 'source_allowances'])
         self.assertEqual(row['declaration']['fields']['purpose']['type'], ['string', 'null'])
         self.assertEqual(row['declaration']['fields']['intended_effect']['type'], ['string', 'null'])

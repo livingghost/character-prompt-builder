@@ -211,6 +211,17 @@ class RunView:
     def __getitem__(self, index):
         return (self.directory, self.prepared, self.consumer, self.rows)[index]
 
+    @property
+    def implementation_dependencies(self):
+        """Decode this publication's installation pins only for comparison.
+
+        Publication acquisition already verifies the complete evidence object.
+        Its exact bytes and immutable document share the ordinary evidence
+        owner's lifetime; a fresh acquisition never trusts an earlier result.
+        """
+        descriptor = self.prepared.get('implementation')
+        return self.evidence.document(descriptor['sha256']) if descriptor is not None else ()
+
     def snapshot(self) -> RunSnapshot:
         """Export an independent graph for a caller that needs editable data."""
         return RunSnapshot(self.directory, mutable(self.prepared),

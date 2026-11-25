@@ -48,6 +48,7 @@ from package_metadata import (
 )
 from reference_plan_cli_contract import plan_cli_example
 from runtime_read_footprint import count_words as _skill_word_count
+from knowledge_documents import markdown_path
 
 ROOT_REQUIRED = (
     'SKILL.md',
@@ -603,7 +604,7 @@ def _adapter_documents(root: Path) -> tuple[str, ...]:
 
 
 def _route_deliveries(root: Path) -> dict[str, tuple[str, ...]]:
-    """Return the complete operation contracts and specialists reachable through each route."""
+    """Locate generated documents reachable through each logical route or feature."""
 
     path = root / "config/execution-routes.json"
     if not path.is_file():
@@ -630,7 +631,8 @@ def _route_deliveries(root: Path) -> dict[str, tuple[str, ...]]:
             selected.extend(scoped)
         for feature in selected:
             reads.update(deliveries.get(feature, ()))
-    return {name: tuple(sorted(reads)) for name, reads in deliveries.items()}
+    return {name: tuple(sorted(markdown_path(document_id) for document_id in reads))
+            for name, reads in deliveries.items()}
 
 
 def _named_route_documents(root: Path, skill: str) -> set[str]:
@@ -723,7 +725,8 @@ AUTHORITATIVE_DOCUMENT_MARKERS = {
         "A null continuation alone does not establish completion. Completion is a non-null",
         "preserves every required byte and issues a reading only after complete",
         "coverage and a fresh check of actual documents, resources and selected-model",
-        "whole-source hashes and the original issuance",
+        "each required section's identity",
+        "body hash and size, and the original issuance",
         "content and resource/model scope",
         "operation now needed with `--fresh-context`, without the previous",
         "`--reading-context` or any `--known-reading` selections",

@@ -35,7 +35,8 @@ class ReviewCase(unittest.TestCase):
     def prepare_case(case, count, configure_task=None):
         root = case['root']
         task = c.load(root / 'task.json')
-        task['criteria'].append({'id': 'palette', 'strength': 'hard', 'text': 'The fixture palette is inspectable.', 'evidence': 'image'})
+        task['criteria'].append({'id': 'palette', 'strength': 'hard', 'text': 'The fixture palette is inspectable.', 'evidence': 'image',
+                                    'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
         task['generation']['count'] = count
         if configure_task is not None:
             configure_task(task)
@@ -242,7 +243,17 @@ class ReviewTests(ReviewCase):
         self.assertEqual(view['input_sha256'], prepared['input_sha256'])
         self.assertEqual(set(view), {'phase', 'run', 'input_sha256', 'reading', 'saved_knowledge', 'prepared_input', 'instruction'})
         self.assertTrue(view['reading']['documents'])
-        self.assertTrue(all(Path(item['path']).is_file() for item in view['reading']['documents']))
+        for document in view['reading']['documents']:
+            self.assertEqual(set(document), {'document_id', 'record', 'sections'})
+            record = document['record']
+            self.assertEqual(Path(record['path']), workflow.ROOT / 'knowledge' / (document['document_id'] + '.json'))
+            raw = Path(record['path']).read_bytes()
+            self.assertEqual((record['sha256'], record['size']), (c.digest(raw), len(raw)))
+            bodies = {section['id']: section['body'].encode('utf-8') for section in c.decode(raw)['sections']}
+            for section in document['sections']:
+                body = bodies[section['section_id']]
+                self.assertEqual(section, {'section_id': section['section_id'], 'sha256': c.digest(body), 'size': len(body)})
+        self.assertEqual(workspace.summary(self.root, view)['reading']['documents'], view['reading']['documents'])
         self.assertEqual(store.event_rows(self.root, self.run), before)
 
     def test_input_workspace_preserves_prepared_carriers_and_every_request_mapping(self):
@@ -603,10 +614,12 @@ class IdentityReviewCase(ReviewCase):
                  'selectors': ['/identity'], 'treatment': self.treatment,
                  'reason': 'Synthetic authored treatment; the fixture makes no claim of visual fidelity.',
                  'carriers': [{'kind': 'text', 'surface': 'primary', 'quote': fixtures.PROMPT}],
-                 'variation': None}]},
+                 'variation': None}],
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}},
             {'id': 'identity-whole', 'strength': 'hard', 'evidence': 'image',
              'text': 'Compare the whole subject with its original definitions and relations independently.',
-             'identity_review': ['robot']}])
+             'identity_review': ['robot'],
+                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}])
 
     def all_checks(self, **changes):
         return [(key, changes.get(key, 'pass'))
@@ -933,7 +946,8 @@ class IdentityMediaReviewCase(ReviewCase):
                 'source': self.source_id, 'subject_ids': ['robot'], 'selectors': [''],
                 'treatment': 'preserve', 'reason': 'A synthetic media scope and provenance test.',
                 'carriers': [{'kind': 'reference', 'reference': reference, 'use': 'identity'}],
-                'variation': None}]})
+                'variation': None}],
+                                    'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
 
 
 class IdentityMediaReviewTests(IdentityMediaReviewCase):

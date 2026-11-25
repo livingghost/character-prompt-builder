@@ -1,0 +1,7 @@
+#### Continue from the prepared request
+
+After preparation, inspect the returned `status --run RUN` action for that
+request. Unqualified `status` inspects all registered runs and has broader cost.
+Both forms report source changes separately from the saved request's execution
+requirements; neither requires restoration of edited original files.
+

@@ -90,10 +90,13 @@ def build(destination: Path) -> dict:
         'basis': ['owner-direction'], 'decisions': [], 'source_allowances': [], 'action_slice': None,
         'limitations': ['Synthetic protocol exercise; no live model or artistic result is asserted.']}
     task['criteria'] = [{'id': 'commission', 'strength': 'hard', 'evidence': 'image',
-        'text': 'Show the blue service robot lifting the yellow toolbox onto the workbench.'},
+        'text': 'Show the blue service robot lifting the yellow toolbox onto the workbench.',
+                            'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}},
         {'id': 'reference-scope', 'strength': 'hard', 'evidence': 'image',
-         'text': 'Apply the supplied reference only to the blue color of the robot.'},
-        {'id': 'no-text', 'strength': 'hard', 'evidence': 'image', 'text': 'The illustration contains no text overlay.'}]
+         'text': 'Apply the supplied reference only to the blue color of the robot.',
+            'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}},
+        {'id': 'no-text', 'strength': 'hard', 'evidence': 'image', 'text': 'The illustration contains no text overlay.',
+            'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
     task['authority'] = 'authority.json'
     fixtures.write(root / 'authority-basis.txt', 'Synthetic fixture author permits preparation of the declared '
                    'local input. This is not user consent or permission to contact a real provider.\n')

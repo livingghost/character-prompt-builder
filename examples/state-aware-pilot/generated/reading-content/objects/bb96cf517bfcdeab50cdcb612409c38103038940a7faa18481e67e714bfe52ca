@@ -1,0 +1,90 @@
+### Prompt input
+
+Model records retain their `prompt_input` declaration as evidence and an
+authoring workflow. Model cards, selected route reads and `target_knowledge`
+also return script-derived `prompt_authoring`; the author supplies no advance
+prose/tag classification. The stored workflows have these meanings:
+
+| Mode | Input and authoring consequence |
+| --- | --- |
+| `tag-based` | Search the selected vocabularies under exact target evidence, including when the model also supports prose. Honor an exclusive requested form; otherwise supported tags, prose or mixtures can preserve the depiction. |
+| `descriptive` | Use the declared natural-language or structured-caption form. Investigate construction and wording questions as needed. |
+| `unresolved` | Form metadata is absent or input behavior remains unknown. The script reports unspecified wording and keeps that uncertainty through text checks without blocking writing or finalization solely for classification. |
+| `none` | The selected operation has no text prompt surface. Supply its evidenced media and controls. |
+
+`forms`, `vocabularies`, and `basis` are present in each resolved declaration.
+Only `unresolved` may have an empty `basis`; missing metadata supplies no
+invented provider statement or observation date. Maintained pack records still
+declare `prompt_input`. An acquired or external target may omit it, and the
+resolver derives the unresolved declaration while preserving its identity.
+Unresolved and no-prompt records keep both arrays empty. Descriptive records
+have no tag vocabulary scope. Tag-based records include `tags` in `forms`,
+name their vocabulary IDs and declare `prompt_dialect` as the owning family.
+Other modes omit `prompt_dialect`. These declarations are independent of the
+service's weighting parser and of whether an execution offering is configured.
+
+`prompt_authoring` exposes the derived work rather than another editable form:
+
+| Field | Meaning |
+| --- | --- |
+| `text_surface` | `present`, `absent` or `unknown` from the input declaration. Actual request fields remain authoritative. |
+| `evidence_status` | `declared` or `unresolved`; uncertainty is retained without demanding a classification step. |
+| `preferred_wording` | The declared workflow's starting form: `tags`, `natural-language`, `structured-caption`, `unspecified` or null for no text. A preference does not reject other wording. |
+| `available_wording` | Recorded forms and their declared combination; this is not a claim that every unlisted form is unsupported. |
+| `composition` | Direct writing instructions that preserve the commission and any explicitly requested form. |
+| `vocabulary` | Whether search is required, vocabulary IDs and owning dialect. Its action is `search-vocabulary`, `not-required` or `no-text`. |
+| `prompt_style`, `ordering` | The selected record's complete existing guidance, copied without reinterpretation. |
+
+The normal model read obtains this plan. The same vocabulary command follows
+its derived requirement for every model; the author does not choose a branch
+by guessing which text forms the model accepts. A declared no-text operation
+and actual parser, channel and parameter constraints remain enforced.
+
+Read each basis statement at its stated model, family, adapter, operation or
+author-selection scope. Distinguish accepted text, training format, a documented
+example and observed control of a requested relationship. A form's availability
+does not establish that every instruction written in it will work. An adapter
+that routes among several models does not establish the eventual model's input.
+An explicit requested form governs the rendition. When the form is open, choose
+supported tags, prose or mixtures for the required meaning; this does not remove
+a selected tag-based workflow's search requirement. See
+[Model request evidence](model-evidence.md#prompt-input-evidence) for authoring
+the contract and [Vocabulary](prompt-vocabulary.md#select-wording-for-a-tag-based-model)
+for the existing retrieval and settlement flow.
+
+A card may report `ready_for_parameter_resolution: false` for an unconfigured model.
+Its catalog entry remains readable, but Generation Package dispatch requires an authored execution profile.
+The card's `readiness` keeps four questions separate:
+
+| Field | What its status establishes |
+| --- | --- |
+| `parameter_profile` | Whether the selected interface declares the controls used for parameter resolution |
+| `service_operation` | Whether the acquired service and transport expose the requested operation; catalog-only inspection says `not-acquired` |
+| `validation_evidence` | Whether evidence is still required, selected by the author, declared by the offering, or already acquired |
+| `request_check` | Whether an exact request has been checked; ordinary model inspection reports `not-performed` |
+
+An available profile is not evidence that a schema exists or a request was
+accepted. `unresolved` names the responsible choice and the action needed for
+dispatcher preparation. An explicit target schema, bounded probe or adopted
+observed profile can supply validation when the offering has no default schema.
+Preparation checks the selected evidence and exact request; sending still
+requires its own authority and authentication.
+An execution profile's `basis.kind` is `provider-documentation`, `curated-starting-point`, `measured` or `synthetic`.
+A `measured` basis names the adopted observed request profile it rests on, by its path inside the pack and its SHA-256.
+No other kind names one.
+A synthetic basis from `scripts/render_contract_smoke_test.py`, trimmed:
+
+```json
+{"kind": "measured", "source": "Synthetic adopted trial.", "limitations": ["One request tuple."],
+ "observed_profile": {"path": "resources/observed-profiles/trial/profile.json", "sha256": "aaaaaaaa..."}}
+```
+
+`render_contract.py model` verifies that observed profile through request validation in `observed-profile` mode before it shows the card.
+A `measured` claim the pack cannot prove is refused (synthetic, from the same test):
+
+```json
+{"ok": false, "errors": ["a measured basis names an adopted observed request profile: resources/dialects.json"]}
+```
+
+[Model request evidence](model-evidence.md#keep-kinds-of-evidence-apart) keeps the kinds of evidence apart.
+

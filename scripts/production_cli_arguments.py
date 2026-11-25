@@ -47,7 +47,8 @@ def add_input_arguments(subparsers) -> None:
                 help='Select the actual work: definition establishes sources and character; depiction develops the picture; '
                      'rendition writes its prompt; prepare binds the completed input for saving or generation preparation.')
             parser.epilog = ('Selected source files and earlier results remain intact. Read the returned current-stage '
-                'action before changing its content. After a context reset, inspect this same choices file and reread '
+                'action before changing its content. Pass --reading-context to the returned read or advance action; '
+                'select --view on inspect-inputs. After a context reset, inspect this same choices file and reread '
                 'the current stage; an earlier delivery receipt does not carry knowledge into a new context.')
             add_pack_runtime_arguments(parser)
             continue

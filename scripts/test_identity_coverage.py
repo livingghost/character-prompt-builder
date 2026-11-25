@@ -45,7 +45,8 @@ class IdentityCoverageTests(unittest.TestCase):
                      'sources': [source()], 'direction': {'decisions': []},
                      'criteria': [{'id': 'continuity', 'strength': 'hard', 'evidence': 'image',
                          'text': 'Compare the original definitions, conditions, detail and relation in the image.',
-                         'identity_review': ['A', 'B'], 'identity_bindings': [binding()]}]}
+                         'identity_review': ['A', 'B'], 'identity_bindings': [binding()],
+                                      'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]}
         self.context = {'subject_ids': ['A', 'B'], 'required_subject_ids': ['A', 'B'],
                         'identity_sources': [], 'text': {}, 'references': []}
         self.text('Before. Keep the conditional relationship. After.')
@@ -140,7 +141,8 @@ class IdentityCoverageTests(unittest.TestCase):
         detail['reason'] = 'The current crop hides the lower seam; its adopted presence is unchanged.'
         self.task['criteria'].append({'id': 'crop', 'strength': 'advisory', 'evidence': 'image',
                                      'text': 'The crop must not imply that the seam was removed.',
-                                     'identity_bindings': [detail]})
+                                     'identity_bindings': [detail],
+                                         'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
         report = self.compile()
         leaf = next(row for row in report['sources'][0]['terminals'] if row['pointer'].endswith('/fine_detail'))
         self.assertEqual({row['treatment'] for row in leaf['coverage']}, {'not-exposed'})
@@ -472,7 +474,8 @@ class TaskLocalIdentityTests(unittest.TestCase):
                     'carriers': [{'kind': 'text', 'surface': 'primary', 'quote': self.appearance}],
                     'variation': None,
                 }],
-            }],
+
+                             'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}],
         }
         self.context = {
             'subject_ids': ['courier'], 'required_subject_ids': ['courier'],

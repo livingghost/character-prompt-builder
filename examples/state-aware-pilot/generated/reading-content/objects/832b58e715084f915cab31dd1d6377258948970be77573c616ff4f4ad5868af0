@@ -1,0 +1,19 @@
+### Carry the chosen depiction into the input
+
+Write for the renderer's actual task and information. Preserve the situation,
+relationships, qualities and degree in meaningful language as they pass into
+the prompt. State the premises the depiction needs, assign delivered images
+their selected roles, and translate necessary contributions from authoring-only
+sources into text. Do not mechanically translate each planning field into a
+sentence. Knowledge that helps the author decide can remain outside the input
+when it supplies no necessary content to the commissioned image. Production
+history, approvals and reasons for choosing one solution remain in their
+records. Relevant prior events or off-frame circumstances can belong in a
+prompt when they make the requested depiction intelligible; temporal position
+alone does not determine relevance.
+
+Apply [interface rendition](prompt-writing-guide.md) to that authored meaning.
+The master prompt can be the final portable text; it does not require a second
+artifact or a preliminary attribute list. Exact parser grammar may change
+syntax, never the situation or meaning it is meant to communicate.
+

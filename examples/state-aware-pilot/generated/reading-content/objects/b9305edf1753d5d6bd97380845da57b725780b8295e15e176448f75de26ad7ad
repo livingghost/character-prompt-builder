@@ -1,0 +1,6 @@
+## Execution boundary
+
+The person or system that submits the prompt chooses an authorized target within the host's rules. Catalog retention, retrieval and prompt-only delivery have their own applicable boundaries even when no generation occurs. The optional dispatcher requires actual authorization and the active interface's checks. A downstream model, service or platform can apply additional safety, legal, availability or technical rules. Respect a refusal at the operation where it occurs; do not change targets, disguise content or resubmit to evade it. Record the outcome separately from permitted canonical evidence.
+
+When an otherwise permitted request needs technical adaptation, retain the original reviewed prompt where allowed and record the target-specific rendition and transport decision separately. Reference preparation likewise keeps a permitted authoritative pack-artifact or supplied-file source separate from the exact model-facing transport. If the only problem is an unsupported native media type, prepare an allowed deterministic transport from the same source when the declared adapter supports it, or block packaging. Media conversion is not a remedy for a content refusal. Do not substitute another artifact or present a target limitation as the user's original intent or the catalog's canonical knowledge.
+

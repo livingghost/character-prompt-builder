@@ -1,0 +1,13 @@
+## Product boundary
+
+Character Prompt Builder separates portable authoring from optional service invocation. Its responsibilities are:
+
+- faithful interpretation and art direction;
+- preservation of reusable production knowledge;
+- deterministic retrieval and full-record inspection;
+- transparent prompt composition and modification disclosure;
+- target-aware reference preparation with separate source and transport commitments;
+- exact packaging, hashing, verification, and host forwarding;
+- state-aware handoff or explicitly authorized dispatch with recorded request, result, and recovery trail.
+
+This separation keeps prompt knowledge usable even when no generation occurs, when a different generator is selected later, or when the same prompt is used for review, planning, testing, or another production workflow.

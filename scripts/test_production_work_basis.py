@@ -14,6 +14,7 @@ import production_authoring_work
 import production_fixtures as fixtures
 import production_inputs
 import production_operations as workflow
+import production_plan
 import work_ledger
 from production_diagnostics import ProductionError
 
@@ -151,6 +152,68 @@ class ApplicationProjectionOrderTests(unittest.TestCase):
                 'a-rear': {'source': 'definitions', 'pointer': '/rear'}},
             subjects={'z-shell': ['z-front'], 'a-shell': ['z-front', 'a-rear']},
             content=choices)
+
+    def request_work(self):
+        work = self.work()
+        direction = work['content']['authoring']['task']['direction']
+        direction.update(purpose=work['basis']['request'],
+                         intended_effect='Make the two connected characters clear.', basis=['definitions'])
+        return work
+
+    def test_current_request_projection_is_stable_before_catalog_acquisition(self):
+        work = self.request_work()
+        raw = work['basis']['request'].encode('utf-8')
+        request_source = 'request:' + c.digest(raw)
+        self.assertNotIn(request_source, work['basis']['sources'])
+        work['content']['authoring']['task']['direction']['basis'].append(request_source)
+        original = copy.deepcopy(work)
+
+        first = production_authoring_work.project(work['basis'], work['content'], 'draft')
+        choices, files, request = first
+        task = choices['authoring']['task']
+        production_plan.validate(task['direction'], task['sources'], task['criteria'], task_id=task['task_id'])
+        self.assertEqual(task['direction']['basis'], ['definitions', request_source])
+        self.assertEqual(request['source'], request_source)
+        self.assertEqual(files[request['path'].removeprefix('draft/')], raw)
+        self.assertEqual(choices['authoring']['source_files'][request['path']], c.digest(raw))
+        self.assertEqual(choices['authoring']['delivery'], work['content']['authoring']['delivery'])
+        self.assertEqual(production_authoring_work.project(work['basis'], choices, 'draft'), first)
+        self.assertEqual(work, original)
+
+    def test_replaced_request_retains_prior_acquisition_and_authored_input(self):
+        work = self.request_work()
+        previous_raw = work['basis']['request'].encode('utf-8')
+        previous_source = 'request:' + c.digest(previous_raw)
+        previous_record = authoring_work.acquire_source(previous_raw, origin={'kind': 'current-request'})
+        current_request = 'Show the connected shells turning toward the light.\nKeep their existing forms.'
+        current_raw = current_request.encode('utf-8')
+        current_source = 'request:' + c.digest(current_raw)
+        work['basis'] = authoring_work.revise_basis(work['basis'], request=current_request,
+            sources={**work['basis']['sources'], previous_source: previous_record})
+        direction = work['content']['authoring']['task']['direction']
+        direction.update(purpose=current_request, basis=['definitions', previous_source, current_source])
+        original = copy.deepcopy(work)
+
+        choices, files, request = production_authoring_work.project(work['basis'], work['content'], 'draft')
+        task = choices['authoring']['task']
+        production_plan.validate(task['direction'], task['sources'], task['criteria'], task_id=task['task_id'])
+        self.assertEqual(task['direction']['basis'], ['definitions', current_source])
+        self.assertNotIn(previous_source, {row['id'] for row in task['sources']})
+        self.assertEqual(files[request['path'].removeprefix('draft/')], current_raw)
+        self.assertEqual(request['text'], current_request)
+        self.assertEqual(choices['authoring']['delivery'], work['content']['authoring']['delivery'])
+        self.assertEqual(authoring_work.source_bytes(work['basis']['sources'][previous_source]), previous_raw)
+        self.assertEqual(work, original)
+
+    def test_projection_does_not_hide_duplicate_authored_basis_sources(self):
+        work = self.request_work()
+        request_source = 'request:' + c.digest(work['basis']['request'].encode('utf-8'))
+        work['content']['authoring']['task']['direction']['basis'] = ['definitions', 'definitions', request_source]
+        choices, _, _ = production_authoring_work.project(work['basis'], work['content'], 'draft')
+        task = choices['authoring']['task']
+        self.assertEqual(task['direction']['basis'][:2], ['definitions', 'definitions'])
+        with self.assertRaisesRegex(ValueError, 'direction basis: duplicate values'):
+            production_plan.validate(task['direction'], task['sources'], task['criteria'], task_id=task['task_id'])
 
     def test_projection_is_stable_across_normal_basis_storage(self):
         work = self.work()

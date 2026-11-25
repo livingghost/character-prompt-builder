@@ -1,0 +1,48 @@
+### Choose terms for their intended visual sense
+
+Apply the distinction between established facts, current appearance, model
+input and returned evidence in
+[Production direction](production-direction.md#translate-established-facts-into-the-current-appearance).
+In the prompt, words such as `child`, `adult`, `young`, `old`, `student`,
+`patient`, `athlete` and `royal` can function as appearance controls. Select the
+visual sense required for the depiction under the actual target's evidence;
+their everyday meaning is not a declaration of canonical age, health, history
+or social role. A term is neither proof of those facts nor a substitute for the
+particular face, body, costume, action or arrangement that the image needs.
+
+When target evidence and observations support a term for the wanted appearance,
+keep that sense explicit where ambiguity matters. For example, using `child`
+to influence youthful proportions does not change a canonical adult's age, and
+it does not by itself specify shoulder width, muscle mass or limb length.
+Likewise, an adult age in the source does not settle the requested visible
+proportions. Preserve the adopted appearance and any authorized variation,
+then use specific features or selected references to convey it. Dictionary
+membership alone does not establish a model's response.
+
+This distinction between biography and appearance does not decide content
+permission. Apply the host's rules to the depicted age, appearance and context;
+a canonical adult label cannot authorize a sexualized childlike depiction.
+Appearance terminology and alternate renderings must not bypass that boundary.
+
+Add or remove feature terms to refine the visible construction and reduce
+unwanted influence or conflict. This does not add or erase underlying
+canonical attributes. A negative such as `bodybuilder` can suppress an
+unwanted degree of shoulder and chest mass; it makes no claim about the
+character's profession or exercise history. Select negatives for the current
+goal and observed failure, within the supported channel and scope.
+
+Natural language can also require appearance vocabulary and degree. Terms
+such as `childlike facial proportions`, `youthful face`, `mature facial
+structure`, `lightly muscular` and `narrow shoulders` describe a selected
+visual sense. Bind them to the subject, part and comparison that matter:
+"Keep the torso lightly muscular, with narrower shoulders and less chest
+bulk than the reference. Retain the same head-to-body ratio and facial identity."
+Use a supported direct negation or integrated negative for a necessary
+exclusion when no separate negative field exists. Do not invent that field or
+require every exclusion to be rewritten positively.
+
+Keep parser rules with [Explicit prompt weighting](prompt-weighting.md).
+Changing a term's weight changes its conditioning influence, not a canonical
+attribute value. Judge the returned appearance; a changed word or valid
+weight expression is no evidence that the requested change succeeded.
+

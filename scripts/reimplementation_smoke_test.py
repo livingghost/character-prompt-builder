@@ -66,7 +66,7 @@ class SceneIntegration(unittest.TestCase):
         self.assertEqual(consumer['authoring_materials'][0]['document'], (self.root/'scene-material/persona.md').read_text(encoding='utf-8'))
         deps = {x['path'] for x in prepared['dependencies'] if x['space']=='studio'}
         self.assertTrue({'originals/subject.md','originals/scene.md','scene-plan.json','scene-material/persona.md'} <= deps)
-        self.assertNotIn('templates/narrative/personas/persona-template.md', {x['path'] for x in prepared['route']['reads']})
+        self.assertNotIn('templates/narrative/personas/persona-template', {x['document_id'] for x in prepared['route_reading']['documents']})
 
     def test_author_notes_are_not_appended_to_generation_prompt(self):
         run = self.prepare()

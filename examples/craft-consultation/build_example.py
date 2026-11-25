@@ -27,7 +27,8 @@ def build(root):
             'delivery': {'path': 'delivery.txt',
                          'translation_notes': 'Use only the authored synthetic scope.'},
             'criteria': [{'id': 'readability', 'text': 'Keep the declared subject information readable.',
-                          'strength': 'hard', 'evidence': 'text'}]}
+                          'strength': 'hard', 'evidence': 'text',
+                             'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]}
     (root / 'delivery.txt').write_text('Synthetic local direction with readable subject information.\n', encoding='utf-8')
     task.update(artifact='text', execution='authored', production_id='01900000-0000-7000-8000-000000000030',
                 authority='authority.json', world_views=[], direction={'purpose': 'Synthetic craft consultation.',

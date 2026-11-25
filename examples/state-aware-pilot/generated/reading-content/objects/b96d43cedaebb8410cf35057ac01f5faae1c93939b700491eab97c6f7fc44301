@@ -1,0 +1,28 @@
+## Optional consumer boundary
+
+Local state-aware authoring is complete without exchange. A supplied artifact is an optional input validated under the public contract; no external authoring process or application is presumed.
+
+At the optional boundary, exchange explicit public records. The same studio
+may hold every record; no external authoring role is required. Receiving
+a record never adopts a design, updates state, obtains media or sends a model job.
+
+For a declared interchange profile, publish the exact payload with its public declaration:
+
+```bash
+python scripts/build_interchange_envelope.py \
+  --profile shot-request --payload-type shot-request --payload STUDIO/request.json \
+  --payload-id REQUEST_ID --out STUDIO/exchange/request
+python scripts/validate_integration.py \
+  --envelope STUDIO/received/request/envelope.json \
+  --declaration STUDIO/received/request/declaration.json \
+  --payload-root STUDIO/received/request --direction consumes
+```
+
+`REQUEST_ID` must equal the actual request's `request_id`. The output directory
+is new and contains `artifact.json`, `declaration.json` and `envelope.json`.
+Required feature support, declared identity, exact bytes and the public payload
+schema are checked before use. The author separately selects the received record
+and resolves local state, reference media and production requirements.
+
+For the full set of public types, use [Protocol Exchange](../protocol-exchange.md).
+

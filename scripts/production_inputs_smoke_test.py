@@ -216,7 +216,7 @@ class PrivateAuthenticationInputTests(unittest.TestCase):
         files = {}
         with patch.object(c, 'object_read', side_effect=AssertionError('private object read')):
             with self.assertRaises(PrivateStateError):
-                artifact_review._object_file(self.root, snapshot, files)
+                artifact_review._object_file(lambda key: c.object_read(self.root, key), snapshot, files)
         with self.assertRaises(PrivateStateError):
             store.verify_evidence(self.root, snapshot)
         self.assertEqual(files, {})
@@ -241,7 +241,8 @@ class InputToolsTests(unittest.TestCase):
         self.task = {'task_id': 'synthetic-task', 'route': 'development', 'features': [],
                      'sources': [], 'delivery': {'path': 'delivery.txt',
                      'translation_notes': 'Retain the synthetic authored delivery.'},
-                     'criteria': [{'id': 'output', 'text': 'Inspect the actual local text.', 'strength': 'hard', 'evidence': 'text'}],
+                     'criteria': [{'id': 'output', 'text': 'Inspect the actual local text.', 'strength': 'hard', 'evidence': 'text',
+                                      'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}],
                      'route_reading': 'reading.json'}
         self.task.update(artifact='text', execution='authored', production_id='01900000-0000-7000-8000-000000000010')
         self.task.update(authority='authority.json', world_views=[], direction={'purpose': 'Synthetic local task.',
@@ -435,7 +436,7 @@ class InputToolsTests(unittest.TestCase):
 
     def test_conflicting_issuance_is_refused(self):
         altered = copy.deepcopy(self.issued['row'])
-        altered['documents'][0]['sha256'] = 'f' * 64
+        altered['documents'][0]['sections'][0]['sha256'] = 'f' * 64
         self.ledger.write_bytes(self.ledger.read_bytes() + c.encoded(altered))
         self.assert_reading_refusal('reading delivery body differs from its manifest')
 

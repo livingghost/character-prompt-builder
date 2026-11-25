@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import execution_contract as c
+import execution_target
 import production_store as store
 import execution_lifecycle as accounting
 from operation_context import current, current_operation_id, stage
@@ -254,7 +255,7 @@ def _journal(root: Path, run: str, data: tuple, *, loaded=None):
     journal = dispatch.RunJournal.create(root, operation=operation, character=recording['character'] if recording else None,
         slot=recording['slot'] if recording else None, service=plan['service'], transport=plan['transport'], model=plan['model'],
         production_run=run, expected=plan['quantities']['outputs'], note='Executed from the sealed production input.',
-        offering=dispatch.offering_summary(target['offering'], target['model_id'], target['model']), companion=companion)
+        offering=dispatch.offering_summary(execution_target.offering(target), target['model_id'], target['model']), companion=companion)
     journal.write('package.json', package)
     journal.write('consumer.json', loaded.consumer)
     if companion:
@@ -347,7 +348,7 @@ def execute(root: Path, run: str, *, decisions_file: str | None = None) -> dict:
             raise ProductionError('DISPATCH_ALREADY_CLAIMED', 'This run already owns an execution.', phase='execution', run=run,
                 required_action='Use resume for this execution, variant for changed input, or repeat for an intentional new run.')
         require_recording(root, prepared)
-        credential = _credential(root, transport, target['offering']['service'])
+        credential = _credential(root, transport, execution_target.offering(target)['service'])
         if current():
             current().link(run=run, task=prepared['task']['task_id'])
             current().durable()
@@ -1017,8 +1018,9 @@ def _reconcile(root: Path, run: str, journal, claim: dict, target: dict, transpo
     import dispatch_runtime as dispatch
     request = journal.read('request.json')
     if found is None:
-        selected = claim_authentication(claim, transport, target['offering']['service'])
-        credential = _credential(root, transport, target['offering']['service'], expected=selected)
+        service = execution_target.offering(target)['service']
+        selected = claim_authentication(claim, transport, service)
+        credential = _credential(root, transport, service, expected=selected)
         key = credential.value if credential is not None else ''
         with stage('provider-lookup'):
             found = transport_contract.lookup_once(transport, request, target['service'], key)
@@ -1165,7 +1167,7 @@ def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dic
                                             'Nothing was sent for this run, so there is no provider task to state.')
         return _status(root, run, loaded=initial)
     claim = claims[-1]
-    selected = claim_authentication(claim, transport, target['offering']['service'])
+    selected = claim_authentication(claim, transport, execution_target.offering(target)['service'])
     journal = dispatch.RunJournal.open(c.local(root, claim['data']['journal']))
     execution_state = _claim_execution(rows, prepared, run, claim)
     if outcome_file is not None:
@@ -1250,7 +1252,7 @@ def _resume(root: Path, run: str, *, outcome_file: str | None = None, found: dic
         authority = workflow.current_authority(root, loaded.prepared)
         receipts(root, loaded.prepared, loaded.rows, plan, authority=authority, loaded=loaded)
         require_recording(root, prepared)
-        credential = _credential(root, transport, target['offering']['service'], expected=selected)
+        credential = _credential(root, transport, execution_target.offering(target)['service'], expected=selected)
     except BaseException as exc:
         _record_execution_failure(root, run, journal, claim, exc)
         raise
@@ -1303,8 +1305,10 @@ def poll_schedule(target: dict, artifact: str) -> PollSchedule | None:
     The service record's `delivery` holds one entry per kind of output, the
     task's `artifact`, and its poll fields come from the service's own polling
     guidance. An entry without `poll_interval_seconds` declares no schedule.
+    The caller supplies its acquired execution-target document; this projection
+    neither reads storage nor resolves a new runtime target.
     """
-    service = target['offering']['service']
+    service = execution_target.offering(target)['service']
     entry = (target['service'].get('delivery') or {}).get(artifact) or {}
     values = {name: entry.get(name) for name in POLL_FIELDS}
     if values['poll_interval_seconds'] is None:
@@ -1366,8 +1370,9 @@ class _WatchLookup:
         self.request = self.journal.read('request.json')
         self.root, self.run, self.target, self.transport = root, run, target, transport
         self.artifact = prepared['task']['artifact']
-        selected = claim_authentication(self.claim, transport, target['offering']['service'])
-        credential = _credential(root, transport, target['offering']['service'], expected=selected)
+        service = execution_target.offering(target)['service']
+        selected = claim_authentication(self.claim, transport, service)
+        credential = _credential(root, transport, service, expected=selected)
         self.key = credential.value if credential is not None else ''
 
     def ask(self) -> dict:
@@ -1439,7 +1444,7 @@ def watch(root: Path, run: str, *, interval: float | None = None,
         return result
     asking = _WatchLookup(root, run)
     if schedule is None:
-        service = asking.target['offering']['service']
+        service = execution_target.offering(asking.target)['service']
         raise ProductionError('INPUT_ARGUMENT_INVALID',
             f'The service record {service!r} sealed in this run declares no poll interval for {asking.artifact} '
             'output, so resume --watch has no time to wait between lookups.', phase='resume', run=run,
@@ -2037,7 +2042,8 @@ def _run_authentication(root: Path, prepared: dict, claims: list[dict], report: 
     if prepared['task']['execution'] != 'dispatcher':
         return None
     transport = transport_contract.load(target['service']['transport'])
-    selected = claim_authentication(claims[-1], transport, target['offering']['service']) if claims else None
+    service = execution_target.offering(target)['service']
+    selected = claim_authentication(claims[-1], transport, service) if claims else None
     required = False
     if not transport_contract.credential_free(transport):
         if not claims:
@@ -2058,7 +2064,7 @@ def _run_authentication(root: Path, prepared: dict, claims: list[dict], report: 
                     and all(step['operation'] == 'upload' and step['step'].startswith('upload:')
                             and (journal / f"upload-{int(step['step'].split(':', 1)[1]) + 1:03d}.json").is_file()
                             for step in steps))
-    return authentication_readiness(root, transport, target['offering']['service'], required=required, expected=selected)
+    return authentication_readiness(root, transport, service, required=required, expected=selected)
 
 
 def _work_open(root: Path, task_id: str, states: dict) -> bool:

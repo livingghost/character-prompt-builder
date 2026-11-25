@@ -1,0 +1,74 @@
+## Open the story view
+
+```bash
+python scripts/story_timeline.py --studio STUDIO
+python scripts/studio.py sync --studio STUDIO
+```
+
+The default inputs are the Studio-relative `state/world-state-base.json` and `state/events.jsonl`.
+If present, `state/processes.json` supplies one State Process or an array of them.
+The default output is `timeline.html` at the Studio root, with a small
+`timeline.status.json` publication receipt beside it. Flow discovers one series in
+the Studio itself or its `story/` subdirectory. Within that series it reads
+`narrative/narrative.json` and scene-plot JSON files under `narrative/scenes/`,
+including subdirectories. A narrative-only Studio can
+display its scenes before a state ledger exists. It creates no imaginary world base,
+event, initial condition or resolved viewpoint. An empty scaffold alone does not activate it.
+
+A conventional narrative file or Scene Plot makes its location an authored series;
+scenes can be read before a narrative document exists. Invalid drafts remain sources
+to inspect. An unreadable selected narrative keeps its input failure and original
+reading notice in the narrative-only view. A ledger with only one required member
+remains incomplete and blocks the projection.
+Empty directories and valid JSON belonging to another artifact type
+do not select a series. If both locations hold authored sources, the projection
+reports both and fails without choosing or combining them. An unsafe source
+location also fails selection. The existing unavailable and last-good views below
+make that failure visible.
+
+Use [the view template](../../templates/story-timeline-view.json) as
+`state/timeline-view.json` to select other Studio-relative inputs, named viewpoints,
+explicit scene artwork and evidence sources. Its
+[schema](../../schemas/authoring/story-timeline-view.schema.json) validates the complete form.
+Paths are literal local paths within this Studio. Symlinks and escaping paths are refused.
+
+A Scene Plot's `setting.scene_context` is relative to its series directory.
+For example, `"state/contexts/gate.json"` in a scene under
+`story/narrative/scenes/` names `story/state/contexts/gate.json` in the Studio.
+The source link uses that path while the scene's recorded pointer remains unchanged.
+The view configuration, base, event ledger, evidence and artwork paths retain their
+Studio-relative bases. A missing context is reported at its declared series
+location; a same-named file elsewhere does not supply the link.
+
+A named viewpoint follows this form. This is a synthetic example:
+
+```json
+{
+  "view_id": "workshop-before",
+  "label": "Before entering the workshop",
+  "timeline_id": "main",
+  "story_order": 20,
+  "story_time": "chapter:2",
+  "scene_context_id": "SC-workshop"
+}
+```
+
+A null `scene_context_id` asks for shared state with scene-local changes excluded.
+Without named viewpoints, the page shows the last declared event or process-milestone
+coordinate per timeline, labelled `order:N`. This generated label is not an authored
+story time, an inferred present, or a promise that later events do not exist.
+
+For an additional explicit point, write a separate view:
+
+```bash
+python scripts/story_timeline.py --studio STUDIO \
+  --timeline main --story-order 20 --story-time chapter:2 \
+  --scene-context-id SC-workshop --out views/workshop.html
+```
+
+`--out` is Studio-relative and ends in `.html`. It replaces only a timeline-owned page.
+An existing unrelated file is preserved. `studio.py sync` rebuilds the default page
+from the saved configuration; ad-hoc CLI selections are not silently saved as canon.
+Put recurring viewpoints in `state/timeline-view.json`.
+
+

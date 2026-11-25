@@ -1,0 +1,52 @@
+### Select and change the target
+
+Edit `choices.target` once. A catalog selection has `kind: "catalog"`, the
+canonical `model` ID and selected `service`; an external host using that model
+also declares the evidenced wire `operation`. A target-specific authored prompt
+can select `kind: "acquired"` with `model_file` for a supplied model definition.
+An unlisted image interface uses `kind: "external"`: its `model` contains the
+requested identity, `target.service`, `target.model_identifier`,
+`target.operation`, input contract and acquired evidence. Its optional
+`reference_model` selects the catalog model needed to prepare canonical
+references for that interface. Portable authored text can leave `target` null.
+For target-specific authored text, keep its execution mode, native parameters,
+syntax and vocabulary record with that same target selection.
+
+The input owner projects that selection into compiled generation and upscale
+inputs, the selected Production Specification and model-facing reference
+bindings. Keep model and service selection at `choices.target`; the builder
+writes their other representations. `choices.validation` selects the policy
+and evidence for the request, without a second editable model or offering.
+The complete public artifacts retain the derived target declarations needed
+to interpret them independently.
+
+For example, reopen a saved request with another selected catalog target:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --from-run RUN --operation amend --request-file request.txt --model MODEL_ID --service SERVICE_ID --out-dir work/next-target
+```
+
+The draft retains the saved content, source definitions, references and authored
+choices. Read the selected target's complete current guidance and assess how
+the existing expression, controls and reference uses apply to it. Reuse a
+completed reading whose source editions, operation and model scope cover the
+new selection. Reuse evidence where its declared applicability still holds.
+A different target alone does not justify erasing valid content, resetting
+choices or discarding those records. Change the affected choices and let their
+owners rebuild the deterministic consequences. Missing evidence or unresolved
+judgment remains explicit at the field that needs it.
+
+To prepare a target or runtime change with lineage to the earlier dispatcher or external image
+run, use the edited choices directly:
+
+```bash
+python scripts/production_workflow.py retarget --root STUDIO --from RUN --choices work/next-target/choices.json --reason "Apply the selected target to the retained depiction." --prepare
+```
+
+Without `--prepare`, `retarget` checks the input without publishing a run.
+The parent supplies lineage; its saved input and results remain intact.
+The new request uses current applicable source evidence, guidance and controls.
+It receives no submission claim or exact-request authorization from its parent.
+Existing grants still apply according to their actual scope. Follow
+[Input variations](production-variation.md) for the complete retarget contract.
+

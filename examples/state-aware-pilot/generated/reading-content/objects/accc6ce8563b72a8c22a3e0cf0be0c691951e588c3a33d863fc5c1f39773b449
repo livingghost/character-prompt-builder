@@ -1,0 +1,8 @@
+### Keep authoring context out of consumer instructions
+
+The bounded consumer and Generation Package receive **the current expression
+and method instructions**. Private source prose, working alternatives, notes
+and deviation records stay in the author's work. Author the
+model-facing instructions deliberately: whatever you copy into the selected
+instructions reaches the consumer, sensitive content included.
+

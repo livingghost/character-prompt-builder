@@ -1,0 +1,27 @@
+##### Choose a source range
+
+The index supplies an exact `selector` for each available source and section.
+A document uses its logical `document_id`; its sections use
+`document_id#section_id`, independently of their order or headings.
+To inspect a whole document's declared sections, append
+`--index-source SELECTOR` to `actions.index.argv`, as `source_navigation` describes.
+This returns `mode: "index"` with the chosen `index_source`, no source body and no
+reading. It leaves the complete required scope unchanged. An explicitly `known`
+source has a null selector; if its text is no longer
+available, start a fresh index without that known-reading assertion. Use its
+`section_selection.argv` plus `--section SELECTOR` to read that choice, or execute
+`actions.next` to begin the complete remaining scope in bounded pages. A source selector
+reads every required section of that document; a section selector reads its
+complete authored body. Display headings and fenced examples are body content
+and do not create additional knowledge sections.
+Writing-guide sections, dialect records and model offering cards have their own
+exact JSON segments, including the source opening and closing bytes.
+
+```bash
+python scripts/execution_routes.py read --snapshot SNAPSHOT --section SELECTOR --root STUDIO
+```
+
+`--snapshot SNAPSHOT --index-source SELECTOR` is navigation; `--section SELECTOR`
+delivers its exact source text. Neither an index nor a direct file read can be
+converted into a completed reading by assertion.
+

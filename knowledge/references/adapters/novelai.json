@@ -1,0 +1,20 @@
+{
+  "sections": [
+    {
+      "id": "novelai-adapter",
+      "body": "# NovelAI Adapter\n\nUse this adapter only for an active NovelAI model record. Complete [Image Generation Runtime](../runtime/image-generation.md) first.\n\nRead the selected [model guidance card](../runtime/render-contract.md)\nand resolve the version, mode and interface it identifies. The adapter selects\nthe provider boundary; the active model and offering supply its capabilities.\n\n"
+    },
+    {
+      "id": "prompt-rendition",
+      "body": "## Prompt rendition\n\nRead the [Prompt Writing Guide Runtime](../runtime/prompt-writing-guide.md) before\nfinal rendition. Apply its hierarchy and prompt-pressure rules using the selected\nmodel's declared forms, dialect, scoped guidance and native suggestions. Complete\nthe dictionary search when its input mode requires it. Those records carry the\nversion-specific vocabulary, controls and attributed provider evidence.\n\nUse only attention syntax supported by the selected interface. Preserve the\nintended relationships, identity, performance and scene in the supported form,\nkeeping the chosen art direction. Keep separate prompt scopes where the active\ninterface declares them.\n\n"
+    },
+    {
+      "id": "negative-transport",
+      "body": "## Negative transport\n\nUse the negative transport and field declared by the selected model and offering.\nPreserve the complete verified text, including the structural and medium-drift\nterms activated for the current subject and framing.\n\n"
+    },
+    {
+      "id": "reference-forwarding",
+      "body": "## Reference forwarding\n\nUse only the reference media and count declared by the active model record.\nForward the verifier's prompt, declared negative channel, parameters and committed\ncarriers exactly. Stop if the active interface is unable to receive the complete\nplan.\n"
+    }
+  ]
+}

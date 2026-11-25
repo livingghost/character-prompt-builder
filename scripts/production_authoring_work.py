@@ -438,10 +438,11 @@ def project(basis: dict, choices: dict, out_dir: str) -> tuple[dict, dict[str, b
     authored['task']['sources'] = rows
     authored['source_files'] = {**authored['source_files'], **witnesses}
     if request_source is not None:
-        previous_requests = {ident for ident, item in basis['sources'].items()
-                             if (item.get('origin') or {}).get('kind') == 'current-request'}
+        # A draft can already name the current request before it is acquired.
+        request_sources = {request_source} | {ident for ident, item in basis['sources'].items()
+                                             if (item.get('origin') or {}).get('kind') == 'current-request'}
         direction = authored['task']['direction']
-        direction['basis'] = [ident for ident in direction['basis'] if ident not in previous_requests]
+        direction['basis'] = [ident for ident in direction['basis'] if ident not in request_sources]
         direction['basis'].append(request_source)
     return result, files, request
 

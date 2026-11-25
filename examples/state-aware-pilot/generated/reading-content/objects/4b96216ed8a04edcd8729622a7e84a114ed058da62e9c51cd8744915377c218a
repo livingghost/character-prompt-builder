@@ -1,0 +1,40 @@
+## Reference identities and coverage
+
+A reference use has one stable ID, separate from its position among delivered
+images. In editable dispatcher choices, select it at
+`authoring.references.additional_references[].id`; an explicit image-input plan
+uses `references[].id`. Give each use a distinct ID such as `keeper-face`.
+When a selection first needs an ID, the authoring builder preserves a unique
+`source.reference_id` when available, or assigns `reference-` followed by a
+UUID. Read the assigned value in the saved choices. Reordering attachments
+keeps the use ID and derives the new attachment positions.
+
+The compiled prepared reference row records that use as `reference_id`, and
+the image-input row records the same value as `id`. A supplied file's
+`source.reference_id` identifies its original source; several uses of one
+source can have different use IDs. Standalone canonical preparation derives a
+stable use ID from the canonical record, source artifact, influence and subject
+assignment. Other native prepared rows retain their declared source reference
+or state binding ID. Inspect the selected rows or the input guide when
+continuing such work; file names and attachment numbers do not assign those
+identities.
+
+Identity coverage adds the prefix `reference:` to the use ID when it exposes
+the source inventory. That prefix belongs to the coverage source, and is not
+added to the reference use or the `carriers[].reference` field.
+
+| Location | Synthetic value | Meaning |
+| --- | --- | --- |
+| `additional_references[].id` | `keeper-face` | Stable selected reference use |
+| Prepared row `reference_id` / image-input row `id` | `keeper-face` | The same use through preparation |
+| Identity inventory source `id` | `reference:keeper-face` | Original image and scope that identity coverage must account for |
+| Identity binding `carriers[].reference` | `keeper-face` | The selected reference carrying that identity |
+| Delivered image | `Image 1` | Current model-facing attachment position, derived from transport |
+
+For example, a binding can cite `"source": "reference:keeper-face"` and carry
+that source with `{"kind": "reference", "reference": "keeper-face", "use": "identity"}` in
+`carriers`. Use the inventory's exact source ID when selecting coverage;
+the [identity coverage contract](../character-identity-contract.md#source-to-input-and-review-coverage)
+defines the rest of that binding. Prompt wording identifies delivered images
+by their actual positions and relevant visual content.
+

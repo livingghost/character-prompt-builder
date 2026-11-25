@@ -1,0 +1,12 @@
+# Story Flow, timeline and ledger inspection
+
+Read the development of a story, compare passages and inspect their recorded consequences.
+Graph is the opening view and shows branches and revisions as connected cards.
+Flow reads the story as ordered passages. Axis retains the event lanes and exact state inspection.
+The author judges motivation, continuity, information gaps and the effect of a scene.
+A structural check does not decide whether the story is convincing.
+
+Ordinary narrative and scene files own story content. The world-state-base, event ledger
+and State Processes own state. [State Event Ledger](../state-event-ledger.md) defines
+state semantics. All three views use the same records and shared resolver results.
+

@@ -153,11 +153,71 @@ The route manifest selects complete source sections for the actual operation,
 execution and declared features. A feature condition refines only a selected
 document; it activates no unrelated specialist. An explicit full-specialist
 requirement includes its general foundation and all its remaining sections.
-Keep whole-source and delivered-range hashes, exact coverage and original reuse
-witnesses. Source indexes show explicit requirements with shared reason IDs;
-internal headings of a whole-source requirement can expand separately without
+Keep complete section hashes, exact delivery coverage and original reuse
+witnesses. Reading indexes show explicit requirements with shared reason IDs;
+declared sections of a whole-document requirement can expand separately without
 counting as delivery. Start saved work through that reader so required direct
 reading and evidenced route delivery do not repeat the same original text.
+
+### Authored knowledge units
+
+Each knowledge document has one authoritative record at
+`knowledge/<document_id>.json`. It contains an ordered `sections` array; each
+entry owns its stable `id` and complete Markdown `body`. A document ID is its
+canonical relative logical path without an extension. A section ID is unique
+within that document and uses lowercase letters, digits, underscores and hyphens,
+starting with a letter or digit. Keep the ID when renaming a heading or moving
+the same unit. Headings, preambles, blank lines, tables and fenced examples are
+body content. Choose units that retain all knowledge and context needed for
+judgment. Their order determines the document's complete presentation.
+
+Native YAML-front-matter templates retain their entire front matter and body in
+one section. Template consumers acquire that complete section from the record;
+they do not depend on a separately generated Markdown file.
+
+`scripts/knowledge_document_build.py` renders each record's ordered bodies to
+`<document_id>.md` for people and hosts that follow Markdown links. Edit the
+knowledge record and route declarations, then rebuild these presentation files.
+The renderer reads canonical records without requiring an installed public
+contract or catalog. Its `--check` compares exact bytes without writing.
+Build documents before `scripts/seal_contract.py`, then run
+`scripts/rebuild_metadata.py` to derive catalog metadata and inventories against
+the sealed public outputs. Metadata uses the same renderer for its candidate
+document outputs. Public contract checks still verify the distributed Markdown
+bytes; they do not select runtime knowledge.
+The ordinary public Markdown links and their heading fragments remain useful;
+documentation checks validate them separately from stable knowledge IDs.
+
+The runtime acquires only the selected canonical records within its read
+boundary. It validates their complete JSON and unique declared IDs, and exposes
+immutable section bodies with automatically computed byte lengths and digests.
+It retrieves a section directly by ID. Missing or malformed records are errors;
+runtime reading neither parses Markdown structure nor reconstructs a record
+from a presentation file. Each new acquisition reads the current record bytes.
+Retained snapshots keep their acquired section bodies and identities, so their
+navigation does not depend on a later installed edition.
+
+Reading requirements and reuse witnesses identify each complete body by
+document ID, section ID, length and digest. A whole-document requirement expands
+to its ordered sections. Renaming a heading changes that body's digest without
+changing its ID; reordering a unit does not change its content identity. Page
+ranges are byte intervals inside an individual section and establish delivery
+coverage only. They do not identify a section or select knowledge by its position
+in a rendered document. A fresh context acquires and delivers its selected bodies
+again; an earlier receipt supplies no knowledge to that context.
+
+Identical acquired record bytes can reuse bounded, immutable validation
+derivatives. Each independent observation still reads the actual record; paths,
+timestamps, route decisions and earlier reading outcomes cannot substitute for
+those bytes. Large editions undergo the same checks without retained derivatives.
+
+Prepared inputs pin each selected record descriptor from the same acquired
+edition once. Unselected records are outside that run's knowledge dependency
+set. Reading receipts keep section identities and delivered content evidence;
+the installation pins own the canonical record file descriptors. Markdown
+presentations are derived outputs and do not supply runtime knowledge evidence.
+
+### Navigation and current evidence
 
 Navigation views prioritize current identities, all available branches,
 unanswered choices, blockers and executable next actions. Supply complete
@@ -229,12 +289,29 @@ saved result back. Rollback restores the predecessor state without replaying its
 history. Writer capabilities belong to their actual transaction and end on
 commit or rollback even though the acquired values continue to be usable.
 
+Work-plan creation, inspection, refresh and continuation own this same boundary
+when called directly from Python. Nested plan calls reuse their caller's scope,
+as they do under the CLI. Continuation passes its checked source run into the
+execution phase, retaining that immutable publication through owned commits
+and display updates. The next independent plan call acquires current saved
+bytes again; a successful earlier continuation is not proof for a later call.
+
+The saved execution target retains the exact model once and selects its
+offering by service. `execution_target` resolves that service uniquely from
+the acquired model, returns the owned offering and supplies its real JSON
+pointer for workspace navigation. Execution and recovery share this owner;
+fixed-runtime checks still compare the complete saved model and service.
+The model's host profile and its offering profiles keep their distinct
+meanings, and standalone render packages retain their own selected profile.
+
 Keep one SQLite connection per Studio for the operation, with no transaction or
 write lock held between stages. Compare SQLite `data_version` only on that same
 connection at a new transaction or display admission. An external commit ends
 reuse of event and authority observations; an owned commit does not. Reacquire
 changed records under the new SQLite snapshot, including edits to older event
 rows whose count and tail did not change. A replaced database also ends reuse.
+Publish acquired authority within the SQL reader that owns its history, so the
+reader's closing observation invalidates both before another stage reuses them.
 This is an observation of other writers, not a content digest or approval.
 Current authority state and durable predecessor/claim constraints remain checked
 by SQLite at their effect boundary. Their unchanged acquired event documents
@@ -264,8 +341,14 @@ publication file and decodes the documents its domain consumers need. The
 publication I/O owner passes the exact object bytes already checked by its
 manifest scan to the bounded `EvidenceReader`; later semantic interpretation
 uses those bytes. The retained byte budget covers the whole acquisition,
-and large media continues to stream without growing it. Decoded
-documents and event evidence belong to that operation, including successful
+and large media continues to stream without growing it. Installation pins are
+decoded by that evidence owner only when navigation compares
+the current installation. `prepared.json` binds their exact object digest and
+size; ordinary complete reads verify the object without expanding its rows.
+The prepared record retains one route-reading contract, and `reads.jsonl`
+retains the complete checked issuance for every execution mode. Resolved route
+indexes and a second issuance copy are not saved in the prepared record.
+Decoded documents and event evidence belong to that operation, including successful
 transactions and derived display publication. A nested explicit fresh read
 discards the enclosing scope's retained values before starting and before
 returning, including when acquisition fails. Persistent
@@ -439,12 +522,15 @@ file alone does not deliver its context, and the agent must not have to search
 backward for a caller's restrictions. Page large reads without omitting sources,
 return an executable continuation and issue a reading record only after the
 required bodies have complete delivery evidence. Explicit same-context reuse
-can combine earlier complete deliveries with new complete bodies, matching
-content, exact source ranges and current resource/model scope and retaining
-the complete issuance witness for each reused range. Complete earlier source
-ranges can cover their selected subranges, but an unread gap remains required.
-Changed or missing required ranges need full delivery. A fresh context never gains
-knowledge from a historical receipt alone. Keep body text, progress and actions
+can combine earlier complete deliveries with new complete bodies. Across
+receipts, document knowledge is reused only as complete sections with matching
+document and section identities and content, within the current resource/model
+scope and with a valid complete issuance witness for each reused body.
+Byte-range coverage combines delivered chunks only within the same snapshot
+and immutable body; it does not make a partial section reusable between
+receipts. Unread gaps remain required. Changed or missing required bodies need
+full delivery. A fresh context never gains knowledge from a historical receipt
+alone. Keep body text, progress and actions
 in separate structured fields, including an explicit terminal continuation.
 Implementation-only maintenance details can remain
 in their owning maintenance references.

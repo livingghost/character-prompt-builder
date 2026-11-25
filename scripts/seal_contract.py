@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seal the narrative contract against the files it publishes, in the order that stops.
+"""Seal the narrative contract's source record and its published files.
 
 The contract publishes the hash of each file that answers it, and one of those
 files carries the contract's digest, so the two feed each other. The cut is that
@@ -8,8 +8,10 @@ fixes the order: settle the prose, write the digest into the reader that carries
 it, then publish the hashes of the files as they now are. The last step moves a
 reader's hash but not the digest, so a second run changes nothing.
 
-Which files are published is read from the block itself, so adding one is a
-matter of adding its line to the block by hand and running this.
+The canonical knowledge record owns the published block. Add a file to that
+section body, render documents with knowledge_document_build.py, run this command,
+then run rebuild_metadata.py. Sealing leaves generated Markdown with its build
+owner; it binds public contract files after that owner has generated them.
 
 It also seals `protocols/contract-manifest.json`, the public contract set: the
 byte hash of each listed schema, template and document, of the semantics
@@ -27,9 +29,13 @@ import hashlib
 import re
 from pathlib import Path
 
+import execution_contract as c
+from knowledge_documents import decode_document, record_path
+from knowledge_document_build import render_document
+
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACT = "references/narrative-protocol.md"
+CONTRACT = "references/narrative-protocol"
 CARRIER = "scripts/narrative.py"
 PUBLISHED = re.compile(r"```text\n(?:scripts/\S+[ \t]+[0-9a-f]{64}\n)+```\n")
 LINE = re.compile(r"^(scripts/\S+)[ \t]+[0-9a-f]{64}$", re.M)
@@ -40,11 +46,14 @@ def normalised(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
-def sealed(contract_text: str, carrier: str) -> tuple[str, str, str]:
-    """The contract and carrier as sealing leaves them, and the digest written."""
-    block = PUBLISHED.search(contract_text)
-    if not block:
-        raise SystemExit(f"{CONTRACT}: the published block is not there")
+def sealed(document, carrier: str) -> tuple[bytes, str, str]:
+    """Update the owning section body and carrier, preserving every other body."""
+    bodies = [(section.section_id, section.raw.decode("utf-8")) for section in document.sections]
+    blocks = [(identifier, match) for identifier, body in bodies for match in PUBLISHED.finditer(body)]
+    if len(blocks) != 1:
+        raise SystemExit(f"{record_path(CONTRACT)}: exactly one section must own the published block")
+    owner, block = blocks[0]
+    contract_text = render_document(document).decode("utf-8")
     digest = hashlib.sha256(PUBLISHED.sub("", contract_text).encode("utf-8")).hexdigest()
     if not DIGEST_FIELD.search(carrier):
         raise SystemExit(f"{CARRIER}: carries no CONTRACT_SHA256 field")
@@ -59,7 +68,10 @@ def sealed(contract_text: str, carrier: str) -> tuple[str, str, str]:
             raise SystemExit(f"{relative}: published but not on disk")
     width = max(len(relative) for relative in hashes)
     rebuilt = "```text\n" + "".join(f"{relative:<{width}}  {digest}\n" for relative, digest in hashes.items()) + "```\n"
-    return contract_text.replace(block.group(0), rebuilt), carrier, digest
+    source = {"sections": [{"id": identifier,
+                            "body": body.replace(block.group(0), rebuilt) if identifier == owner else body}
+                           for identifier, body in bodies]}
+    return c.encoded(source), carrier, digest
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -67,21 +79,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="Report what sealing would move; write nothing")
     args = parser.parse_args(argv)
     import protocol_contract as contract
-    contract_path, carrier_path = ROOT / CONTRACT, ROOT / CARRIER
-    contract_text = contract_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    contract_path, carrier_path = ROOT / record_path(CONTRACT), ROOT / CARRIER
+    contract_raw = contract_path.read_bytes()
+    document = decode_document(CONTRACT, contract_raw)
     carrier = carrier_path.read_text(encoding="utf-8").replace("\r\n", "\n")
     manifest_path = ROOT / contract.MANIFEST_PATH
     manifest = manifest_path.read_text(encoding="utf-8").replace("\r\n", "\n")
     try:
-        new_manifest = contract.seal_registry(manifest)
+        new_manifest = contract.seal_registry(manifest, ROOT)
     except ValueError as exc:
         raise SystemExit(f"{contract.MANIFEST_PATH}: {exc}")
-    new_contract, new_carrier, digest = sealed(contract_text, carrier)
-    moved = [name for name, before, after in ((CONTRACT, contract_text, new_contract), (CARRIER, carrier, new_carrier),
+    new_contract, new_carrier, digest = sealed(document, carrier)
+    moved = [name for name, before, after in ((record_path(CONTRACT), contract_raw, new_contract), (CARRIER, carrier, new_carrier),
                                                (contract.MANIFEST_PATH, manifest, new_manifest))
              if before != after]
     print(f"CONTRACT_SHA256 = {digest}")
-    for line in LINE.findall(PUBLISHED.search(new_contract).group(0)):
+    rendered = render_document(decode_document(CONTRACT, new_contract)).decode("utf-8")
+    for line in LINE.findall(PUBLISHED.search(rendered).group(0)):
         print(f"published {line}")
     if not moved:
         print("sealed: nothing moves")
@@ -89,9 +103,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         print("unsealed: sealing would rewrite " + ", ".join(moved))
         return 1
-    contract_path.write_bytes(new_contract.encode("utf-8"))
-    carrier_path.write_bytes(new_carrier.encode("utf-8"))
-    manifest_path.write_bytes(new_manifest.encode("utf-8"))
+    c.atomic(contract_path, new_contract, replace=True)
+    c.atomic(carrier_path, new_carrier.encode("utf-8"), replace=True)
+    c.atomic(manifest_path, new_manifest.encode("utf-8"), replace=True)
     print("sealed: rewrote " + ", ".join(moved))
     return 0
 

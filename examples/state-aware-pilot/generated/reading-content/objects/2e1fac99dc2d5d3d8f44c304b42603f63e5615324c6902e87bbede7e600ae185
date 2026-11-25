@@ -1,0 +1,98 @@
+## Local realization plan and CLI
+
+The [plan schema](../../schemas/authoring/world-realization-plan.schema.json) and
+[empty starter](../../templates/realization/world-realization-plan.json) describe
+a local coordination file, not a new shared-state interchange contract.
+Plans reference the existing base, `state-event` JSONL and `state-process` array
+by source ID; every source path is a literal studio-relative path. The source
+owner acquires complete bytes and records their first SHA-256 in the compiled
+bundle. An already declared expected `sha256` is enforced without replacement.
+Events remain the canonical mutation records.
+
+Use [the worked unpeopled example](../../examples/world-realization/README.md) as
+a runnable structural example, not adopted world lore. From the installed
+`SKILL.md` directory:
+
+```bash
+python scripts/world_realization.py inspect --root STUDIO --plan plan.json
+python scripts/world_realization.py build --root STUDIO --plan plan.json --out <new-output-directory>
+python scripts/world_realization.py verify --root STUDIO --plan plan.json --bundle <output-directory>
+python scripts/world_realization.py impact --root STUDIO --plan plan.json
+python scripts/world_realization.py --help
+python scripts/world_realization_smoke_test.py
+```
+
+- `inspect` returns the full author-facing result and writes nothing.
+- `build` stages a new directory and publishes it only after all explicit
+  comparisons pass; existing outputs stay untouched.
+- `verify` recompiles from the selected sources, enforces existing expected pins,
+  and checks all output bytes and the exact file inventory against the published
+  bundle. It never updates that bundle to match a changed source.
+- `impact` reports stale or missing sources and conservatively affected
+  units/views; hashes, approvals and the ledger stay as they were. A changed
+  event/evidence source affects every unit on that timeline, and that breadth
+  is deliberate rather than a minimal semantic invalidation. A source selected
+  for its first acquisition has no previous expected pin to compare; verify the
+  published bundle when checking its recorded source state.
+
+Plan fields:
+
+- `sources`: unique IDs, local paths and optional existing expected hashes; world, persona, intent and
+  evidence can be separate sources whose status and authoritative meaning remain
+  in their owning records.
+- `timelines`: explicit base/events/processes source IDs and `base_provenance`.
+  The base has the five existing buckets: characters, relationships, environments
+  and props are entity-ID maps, and `world` stays the existing aggregate object
+  rather than an entity map.
+- `base_provenance`: existing entity/field pointers, each with evidence. Every
+  scalar base leaf must be covered by that exact pointer or an explicit ancestor;
+  scope coverage is checked, source meaning is left to the author, and an empty
+  map stays empty.
+- `evidence`: each participating event/process evidence record and base binding
+  names `source_id`, a nonblank `locator` and `basis` (`source-explicit`,
+  `author-decision`, `inference`, `observation`). All IDs resolve to pinned
+  files.
+- `units`: array order is presentation order. Each unit independently selects
+  its timeline, scene context, opening and closing story orders/times, source
+  dependencies and exact intent IDs; `medium` is free text, not a filter for a
+  small set of genres or formats.
+- `reference_queries`: an entity pointer (or aggregate `/world`), role and exact
+  scalar facet pointers, each of which must exist. The key hashes those fields,
+  values, entity and timeline only; unrelated states, camera settings,
+  presentation position and a snapshot's administrative ID stay outside it, and
+  section 2 says what a key proves. The output is a lookup key; adopting an asset and
+  producing a model-facing embedding are separate decisions.
+- `views`: individually named recipients, purposes, scalar `state_fields`,
+  reference-query IDs and deliberately authored `instructions`. Containers are
+  rejected to prevent accidental subtree export. Missing fields produce
+  `present: false` and omit the value; explicit null stays present.
+- `links`: named endpoints, a free-text relation, basis and explicit scalar
+  `equal`/`different` assertions. Both operands must exist; two missing fields
+  count as unproven rather than equal. `continuous` requires one timeline and
+  nondecreasing boundary orders; other authored relations carry only the tests
+  the author requests, and array adjacency alone yields none.
+
+Output contains `world-realization-bundle.json`, canonical world snapshots under
+`snapshots/` and separate consumer files under `consumer/`; only the consumer
+files go to a recipient. The bundle holds the source inventory, evidence
+locators, applicable intent statuses, reference facets, explicit comparisons and
+review notes; it is author-facing and can contain hidden or future information.
+Exact hashed bytes bind the build and, as section 1 says, prove bytes only.
+
+Nonexistent files, stale hashes, malformed data, duplicate IDs, bad intent
+links, unsafe paths, missing evidence, invalid temporal inputs and failed
+explicit comparisons block publication. An unadopted intent link is reported as
+a review note and left as it is. An empty plan can pass structure while
+remaining an unpopulated draft. Exit 0 means the requested structural operation
+succeeded, exit 1 reports errors or changed dependencies, and invalid CLI use
+returns 2.
+
+No network or model call occurs. Paths must stay within the declared root;
+remote/absolute paths, parent traversal and symlinks are rejected. Source counts,
+text length and compiled data have no implicit byte or item ceiling; parsing and
+compilation need enough host memory and storage, and an operational failure is
+not a successful partial realization. Split a large requested scope into
+explicitly dependent plans rather than silently truncating it. These are
+implementation bounds, not constraints on a work's length or number of subjects.
+
+

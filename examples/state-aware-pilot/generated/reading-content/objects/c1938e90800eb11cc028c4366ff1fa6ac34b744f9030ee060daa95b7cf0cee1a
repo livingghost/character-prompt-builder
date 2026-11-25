@@ -1,0 +1,30 @@
+## Selection and authority
+
+Retrieve applicable production knowledge and inspect each selected source before preparing it. Decide what the source may control, what it must leave alone, and why this request needs it. Choose only task-relevant sources rather than filling an arbitrary count. A model's observed attachment limit is an execution constraint, unlike a fixed aesthetic reference quota.
+
+A character sheet is a document containing views of its assigned subject.
+Use relevant views within the source's declared scope; panel selection need not
+be prescribed when several views carry complementary information. State the
+target outfit, action and expression separately. Add individual detail images
+when needed for legibility rather than enforcing a fixed reference count.
+
+Identity, current expression, wardrobe, lighting, pose and camera are different scopes; a transient state propagates only when requested, whatever identity the source shows. Express each source's `controls` and `must_not_control` authority scopes explicitly. Identical positive and excluded scopes are contradictory and rejected. The script leaves synonyms and semantic conflicts to the agent, who resolves them against the actual source and current intent.
+
+A canonical influence names its available capabilities. Select the contribution
+this request actually uses with `selected_controls` on the record-use decision.
+New JSON declarations require that choice; an omitted list remains unresolved.
+Each value must be one of the supported capability strings returned by
+`reference_runtime.py capabilities --influence INFLUENCE`; the preparer intersects
+that choice with the actual artifact's technical capabilities. For example,
+`pose-camera` can contribute pose, camera framing or silhouette relationships
+independently. Choosing pose alone leaves camera and crop with the depiction's
+owner. The short `RECORD_ID=INFLUENCE` form selects the whole influence.
+
+`control_expressions` optionally maps a selected capability to the target's
+actual wording. The selected capability remains the authority boundary; its
+expression supplies the description, tags or mixed syntax to deliver. An
+authored image-input plan instead owns these words directly at `use_for`.
+Choose the supported source and contribution for this task before choosing
+their expression. The validator checks the declared subset and exact delivery;
+source inspection and the complete-input review assess meaning and suitability.
+

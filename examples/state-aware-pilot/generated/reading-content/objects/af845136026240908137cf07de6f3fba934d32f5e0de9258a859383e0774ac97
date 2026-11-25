@@ -1,0 +1,7 @@
+# Use adopted Studio artwork as a state-aware reference
+
+A `studio-artifact` source selects a character, sheet slot, immutable artwork and
+its exact current adoption. The preparer reads the image hash and approval from
+the Studio. Working artwork needs no pack record. Packs remain a choice for
+reusable, distributed reference material.
+

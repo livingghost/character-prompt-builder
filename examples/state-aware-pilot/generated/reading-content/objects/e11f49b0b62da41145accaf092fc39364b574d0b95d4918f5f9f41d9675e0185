@@ -1,0 +1,83 @@
+## See branches and revisions in Graph
+
+The generated page opens on **Graph / branches**. The graph is created from
+ordinary story records during the existing projection. It needs no second diagram,
+new author form, extra command, graph service or downloaded JavaScript library.
+`timeline.html#flow` and `timeline.html#axis` at the Studio root open the other modes.
+
+Cards retain the existing scene, event and process identifiers. Selecting a card
+opens the same passage inspector used by Flow. Pin one, open another and read their
+accounts side by side. Related events remain visible even when Flow presents their
+associated scene as the primary reading card.
+
+Solid arrows run from a resolved `cause.type: "event"` reference to its recorded
+result. Dashed revision arrows run from the new revision to the whole old event it
+replaces. This direction is intentionally opposite to the old-to-new relation index
+used by the Flow inspector. No relation or resolver meaning is changed.
+Arrows appear only where a cause reference or a supersedes link is recorded.
+Record the cause when an event's origin is known; without references the graph
+shows ordered cards without links. Notes carry story facts about the recorded
+change; decision history belongs in `evidence` sources, not in notes.
+
+This is a synthetic four-event example:
+
+```text
+A (meeting) --cause--> B (reconciliation)
+           --cause--> C (misunderstanding)
+D (later revision) --revision--> B
+```
+
+Both cause arrows leave A visibly. The dashed arrow returns from D to B. An optional
+synthetic example has D revise both B and C; both recorded references remain visible.
+Create either example with:
+
+```bash
+python examples/story-flow/build_example.py --out /tmp/story-graph-demo --graph
+python examples/story-flow/build_example.py --out /tmp/story-graph-merge --graph --merge
+```
+
+The x direction is increasing declared story order, not chapter presentation order.
+Columns have equal spacing, not proportional duration. Parallel records at the same
+position stack vertically. Four alternating barycentre sweeps reduce edge crossings
+without changing a record's declared position. Separate timelines have separate lanes.
+Unplaced scenes, incomplete event coordinates and chapter-only material stay outside
+the time axis. No filename, similar name or chapter number supplies a missing position.
+
+Use **Highlight a recorded state path** to find an entity's changes, then **Read path
+records** for their exact sources. Sharing a path neither creates a causal edge nor
+proves two changes conflict. Axis retains the resolver's before/after values at the
+chosen viewpoint. The graph does not introduce another state replay.
+
+Filters collapse connected hidden records into labelled placeholders at their real
+positions. Their original cause/revision edges remain attached to those placeholders;
+a hidden chain is never replaced by an invented direct relationship. Clicking the
+placeholder opens its members, including their outside-filter status. A selected or
+pinned record stays readable when later filters hide its card.
+
+A directed loop receives a visible **Cycle cut** on a feedback edge. The exact edge
+remains in the relationship list. The iterative walk terminates on long chains and
+invalid cycles. This is a layout annotation, not a new contradiction verdict: combining
+a legitimate cause with a later revision can itself form a display loop. Existing
+ledger diagnostics still appear on their recorded nodes.
+
+The overview draws at most 200 node symbols. Larger views group records only at the
+same timeline/order; each group retains every member ID. If distinct positions still
+exceed 200, use position windows. Click a group to read its members, 40 at a time.
+**Focus selected passage** navigates to its window without resetting filters.
+
+At most 800 edge groups are drawn in a window. Parallel references with identical
+endpoints and kind share a counted line. Internal group links and links to other
+windows or unplaced records are reported. The paged **Recorded relationships** list
+retains every original edge, including cuts and lines beyond the drawing bound.
+These limits bound the SVG, not the ledger. The HTML still contains the full projection.
+
+Use zoom, **Fit width**, or keyboard scrolling to inspect the canvas. Browsing remains
+read-only. With no explicit references the cards have no arrows; ordered position is
+not presented as a causal chain. A missing explanation remains available for human
+story review rather than being completed by the renderer.
+
+The graph geometry is checked by `story_graph_smoke_test.py`. Python checks the
+projection and inline assets; Node.js checks the graph algorithms without launching
+a browser. Node.js is optional for these algorithm checks and is not a runtime HTML
+dependency. A missing Node.js executable is reported as a skipped algorithm check.
+

@@ -1,0 +1,119 @@
+### Worked depictions
+
+These are independent synthetic examples of authoring choices, not templates.
+
+**Appearance to language.** Suppose an authoring photograph shows an amber
+glass perfume bottle, a ribbed stopper, a narrow cream label and an illuminated
+amber patch on the table behind it. For a recreation, a suitable instruction
+is:
+
+> A studio product photograph of an amber glass perfume bottle with a ribbed
+> stopper and a narrow cream label. Warm light passes through the bottle and
+> casts an amber patch behind it on the pale tabletop. Keep the bottle's
+> silhouette and label clear against the quiet background.
+
+The material, transmitted light and their relationship describe the effect.
+The distinctive stopper and label remain explicit. An exact recreation may
+also need their shape, proportions and placement from the actual image. If
+the commission borrows only the luminous-glass treatment for a different
+product, the stopper and label do not transfer. Neither use establishes an
+unseen lamp model or a numerical lighting angle.
+
+**Idea to language.** A brief asks for a welcoming illustration of a guardian
+made of living smoke. One direction is strength conveyed by a broad stable
+form, with an open greeting and soft dissolution at its edges:
+
+> A powerful guardian made of living smoke offers an open hand in welcome.
+> Its broad central form remains recognizable while smoke curls away from
+> the outer contours. A calm expression and an eye-level encounter make its
+> strength reassuring. Use a richly colored fantasy illustration with clear
+> large forms and soft atmospheric edges.
+
+The material concept supplies possibilities for wisps and gradients. The
+central form and greeting specify what those possibilities must support.
+Individual wisps need no fixed paths unless their design is commissioned.
+An ominous guardian would call for a different performance and presentation,
+not simply more smoke detail. This wording is an authored possibility, not
+evidence that an unspecified model will render it successfully.
+
+**A relationship as the subject.** A brief asks for a diagram explaining how
+two meshed gears reverse the direction of rotation. A suitable depiction shows
+their engaging teeth and the opposite rotation arrows together. The contact
+and corresponding arrows carry the explanation; merely making the larger gear
+more prominent leaves the mechanism unexplained. In a flat diagram, proximity,
+alignment and consistent symbols organize this relationship. It needs no
+physical camera. Tooth count or precise dimensions remain explicit when those
+are part of the requested explanation.
+
+**Situation.** The request is a quietly comic kitchen illustration of an
+absorbed cook missing milk boiling over. A possible prompt is:
+
+> In a small home kitchen, a cook studies a recipe at the counter, absorbed in
+> the page while milk foams over a saucepan on the stove beside them. The
+> unnoticed overflow supplies the quiet comedy. Show the cook's reading and
+> the overflowing saucepan together in a warm, unhurried domestic illustration.
+
+The cook's attention and the unnoticed event make the picture. Their relation
+selects the framing. The act of reading carries ordinary handling of the
+recipe; no invented elbow angle is needed to make it concrete. A different
+pose can preserve the same event. A close portrait that loses the saucepan
+would lose the requested situation even if its expression were beautifully
+specified. Additional kitchen or character detail can be appropriate for a
+richer commission without replacing that relationship.
+
+**Reviewing a proposed design image.** The request is a catalog photograph of
+a cream ceramic cup with three thin cobalt rings near the rim and a plain,
+undecorated handle, showing its exterior design clearly. Working notes also
+identify the internally approved sample as D8. A submitted draft says:
+
+> Make an extreme overhead close-up looking into the cream cup. Let its
+> interior fill the image, with the handle behind it. Keep the three thin
+> cobalt rings near the rim and the undecorated handle clearly visible.
+> Put "Approved sample D8" in the upper-right corner. Use soft studio light.
+
+The review concerns whether this is a good direction for the commissioned
+catalog image. Obeying its overhead view and label does not answer that
+question. The draft directs attention into the cup while the commission is
+to present the exterior design. Adding another demand for visible rings and
+handle leaves that organizing choice in place. The approval code belongs to
+the working notes; the commission did not ask the renderer to display it.
+
+Rebuild the product presentation and retain the actual design requirements.
+The ring count, color, placement and plain handle need precision. The draft's
+view and label have no independent authority. Select a slightly elevated
+three-quarter view: it presents the exterior rings and handle together while
+the visible rim makes the cup's form legible. A level frontal view can also
+show the decoration; the three-quarter view better combines those requirements
+in this catalog image. The replacement is:
+
+> A clean catalog photograph of a cream glazed ceramic cup on a neutral
+> background. Exactly three thin cobalt rings encircle the cup just below the
+> rim; the handle is plain cream with no decoration. A slightly elevated
+> three-quarter view shows the exterior pattern and the handle together.
+> Soft studio light reveals the glaze without obscuring the cobalt lines.
+
+This changes the presentation, preserves the exact design and carries only
+relevant meaning from the working notes. It does not repair the draft by
+adding an angle, a visibility checklist or a ban on internal sample labels.
+The selected view is still a means: another view that presents this design
+clearly can fulfill the commission. A generated image that faithfully follows
+the overhead draft can satisfy that draft while failing the catalog purpose.
+Reviewing only whether the angle, label and counts appear would miss that
+failure. Reviewing only the broad purpose while dropping a required ring
+would also fail the commission.
+
+If only the draft were supplied for review, its stated catalog purpose and
+exterior-design requirements would still support criticism of the overhead
+presentation. Explain that inferred purpose and any authority uncertainty.
+Do not assume an unseen approval, but do not require one in order to judge a
+proposed instruction. These examples illustrate judgment; their chosen poses,
+views, objects and amount of detail are not defaults for other tasks.
+
+When the request spans related images, use the existing
+[Project Design](../../templates/narrative/design/design-template.md) for shared
+recognition anchors, each output's purpose and relationships between outputs.
+Adapt treatment to each use while preserving declared continuity. Each separate
+image has its own intelligible depiction, Production Specification and request;
+a composed page is itself one selected output. The batch route executes those
+prepared requests after their design is resolved.
+

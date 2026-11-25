@@ -1,0 +1,57 @@
+## Choose the interface before writing parser syntax
+
+For an executable CPB request, run `pack_cli.py ready`, resolve the model and
+choose its execution mode first.
+
+```sh
+python scripts/prompt_dialect.py --model MODEL_ID --service SERVICE --mode text-to-image --weighting compel
+python scripts/prompt_dialect.py --weighting compel
+```
+
+The first command reports the family and the grammar declaration from that
+model/offering/mode, and fails when it does not allow the requested grammar. The
+second describes grammar only. The selected model's control schema decides which
+parser can be sent. Generic explanatory text mentioning several parsers is not a
+substitute for that schema.
+
+For an external text handoff, the author can select an exact documented parser
+and encoding path before provider execution is available. Name that destination
+and retain its evidence with the authoring context. This is a choice of input
+contract, not a claim that the workflow is installed, callable or tested.
+CPB's executable requests still use the declared interface below; documentary
+knowledge does not create a native control or extend its local inspector.
+
+Each execution mode owns `prompt_syntax`, defined by
+[the prompt syntax schema](../../schemas/prompt-syntax.schema.json). Its `default`
+names the grammar when no optional control is selected. `control: null` declares
+a fixed grammar; a control declares its request field path and maps each native
+value to a grammar. The mapping is interface evidence, not a guess from a field's
+name, a model family or the prompt's punctuation.
+
+For example, a synthetic interface may declare:
+
+```json
+{
+  "default": "literal",
+  "control": {
+    "field": ["controls", "parser"],
+    "values": [{"value": "clauses", "syntax": "compel"}]
+  }
+}
+```
+
+For that interface, write the native choice in the existing generation parameter file:
+
+```json
+{"width": 1024, "height": 1024, "steps": 30, "controls": {"parser": "clauses"}}
+```
+
+These numbers illustrate file shape, not defaults. The model's geometry and
+control schema must accept the actual values. Pass that file as the usual
+`generation.parameters` task input or the builder's `--parameters` file. There
+is no model ID suffix, a second service adapter, or a new weighting service.
+Without a selected native control, CPB uses the declaration's `default` grammar.
+It does not insert a control or infer another grammar from punctuation. A required control
+may resolve an explicit record recommendation through normal parameter handling;
+an optional control is not automatically activated by a recommendation.
+

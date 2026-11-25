@@ -1,0 +1,32 @@
+## Unpublished staging and interrupted publication
+
+```text
+python scripts/production_workflow.py staging-cleanup --root STUDIO
+python scripts/production_workflow.py staging-cleanup --root STUDIO --operation OPERATION_ID --apply
+python scripts/production_workflow.py recover-publication --root STUDIO --run RUN
+```
+
+A failed or interrupted compile is never a formal run; `status` lists its staging separately.
+The dry run lists three kinds of leftovers, each with eligibility and reasons:
+
+- `items`: compile staging directories;
+- `journals`: dispatch journals that no claim names;
+- `publications`: run directories published without a registration.
+
+`--apply --operation ID` removes only the eligible items whose owner operation is `ID` and has ended.
+It checks ownership and formal references again in the publication store transaction right before removal. The dry run performs no writer transaction.
+A recoverable publication is never removed; its reason names `recover-publication`.
+A synthetic studio with nothing to clean prints:
+
+```json
+{"ok": true, "apply": false, "items": [], "journals": [], "publications": [], "deleted": 0, "external_effect": false}
+```
+
+`recover-publication` registers an intact publication left between file storage and database registration, without compiling or sending.
+It verifies the envelope, source snapshots, consumer and fixed runtime first.
+It keeps the current authority and imports no grant from the recovered input.
+Run `status` afterward to see the execution requirements.
+Diagnostic log cleanup is a separate operation, described in [Operation diagnostics](operation-logs.md).
+Neither cleanup deletes a formal request, result, review or authorization.
+
+Image work also follows the complete [Image input](production-image-inputs.md) contract. External requests use [External request inputs](production-external-inputs.md); the operation reader delivers those bodies for the selected execution.

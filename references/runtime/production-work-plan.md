@@ -98,7 +98,7 @@ directory, and absolute paths are used as printed.
 The current authoring and curation reading actions start complete paged delivery directly.
 `actions.continue` advances that delivery. From an index or after a selected
 section ends, `actions.next` reads the complete remaining scope in bounded
-pages; individual heading selection is optional. `actions.index`
+pages; individual section selection is optional. `actions.index`
 opens the complete source scope and navigation. Replay and fresh-context
 restart remain available, with no change to the required source bytes.
 Execute these complete actions without appending the original route, feature,
@@ -111,7 +111,7 @@ body and issues no reading; repair the invocation rather than rebuilding its
 plan or re-entering its source selections.
 After an explicitly selected section ends, input inspection offers the remaining
 complete scope in bounded pages. A section's end does not require visiting every
-remaining heading separately.
+remaining section separately.
 
 `--fresh-context` starts an explicit reading context. Follow returned actions;
 they carry its `--reading-context` ID across this uninterrupted context and
@@ -566,6 +566,10 @@ events. When both operations are still needed, the supplied evidence must cover
 both; a retained selection leaves only the required adoption operation.
 A delivery-only
 instruction does not imply canonical use.
+Delivery-only binds the captured candidate, review and selection authority. It
+does not require a Studio iteration or bind current slot placement or canonical
+state, even when the prepared task declares a recording destination. Studio
+and canonical destinations require their exact existing recording.
 
 Recovery retains each committed stage. If selection succeeded and adoption
 was interrupted, the same answer continues adoption. A later replacement or

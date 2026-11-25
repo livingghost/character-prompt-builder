@@ -1,0 +1,19 @@
+## Continue according to the actual result
+
+Saving completes the save operation. If the commission also requests delivery
+or independent review, perform and record those actions for the exact saved
+revision under [Authored storage](production-authored-storage.md). A later edit
+is a new revision, retaining the history of earlier deliveries and reviews
+without inheriting their current status.
+
+A prepared model request contains its exact prompt, media, controls and target.
+Inspect it before execution. Use its `status.next_action` and the complete
+execution contract for the current dispatcher or external host. Apply existing
+permission at its real scope; local authentication is separate from authority.
+An uncertain send resumes the same execution rather than making another call.
+
+Evaluate actual returned media before selection. The criteria come from the
+commission and applicable sources independently of the prompt being assessed.
+Chosen angles, wording and controls are means to that result. Keep limitations
+and inconclusive evidence visible. Canonical adoption requires its actual
+owner decision and authority; it is never a side effect of saving or capture.

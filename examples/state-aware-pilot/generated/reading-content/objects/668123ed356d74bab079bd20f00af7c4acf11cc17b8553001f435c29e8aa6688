@@ -1,0 +1,8 @@
+#### Identify the recorded subjects
+
+`explain-inputs --field authoring.task.recording` exposes the recording schema
+and `subject_map`: each key declares an image subject ID and its value names
+the Studio character that records it. Preserve the other required recording
+fields. Use those subject IDs consistently in their source applications,
+reference uses and review criteria.
+

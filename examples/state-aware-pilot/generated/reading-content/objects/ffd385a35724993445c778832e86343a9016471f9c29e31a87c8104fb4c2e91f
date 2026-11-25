@@ -1,0 +1,44 @@
+## Author the matching rendition
+
+Assign weights only after the complete depiction and each clause's scope are clear.
+Keep the necessary identity detail and exclusions when expressing priorities.
+
+| Intent | sdEmbeds rendition | Compel rendition |
+|---|---|---|
+| Explicit fragment weight | `(blue eyes:1.2)` | `(blue eyes)1.2` |
+| Repeated emphasis | `((blue eyes))` | `(blue eyes)++` |
+| Reduced emphasis | `[blue eyes]` | `(blue eyes)-` |
+| Parentheses without an explicit suffix | Apply implicit emphasis | Group the phrase without implicit emphasis |
+| Separate conditioning clauses | Do not assume Compel operators apply | `("solo, blue eyes", "forest, soft lighting").and()` |
+| Weighted blend of clauses | Do not assume Compel operators apply | `("blue eyes", "green eyes").blend(1, 0.8)` |
+
+The examples demonstrate grammar, not interchangeable embeddings or expected
+image quality. Compel's documented `+` multiplier is 1.1 per suffix and `-` is
+0.9 per suffix. sdEmbeds-style square-bracket reduction uses the reciprocal of
+1.1; it is not the same numeric reduction. Write explicit weights when comparing
+setups and review the images, rather than claiming parser equivalence.
+
+Compel parentheses group multi-word phrases; a suffix after one word weights that
+word, not an entire preceding sentence. Quoted/grouped clauses keep internal
+commas and nested weights. Backslash escapes keep literal delimiters from acting
+as parser instructions. Keep intended punctuation and grouping explicit.
+
+`.and()` encodes independent conditioning chunks; it does not assign subjects to
+spatial regions or guarantee identity separation. `.blend()` combines weighted
+conditioning. The inspector retains each clause, coefficient, fragment weight
+and source range. It does not calculate embeddings, image composition, token
+capacity or the resulting appearance. Signed coefficients need author review;
+lexical overlap alone does not establish their combined effect.
+
+The local inspector recognizes the upstream forms `.attend(weight)`, `.add()` as
+an alias of `.and()`, and the final `no_normalize` option to `.blend()`. They are
+upstream grammar forms, not a promise that every hosted build enables them.
+Use the provider-documented subset for ordinary service work. The selected
+model's validated interface evidence still owns what can be sent.
+
+Prompt-to-prompt `.swap()`, arbitrary method calls and `useLora`/`withLora` macros
+are not implemented in CPB's hosted-text grammar. They need distinct pipeline or
+resource support; select LoRAs through the service's declared native controls.
+`BREAK` is not a Compel conjunction. CPB never translates `BREAK`, `AND`, brackets
+or colon weights into another parser's operators by guessing the author's intent.
+

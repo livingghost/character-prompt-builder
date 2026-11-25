@@ -1,0 +1,13 @@
+#### Select reference inputs
+
+Reference choices expose the same child navigation. Select
+`--field authoring.references.additional_references` for the ordered direct
+source rows, their exact schema and the public Studio source commands.
+`source` pins current adopted artwork; `accepted-source` pins the current slot
+without granting canonical identity authority. Put that returned source object
+in the selected row and author its role and subject uses. Keep supplied files
+under their actual source authority. The builder derives missing use IDs and
+file hashes; retain existing IDs referenced by other authored choices. Follow
+the returned `image_input_action` to choose the existing mirrored-input or
+explicit-plan behavior. Merely capturing an output does not select it as input.
+

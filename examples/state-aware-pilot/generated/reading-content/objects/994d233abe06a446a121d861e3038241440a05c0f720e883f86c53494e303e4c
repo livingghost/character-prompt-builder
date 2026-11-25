@@ -1,0 +1,35 @@
+## 3. Distinguish occurrence, telling and execution
+
+Plan only the relevant portion of the world's state trajectory before realizing
+it; one image can be drawn before the complete work is finished. Recompute
+requested states from the authoritative base and events/processes, not the last
+generated picture or the last scene in presentation order; a candidate's render
+defects stay out of the next state's input.
+
+Record story order within each explicitly chosen timeline, and presentation
+order separately. A flashback can appear after a future scene while keeping its
+own knowledge, damage and wardrobe; parallel scenes, revisits, ellipses, repeated
+accounts and editorial reorderings need their own relations. Give an alternative
+its own reviewed continuity/base rather than merging incompatible worlds. Naming
+timelines is record-keeping; a native branching-story execution engine is a
+separate, unclaimed capability.
+
+The resolver's integer story orders are event positions rather than physical
+durations: leave elapsed time unestimated, keep a partial order partial, and
+keep a cycle out of any serialized chronology. Where that model is inapplicable,
+retain the design in prose and state the serializer boundary. A unit can depict
+a reverse interval; label its intended temporal treatment in the design and use
+explicit boundary comparisons instead of an inferred forward chain.
+
+For a continuous connection, record the outgoing and incoming states and the
+specific dimensions that must match; a pose can change across an edit and other
+fields can differ. An ellipsis can preserve injury while changing place, and a
+match cut can connect imagery while physical time stays disconnected. Only
+declared comparisons are machine checked.
+
+Processes use the existing authored milestones and lifecycle rules.
+Natural-language descriptions can retain subtle, continuous or mixed feelings;
+interpolation of numerical or emotional states is outside the resolver, and a
+missing intermediate milestone leaves psychological or physical continuity an
+open question. Author a supported projection at the precision the output needs.
+

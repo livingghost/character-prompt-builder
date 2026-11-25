@@ -1,0 +1,61 @@
+## Compose or amend actual content
+
+Choose the operation from the current request and the relationships it retains
+or reopens. `compose` begins an actual candidate from the current request and
+source applications. Supply a drafted rendition with `--prompt FILE`, an
+applicable negative with `--negative FILE`, or a complete JSON content object
+with `--content FILE`. Otherwise develop the initially empty content directly.
+An earlier candidate can remain available as comparison without supplying the
+new candidate's current choices.
+
+`amend` starts from the actual baseline content supplied with `--baseline FILE`.
+For an existing authoring work, extract its actual content to obtain that file:
+
+```bash
+python scripts/authoring_work.py extract previous-work.json --pointer '' --out baseline.json
+python scripts/authoring_work.py begin --operation amend --request request.txt \
+  --baseline baseline.json --source character=definition.md \
+  --application "character=character#" --subject lead=character --out work.json
+```
+
+Apply the requested change and its necessary consequences to that candidate.
+Retain the baseline choices that the current request keeps. The significance
+of a change comes from its effect on the construction and requirements; a
+property name does not select the operation. A change in the intended experience
+may call for another organization of the picture. A well-directed picture can
+benefit from a bounded correction.
+
+Edit `content` in the work file, or use the commands that update that same owner:
+
+```bash
+python scripts/authoring_work.py edit work.json --operation add --pointer /prompt --text-file prompt.txt
+python scripts/authoring_work.py edit work.json --operation add --pointer /documents --value-file documents.json
+python scripts/authoring_work.py replace-text work.json --pointer /prompt --old-file selected-text.txt --new-file replacement.txt
+```
+
+Choose `add`, `replace` or `remove` for the actual JSON operation; `replace` is
+the default. `add` and `replace` take exact UTF-8 text with `--text-file` or a
+JSON value with `--value-file`. `remove` takes no value. The selected value and
+its enclosing structure determine the operation's effect; other values retain
+their contents. `replace-text` changes the selected text within the
+current string. The owner derives the difference from the actual baseline and
+current content. Keep one actual content owner; extract its bytes when another
+tool needs an intermediate text or JSON file.
+
+`context`, `edit` and `replace-text` own the existing work file through
+`execution_contract.file_lock` before reading its current bytes and through
+publication of the edit. On a saved basis this coordinates with Production
+`acquire-source` on the same file. This scope covers those cooperating
+mutations; unrelated editors and commands have their own concurrency behavior.
+
+Use `extract` for intermediate content needed by vocabulary lookup, settlement
+or an unfinished baseline:
+
+```bash
+python scripts/authoring_work.py extract work.json --pointer /prompt --out prompt-for-lookup.txt
+```
+
+It reads the actual current value while allowing unfinished context, and reports
+`state: intermediate`. Continue the investigation or edit from those exact bytes,
+then use the completed export when delivering the final prompt.
+

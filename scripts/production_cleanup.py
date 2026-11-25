@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import execution_contract as c
+import execution_target
 import execution_lifecycle as accounting
 from operation_context import stage
 from production_diagnostics import ProductionError, from_exception
@@ -167,8 +168,9 @@ def perform(root: Path, run: str, journal, claim: dict, target: dict, transport:
     # Reading the original authentication selection does not reactivate a
     # submission. The recorded submit scope already includes these deletions.
     try:
-        selected = execution.claim_authentication(claim, transport, target['offering']['service'])
-        credential = execution._credential(root, transport, target['offering']['service'], expected=selected)
+        service = execution_target.offering(target)['service']
+        selected = execution.claim_authentication(claim, transport, service)
+        credential = execution._credential(root, transport, service, expected=selected)
         key = credential.value if credential is not None else ''
     except (ValueError, OSError) as exc:
         result['warnings'].append(from_exception(exc, phase='input-cleanup'))

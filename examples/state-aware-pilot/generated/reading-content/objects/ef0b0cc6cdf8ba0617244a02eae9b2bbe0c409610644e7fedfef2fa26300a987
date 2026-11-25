@@ -1,0 +1,30 @@
+## 2. Separate the addresses that serve different jobs
+
+| Address or owner | What it means | What it does not authorize |
+|---|---|---|
+| Subject/entity identity | Which recurring referent this is, within its continuity | A particular expression, role, costume or pose |
+| Character profile or world identity | What maintains recognizable identity, including designed change | Knowledge of every future event |
+| State snapshot | Established conditions at an explicit target order and scene context | An artistic choice or proof that a generated output matches |
+| Role-specific reference key | This entity's explicitly chosen relevant facets for one use | Whole-person identity, canon adoption, model compatibility or a general quality score |
+| Asset hash/binding | Exact bytes, adopted scope and bounded influence of a reference | All visible source-state details as permanent identity |
+| Authorial intent | What the creator chooses to sustain, contrast, reveal or disrupt | A quiet rewrite of world rules or historical facts |
+
+Select reference facets by purpose. A clothing change can leave a voice
+reference in place and an emotional change can leave an identity reference in
+place, while a meaningful new form can require different visual evidence.
+Include only declared expression channels; a universal identity/age/costume
+tuple, a mandatory human face encoder and species-derived anatomy are outside
+the design.
+
+Reference keys are queries for review, not evidence of perceptual equivalence. Two equal keys mean only that the authored facet selections match
+under the same entity, timeline and role; a wrong selection can omit a
+load-bearing distinction, so review it. Two distinct keys leave open whether one
+asset suits two separately scoped uses.
+
+A first generated appearance remains a candidate; reuse only adopted, applicable
+evidence. When transporting image references, the canonical Reference Selection
+and Reference Use Plan still own state eligibility, influence, exclusions and
+precedence. This plan leaves asset lists and model adapters to those owners; a
+visual-ID embedding and automatic identity transfer between generation backends
+are outside its scope.
+

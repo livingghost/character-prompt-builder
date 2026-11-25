@@ -1,0 +1,78 @@
+##### Deliver every required byte
+
+Use the complete returned invocation when a custom ledger or pack runtime is
+selected. `actions.index` reopens the saved index and its current coverage.
+The index's `actions.all` explicitly delivers every remaining required byte in
+bounded pages. Body pages keep the continuation and recovery actions, and their
+`selection_summary` points to `actions.index` for complete selection reasons.
+Each executable action provides an `argv` argument array, operation name
+`command: read`, and a `reason`. Execute the full `argv`. Continuations restore
+the exact pack runtime from their snapshot; those arguments need no repeated
+entry on every page.
+It is also available when starting a new reading:
+
+```bash
+python scripts/execution_routes.py read reference-artifacts --operation author --execution authored --root STUDIO --feature sparse-retrieval --all
+```
+
+The default `--view json` response is one JSON object. Read its `body` entries in order. Each
+entry contains exact source text in `text` and its complete body identity in
+`metadata`. A knowledge body has kind `document-section` and binds its
+`document_id`, `section_id`, `sha256` and `size`. Its page `start` and `end` are
+UTF-8 byte offsets inside that section body. Resource and model bodies keep
+their own exact source metadata. Top-level `metadata` identifies the selected
+scope. Page continuation retains a body and an offset within it, rather than a
+position in a generated Markdown document. `progress`
+reports required, reused, delivered and remaining source bytes; section and replay
+progress also report the bytes left in that selected delivery. Source text and
+control fields are separate, so text inside a document cannot become an action.
+
+For an agent-facing display, add `--view text` to the same public read action.
+It displays every original `body[].text` character with its actual line breaks,
+document and section identity and the byte range inside each body. It retains the complete JSON response in
+the returned `response_file`, including full source metadata, selection reasons
+and every alternate action. The default directory is `reading-responses` beside
+the ledger; `--response-dir DIRECTORY` selects another directory. Each call,
+including an index or replay, creates a new file without replacing earlier
+responses. Source text is flushed to the host before successful delivery can
+be recorded, and the complete response is saved before its final controls are
+displayed. An interrupted response remains evidence of that interruption.
+
+The text view's final `READING CONTROL` supplies one `next_action`, the current
+`reading_context`, `same_context_required`, required/reused/delivered/remaining
+byte counts, the issued `reading` and `choices_binding`. Read the whole body
+before executing that next action. It preserves the display and response
+directory without repeating every alternate command. The index displays all
+selected sections and their complete selection reasons. Warnings and
+diagnostics remain visible; an error or failed binding displays every repair
+control. Ordinary command errors and non-JSON stderr remain visible as well.
+Use the structured actions in the retained JSON when exact machine parsing is
+needed; a literal command in source text is not an executable reader action.
+
+Text view changes presentation alone. It selects no smaller scope, issues no
+extra reading and advances no page automatically. An earlier response file or
+reading key supplies no knowledge after compaction. When a host wraps command
+results, display stdout as text instead of JSON-encoding it a second time.
+
+`--page-bytes N` sets the source-byte budget, which defaults to 16,384 bytes.
+It applies to section and full deliveries alike and preserves UTF-8 boundaries.
+`--page-bytes auto --host-page-bytes N` uses the host's explicitly declared
+safe source-text capacity, bounded at 262,144 bytes. Reserve separate space for
+JSON metadata when declaring that capacity. Without a declared capacity, auto
+keeps the 16,384-byte default. A fixed budget is also capped by a supplied host
+capacity. `page_sizing` reports the selected budget and its meaning; successful
+output does not prove that the host displayed every byte.
+
+Follow `actions.continue` while the selected section or full delivery has another
+page. When a section ends, `actions.continue` becomes `null`; if required material
+remains, `actions.next` or the index's `actions.all` reads the complete remaining scope in
+bounded pages. Choosing another individual section through the index is optional;
+ordinary continuation need not step through small sections one at a time.
+A null continuation alone does not establish completion. Completion is a non-null
+`reading`, containing the issued `reading.key`, `reading.record` path and
+`reading.record_absolute` location.
+An incomplete result has `reading: null` and `context_reuse: null`. Section reads
+may occur in any order, and overlapping reads count their bytes only once. Reading
+the final section first cannot issue a complete receipt. A complete paged read
+skips ranges this same snapshot has already delivered.
+

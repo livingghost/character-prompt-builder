@@ -172,6 +172,24 @@ the actual commission delegates.
 
 ### Apply the prepared review basis
 
+Read each hard criterion's declared `origin` and `observation` beside the actual
+request and selected source. A direct emotion such as happiness is assessable
+as an impression; the image does not certify the subject's actual inner state.
+Assess the simultaneous visible configuration of a still, and use an applied
+baseline for a comparison. A sequence of panels may show ordering but not prove
+elapsed duration. Motion or audio criteria require the corresponding measured
+evidence; a video container alone does not establish that it carries audio.
+
+Keep an agent's staging or appendage choice advisory unless actual instruction
+or adoption requires it. A source example retains its conditions and variation;
+it does not become a universal rule. Secondary figurative impressions and
+necessary scene context cannot serve as literal hard proof. Check whether the
+impression obscures the primary depiction, and retain uncertainty explicitly.
+Mechanical validation checks declarations and references. It cannot establish
+that an origin label is truthful or that prose and images communicate the
+declared meaning. Correct a mistaken criterion at its current authored owner
+and prepare a new revision; preserve saved images, reviews and earlier runs.
+
 Assess the selected appearance goal and applicable source scope. Keep observed
 facial proportions, physique, posture, clothing and relationships distinct from
 unobserved facts about age, health, psychology or history. A youthful-looking

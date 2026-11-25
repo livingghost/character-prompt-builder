@@ -120,7 +120,8 @@ def scenario(name: str, root: Path, runtime: list[str], *, case: dict) -> dict:
     if name == 'partial-review':
         from production_fixtures import ACTOR
         task = c.load(root / 'task.json')
-        task['criteria'].append({'id': 'colour', 'strength': 'hard', 'text': 'The robot is drawn in red.', 'evidence': 'artifact'})
+        task['criteria'].append({'id': 'colour', 'strength': 'hard', 'text': 'The robot is drawn in red.', 'evidence': 'artifact',
+                                    'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
         fixtures.write(root / 'review/task.json', task)
         run = prepared(root, 'review/task.json')
         candidate = executed(root, run, 'review/decisions.json')['runs'][0]['candidates'][0]

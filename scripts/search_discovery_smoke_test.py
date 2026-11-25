@@ -36,6 +36,29 @@ def _row(
 
 
 class SearchDiscoveryTest(unittest.TestCase):
+    def test_normalization_preserves_unicode_and_synonym_word_boundaries(self) -> None:
+        for raw, expected in (
+            ("Gr\u00e9y pelt; musclebound kemono CLOSE_UP lowangle wideangle.",
+             "gray fur muscular anthropomorphic close portrait low angle wide angle"),
+            ("greyhound pelting closeups muscledness", "greyhound pelting closeups muscledness"),
+            ("close-up/closeup and blue-grey pelt", "close portrait close portrait and blue-gray fur"),
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(normalize_query(raw), expected)
+
+    def test_subject_colors_are_rederived_from_the_current_record(self) -> None:
+        record = {"id": "fixture-species-editable-wolf", "label": "Synthetic wolf",
+                  "defaults": {"surface": "navy blue fur"}}
+        first = extract_record_facets("module", "species", record)
+        self.assertEqual(first["coat_palette"], ["blue"])
+        record["defaults"]["surface"] = "warm grey fur"
+        second = extract_record_facets("module", "species", record)
+        self.assertEqual(second["coat_palette"], ["gray"])
+        record["defaults"]["surface"] = "navy blue field jacket"
+        third = extract_record_facets("module", "species", record)
+        self.assertNotIn("coat_palette", third)
+        self.assertEqual(first["coat_palette"], ["blue"])
+
     @staticmethod
     def _modifier_scope_index() -> SearchIndex:
         return SearchIndex({

@@ -1,0 +1,14 @@
+## Synthetic example and tests
+
+```bash
+python examples/story-timeline/build_example.py --out NEW_STATE_EXAMPLE_DIR
+python examples/story-flow/build_example.py --out NEW_STORY_EXAMPLE_DIR
+python scripts/state_ledger_smoke_test.py
+python scripts/story_timeline_smoke_test.py
+python scripts/story_flow_smoke_test.py
+```
+
+The state example authors a small test ledger. The Flow example authors a three-scene
+synthetic story with a deliberately unexplained change in trust. It proves that human
+reading remains useful even when all state checks pass. Neither example is user material.
+Tests use synthetic records and independent Studio files, with no personal pack.

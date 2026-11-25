@@ -466,8 +466,9 @@ class DispatchRecoveryTests(unittest.TestCase):
 
     def test_the_schedule_comes_from_the_delivery_entry_of_the_task_artifact(self):
         from production_diagnostics import ProductionError
+        saved = workflow.read_run(self.root, self.run).artifacts['execution-target.json']
         def target(**entry):
-            return {'offering':{'service':'synthetic'},'service':{'delivery':{'image':entry}}}
+            return {**saved, 'service': {**saved['service'], 'delivery': {'image': entry}}}
         self.assertIsNone(execution.poll_schedule(target(mode='m',poll='p',terminal='t'),'image'))
         self.assertIsNone(execution.poll_schedule(target(poll_interval_seconds=2),'video'))
         schedule=execution.poll_schedule(target(poll_first_delay_seconds=30,poll_interval_seconds=2,

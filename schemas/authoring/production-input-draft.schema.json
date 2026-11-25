@@ -1005,6 +1005,12 @@
           "items": {
             "type": "string"
           }
+        },
+        "origin": {
+          "$ref": "authoring/production-task.schema.json#/properties/criteria/items/properties/origin"
+        },
+        "observation": {
+          "$ref": "authoring/production-task.schema.json#/properties/criteria/items/properties/observation"
         }
       }
     },
@@ -1053,6 +1059,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "image_format": {
+          "$ref": "authoring/production-direction.schema.json#/properties/image_format"
         }
       }
     },

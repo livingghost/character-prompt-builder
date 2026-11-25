@@ -1,0 +1,15 @@
+## Grounded multi-unit coordination
+
+Use [World Realization](world-realization.md) to coordinate source-pinned units across presentation
+order, independent story targets and explicit state-dependent reference queries. It calls the
+existing `state_protocol.resolve_world`; snapshots remain rebuildable and events remain the owner
+of mutations. Its author-facing bundle is not a new Generation Package. Select and review the
+recipient view, then execute the normal projection, reference, prompt and generation contracts.
+
+Keep entity identity, a resolved state, an asset's exact bytes, a role-specific lookup key and a
+portrayal identity distinct. Query equality neither adopts a reference nor proves model-level
+identity. A generated first appearance remains a candidate. Review expected versus observed
+output with the [write-back route](../state-writeback-routing.md), preserving intentional omissions,
+contrasts and departures under actual creator decisions.
+
+

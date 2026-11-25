@@ -140,7 +140,8 @@ class AuthoredRevisionTests(unittest.TestCase):
         self.assertNotEqual(a_id, b_id)
         self.assertNotEqual(a_choices['authoring']['task']['production_id'], b_task['production_id'])
         b_task['criteria'] = [{'id': 'harbor', 'strength': 'hard', 'evidence': 'artifact',
-                              'text': 'The text describes the independent quiet harbor.'}]
+                              'text': 'The text describes the independent quiet harbor.',
+                                  'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         b_task['direction'].update(purpose='Describe the independent harbor.',
             intended_effect='A quiet waterfront scene.', basis=[row['id'] for row in b_task['sources']])
         self.write(b_choices['authoring']['delivery']['file'], 'A quiet harbor before the first ferry.\n')
@@ -563,7 +564,8 @@ class AuthoredRevisionTests(unittest.TestCase):
 
     def test_requested_review_reports_and_requires_actual_criterion_coverage(self):
         self.task['criteria'].append({'id': 'scope', 'strength': 'advisory',
-                                      'text': 'The sentence retains the requested scope.', 'evidence': 'text'})
+                                      'text': 'The sentence retains the requested scope.', 'evidence': 'text',
+                                         'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
         path, _ = self.choices(requirements=['save', 'review'])
         run = workflow.save(self.root, path)['run']
         value = workflow.draft_review(self.root, run)

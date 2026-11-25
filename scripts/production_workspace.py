@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import execution_contract as c
+import execution_target
 import production_evidence as media
 import production_operations as workflow
 
@@ -31,12 +32,12 @@ def _reading(prepared: dict, phase: str) -> dict:
         execution=task['execution'], operation=operation)
     return {'entry': str(workflow.ROOT / 'SKILL.md'),
             'operation': operation,
-            'documents': [{'path': str(workflow.ROOT / item['path']), 'sha256': item['sha256'],
-                           'ranges': item['ranges'],
-                           'sections': [row['anchor'] for row in selected['section_owners'][item['path']]]}
+            'documents': [{**item,
+                           'record': {**selected['document_records'][item['document_id']],
+                                      'path': str(workflow.ROOT / selected['document_records'][item['document_id']]['path'])}}
                           for item in selected['reads']],
-            'instruction': 'Use these paths to recover any applicable Skill instructions missing from the '
-                           'active context at the required source ranges, then apply them to this phase. '
+            'instruction': 'Use each record path to recover applicable Skill instructions missing from the '
+                           'active context, reading the complete bodies selected by section ID, then apply them to this phase. '
                            'Earlier authoring-stage reading is not the current operation scope.'}
 
 
@@ -122,9 +123,10 @@ def _saved_knowledge(root: Path, loaded) -> dict:
     if prepared['task'].get('authored_basis'):
         result['authored_basis'] = {'path': str(directory / 'prepared.json'), 'pointer': '/task/authored_basis'}
     if 'execution-target.json' in loaded.artifacts:
-        path = directory / 'execution-target.json'
-        result['target'] = {'path': str(path), 'sha256': c.digest(c.read(path)),
-                            'model_pointer': '/model', 'offering_pointer': '/offering'}
+        target_file = next(row for row in loaded.manifest['files'] if row['path'] == 'execution-target.json')
+        result['target'] = {'path': str(directory / target_file['path']), 'sha256': target_file['sha256'],
+                            'model_pointer': '/model',
+                            'offering_pointer': execution_target.offering_pointer(loaded.artifacts['execution-target.json'])}
     descriptor = prepared.get('runtime_snapshot')
     binding = (descriptor or {}).get('binding', {})
     if descriptor is not None:
@@ -151,7 +153,7 @@ def summary(root: Path, report: dict) -> dict:
     phase = report['phase']
     if 'reading' in report:
         result['reading'] = fields(report['reading'], ('entry', 'operation', 'instruction'))
-        result['reading']['documents'] = [fields(document, ('path', 'sections'))
+        result['reading']['documents'] = [fields(document, ('document_id', 'record', 'sections'))
                                           for document in report['reading']['documents']]
     if phase in {'input', 'observe'}:
         if 'prepared_input' in report:

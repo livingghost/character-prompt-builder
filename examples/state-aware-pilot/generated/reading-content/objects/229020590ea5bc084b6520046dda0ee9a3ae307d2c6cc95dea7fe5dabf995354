@@ -1,0 +1,161 @@
+## Record the production direction
+
+The task's `direction` holds `purpose`, `intended_effect`, applied source IDs
+in `basis`, `decisions`, `source_allowances`, `action_slice`, and `limitations`.
+Use empty lists for decisions or allowances the work has not made, and `null`
+for an inapplicable action slice. Each decision is a current adopted instruction
+within this task, with its exact expression and realization.
+Keep the distinction between an intended effect and an audience response
+actually observed; a manifest or passing test proves neither.
+
+Record criteria for the result the artifact must provide, at its actual scope.
+Ground them in the commission, applicable adopted definitions, current state
+and conditions necessary for the intended use. Carry those requirements forward
+when a later request relies on them. Preserve baseline choices outside the
+authorized scope of a local edit. Apply each requirement at its authored meaning,
+precision and conditions, including fine details and meaningful absences.
+
+Use `hard` for required outcomes and properties, and `advisory` for useful
+preferences or optional improvements. Establish an inferred necessity through
+its consequence for the requested result or use. Consider a coherent alternative
+that changes the proposed condition while meeting the applicable requirements;
+when it works, retain that freedom in the criterion. Chosen staging, observable
+cues, quantities and production hypotheses belong to the realization. Judge
+their success through the result they produce. A chosen means becomes fixed
+through the scope of an actual requirement or adoption. Explicitly requested
+details remain requirements regardless of their prominence.
+
+Use the existing criterion `text` and `evidence` to describe the required result
+and what would support, contradict or leave it undecided. Preserve permitted
+variation and requested ambiguity. For an individualized performance, state the
+concrete defining relationships and current selection at the precision its
+source establishes, following [Performance Language](../performance-language-specification.md#9-evidence-for-a-performance-judgment).
+Where the source requires a particular defining relationship, an emotion label
+alone does not preserve that distinction. Direct emotion words remain valid
+for the intended impression and can accompany its selected visible expression.
+Do not turn every
+incidental pose choice into a permanent trait, or treat a selected form as
+interchangeable with another merely because both express the same emotion.
+A visible depiction, supplied text, measured
+structure and documented state support different judgments. Use
+`direction.limitations` for evidence boundaries and keep wider source knowledge
+available for comparison. Background facts need not all become depicted claims,
+and a still cannot establish an unshown conversation or earlier choice.
+
+Connect the required meaning or property to its carrier in the selected text,
+controls or media. Assess the presentation by what that combination communicates
+at useful scale. When a view excludes genuinely necessary information, change
+the construction within authority; more wording cannot expose it. When another
+combination carries the same result, keep that realization available. The
+authority for a requirement, the selected way to realize it and the returned
+evidence remain distinct. Consequential limits and unresolved authorial choices
+stay at their existing owners rather than automatically becoming instructions
+to the renderer.
+
+Write the current construction directly in each decision's `expression` and
+`realization.instructions`. When alternatives would resolve a consequential
+choice or the user requests several, compose actual candidates and compare
+their effects against the current commission. Each can carry a different
+organization of the picture within the retained requirements. Select or present
+the requested candidates through [Authoring work](authoring-work.md). Keep
+unfinished work as a draft and develop it as the choice becomes clear.
+
+Each decision names its `id`, applied source IDs in `basis`, `expression`,
+`realization`, criterion IDs in `criteria`, predecessor decisions in
+`depends_on`, and intentional `deviations`. An optional `note` explains the
+current choice. A deviation records its source ID, source locator,
+scope and reason, and leaves canonical identity unchanged. Detailed
+personality, experience, physique, relationships and context may matter
+together; read them together rather than looking up a stock gesture from an
+emotion. Restraint, an unchanged stance, expressive exaggeration and a
+deliberate contrast with ordinary behavior can all be valid choices.
+
+A decision's `realization` describes the actual `method`, executable
+`instructions`, an optional applied `capability_source` and known
+`limitations`. Check the selected tool's real accepted controls; precise
+language about a pose or motion leaves open whether a model can realize it.
+Use generation, existing artwork, reference preparation, composition, local
+edits or another supported operation according to the purpose; a longer prompt
+is one repair among several.
+
+Declare each hard criterion's actual `origin` and `observation` once in the
+criterion. The compiler retains these choices with the captured request and
+source bytes; no manual hash or repeated output-medium field is needed.
+
+- `origin: {"kind": "user-request"}` cites the actual commission retained in
+  the work basis, including an expressly accepted choice.
+- `origin: {"kind": "adopted-source", "source": "SOURCE_ID"}` cites an applied
+  source at its selected scope. Read its actual authority, conditions and
+  permitted variation. A source ID alone does not establish adoption.
+- `origin: {"kind": "agent-realization", "decision": "DECISION_ID"}` cites a
+  current selected means and is permitted only for an advisory criterion.
+
+Approval of a communicated concept covers the choices actually presented.
+Later details added to a task-local definition remain authored realization
+unless the request or an adopted source independently requires them. Keep that
+distinction when a criterion refers to the definition as a whole.
+
+The observation's `scope` states what the criterion evaluates. Use `observable`
+for content directly supported by its `evidence`, `impression` for an apparent
+emotion or mood, `sequence` for ordering, `duration` for elapsed time, or
+`comparison` with `baseline: "SOURCE_ID"` for a comparison against an applied
+source. `context-only`, `author-only` and `unresolved` retain their limitations
+and cannot be hard result criteria. Optional `decision: "DECISION_ID"` names
+the particular direction decision being assessed, not every decision that
+helps achieve the goal. Preparation derives the medium from `artifact` and
+checks it against the criterion's existing `evidence`.
+
+For example, when a happy expression is actually requested:
+
+```json
+{
+  "id": "happy-expression",
+  "strength": "hard",
+  "text": "The requested happy expression is readable.",
+  "evidence": "image",
+  "origin": {"kind": "user-request"},
+  "observation": {"scope": "impression"}
+}
+```
+
+An unrequested ear angle chosen to realize that happiness remains advisory.
+Do not stamp every criterion as `user-request` to satisfy validation. The
+validator follows declared authority and references; the author must compare
+the criterion's actual meaning with its cited original.
+
+An ordinary decision's executable instructions are its `visible` carrier.
+Where another role matters, set `representation.role` on that decision:
+
+| Role | Selected input and review scope |
+| --- | --- |
+| `visible` | Direct primary depiction, carried by the actual expression and executable instructions. This is the ordinary role when no representation override is needed. |
+| `secondary-figurative` | A secondary impression, with `representation.primary` naming an independently resolved visible decision. Its assertion is an impression and its importance is secondary. Its literal content cannot be a hard criterion. |
+| `context-only` | Necessary scene premise included for understanding. It is not hard proof of an unshown fact. |
+| `author-only` | Retained privately in the direction; omitted from consumer directives. Keep it out of the separately authored prompt and media too. |
+| `unresolved` | An undecided representation. Completing preparation waits for the author to resolve this selected decision. |
+
+These declarations apply to selected decisions, not every word or every fact
+in a source. Keep source-only material at its existing owner when no selected
+direction is needed. A secondary impression may help a required happy
+expression: bind the criterion to the primary expression when naming a
+particular decision, and keep the figurative thought out of literal proof.
+
+Image artifacts ordinarily use `single-still`. Set `direction.image_format`
+to `multi-panel` for an intentionally ordered panel image. A hard `sequence`
+criterion then uses image evidence; a single still cannot supply it. Video uses
+motion evidence, audio uses audio evidence, and authored text uses text evidence
+at its own scope. Text and JSON can explicitly state a narrative interval such
+as "waited ten minutes"; text evidence establishes that statement, not a measured
+playback duration. Measured playback duration requires motion or audio evidence.
+Panels do not establish elapsed time by themselves. Assess a visible time label
+as observable content when the label is the requirement. Sound requires actual
+audio evidence, including an audio stream when the artifact is video. Use the existing
+`action_slice` when a still needs a particular phase, and retain its unverified
+before/after facts outside the visible requirement.
+
+Preparation checks these declared relationships through
+`scripts/production_expression.py`. It reports the exact criterion or decision
+and a repair action. It neither scans emotion words and metaphors nor certifies
+meaning, aesthetic quality or actual approval. Saved evidence remains unchanged;
+new authoring resolves an unsupported requirement at its responsible source.
+

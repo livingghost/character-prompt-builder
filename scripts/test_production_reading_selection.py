@@ -39,12 +39,12 @@ class ReadingSelectionTests(unittest.TestCase):
     def sections(self, selected, path):
         resolved = execution_routes.resolve(self.task['route'], execution=self.task['execution'],
                                              authoring_scope=selected)
-        return {row['anchor'] for row in resolved['section_owners'].get(path, [])}
+        return {row['section_id'] for row in resolved['section_owners'].get(path, [])}
 
     def assert_image_knowledge(self, selected, expected=True):
         self.assertEqual('references' in selected['conditions'], expected)
         self.assertEqual('image-source' in selected['conditions'], expected)
-        sections = self.sections(selected, 'references/runtime/production-direction.md')
+        sections = self.sections(selected, 'references/runtime/production-direction')
         self.assertEqual('form-a-prompt-from-an-image' in sections, expected)
 
     def test_pack_and_state_reference_choices_select_the_image_contract(self):
@@ -112,7 +112,7 @@ class ReadingSelectionTests(unittest.TestCase):
         selected = self.selected()
         self.assertIn('accepted-variation', selected['conditions'])
         self.assertIn('preserve-accepted-variation-at-its-declared-scope',
-            self.sections(selected, 'references/runtime/production-direction.md'))
+            self.sections(selected, 'references/runtime/production-direction'))
         self.task['criteria'][0]['identity_bindings'][0]['treatment'] = 'preserve'
         self.assertNotIn('accepted-variation', self.selected()['conditions'])
         self.task['direction']['source_allowances'] = [{'source': 'definition', 'allowance': 'declared'}]
@@ -135,7 +135,7 @@ class ReadingSelectionTests(unittest.TestCase):
         changed = self.selected(context=previous)
         self.assertIn('target-change', changed['conditions'])
         self.assertIn('select-and-change-the-target',
-            self.sections(changed, 'references/runtime/production-authoring.md'))
+            self.sections(changed, 'references/runtime/production-authoring'))
 
     def test_catalog_compares_explicit_native_operation_without_acquiring_a_runtime(self):
         self.choices['target'] = {'kind': 'catalog', 'model': 'fixture-model', 'service': 'fixture-service'}
@@ -191,7 +191,7 @@ class ReadingSelectionTests(unittest.TestCase):
         selected = self.selected()
         self.assertIn('production-spec', selected['conditions'])
         self.assertIn('represent-the-selected-design',
-            self.sections(selected, 'references/runtime/render-contract.md'))
+            self.sections(selected, 'references/runtime/render-contract'))
         resolved, _, missing = read_editable(self.choices['authoring'], InputEvidence(self.root))
         self.assertEqual(missing, [])
         self.assertEqual(resolved['documents']['production_spec'], specification)
@@ -204,7 +204,7 @@ class ReadingSelectionTests(unittest.TestCase):
         selected = self.selected()
         self.assertIn('state', selected['conditions'])
         self.assertIn('an-image-of-an-action-is-not-the-action',
-            self.sections(selected, 'references/runtime/production-direction.md'))
+            self.sections(selected, 'references/runtime/production-direction'))
         self.choices['visual'] = None
         self.choices['authoring']['documents']['visual_continuity'] = {'file': 'visual.json'}
         self.assertEqual(selected['conditions'], self.selected()['conditions'])
@@ -216,7 +216,7 @@ class ReadingSelectionTests(unittest.TestCase):
         selected = self.selected()
         self.assertIn('production-spec', selected['conditions'])
         self.assertIn('select-a-production-specification',
-            self.sections(selected, 'references/runtime/production-authoring.md'))
+            self.sections(selected, 'references/runtime/production-authoring'))
         self.task['sources'][0]['disposition'] = 'considered-not-used'
         self.assertNotIn('production-spec', self.selected()['conditions'])
 

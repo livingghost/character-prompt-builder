@@ -1,0 +1,22 @@
+## Change direction without losing prior work
+
+Use [Variation](production-variation.md) to branch from saved inputs, including
+completed results. Separate branches can hold different prompts, models,
+controls and reference selections. Each branch has an explicit editable
+source and its own prepared request; preparing one does not replace another.
+Add, remove or reorder references at their authored source selection and
+preserve their intended roles and exclusions. The builder derives positions
+and hashes for the resulting request.
+
+An enlargement starts from the selected retained image, with its own operation
+contract and criteria. `draft-inputs` accepts an explicit source run and
+candidate as described in [Variation](production-variation.md); it retains the
+image's provenance without imposing its generation prompt on enlargement.
+Choose the resulting enlarged candidate through the common acceptance flow.
+
+If the earlier work task is finished, `--new-task` opens the requested revision
+while retaining the prior task, result, selection and completion. Applicable
+content and criteria remain available. Apply the current commission's actual
+authority to the new task; a saved approval is evidence only at its own scope.
+An already active task must be selected or suspended explicitly.
+

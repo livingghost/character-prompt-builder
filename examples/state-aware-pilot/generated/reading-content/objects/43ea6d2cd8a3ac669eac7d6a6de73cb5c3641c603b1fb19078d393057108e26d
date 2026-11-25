@@ -1,0 +1,13 @@
+#### Keep specialist documents at their owner
+
+Each `authoring.documents` entry selects one editable file with `{file, field?}`.
+`file` is relative to the Studio; `field`, when needed, is an array of JSON
+object keys or array indices selecting the value inside that file. Keep the body
+in that file. The builder reads its current bytes and captures hashes in the
+compiled revision. Editable selectors do not carry hashes to maintain by hand.
+For example, correcting `work/input/negative_provenance.json` changes the next
+`check --choices` and `prepare --choices` without a second edit to choices.
+Diagnostics name that source file and its owning contract. Earlier prepared
+revisions retain their captured content; `draft-inputs --from-run` restores it
+into the new draft's editable files.
+

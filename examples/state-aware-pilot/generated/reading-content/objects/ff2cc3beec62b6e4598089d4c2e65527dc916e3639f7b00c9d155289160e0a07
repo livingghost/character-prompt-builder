@@ -1,0 +1,28 @@
+## Authority graph
+
+When world rules, themes, portrayal or narrative intent are being designed, use
+[World-Coherent Creative Development](narrative-development.md). Relevant world records and
+phase-specific personas supply their scoped baselines; this runtime governs approved scene state.
+A proposed world change, relationship turn or future persona is not an executed state event.
+A theme, genre convention or author-only plan cannot override current state.
+
+Do not reconstruct current state from chat memory. Stateless participants retain their independently selected Identity and morphology contracts. Apply the graph and state-resolution steps below to each state-aware subject, using approved artifacts:
+
+```text
+Identity, Era, Form, and Appearance contracts
++ approved State Event Ledger and State Processes
+-> World State Snapshot
+-> Character State Snapshot
++ Scene Context Snapshot
+-> Visual State Projection
+-> Asset Render Specification
+-> scene-specific Production Specification
+```
+
+The Identity Contract owns stable anatomy, proportions, markings, distinctive details, asymmetry, identity-level accessories, stable performance vocabulary, and stable grooming construction. The State Event Ledger owns approved change over story time. Scene Context owns current relationships, environment, wardrobe, inventory, props, disclosure, and planned transitions. Visual State Projection decides what the current camera may show, what remains hidden, what performance consequences are visible, and which text or references carry each critical fact.
+
+The authority order remains user intent and approved canon, approved identity and event history, resolved snapshots and context, Visual State Projection and Production Specification, then selected catalog knowledge and the studio defaults. A scene record cannot overwrite identity or history. Do not paste the whole history into the prompt; project only current visible or performance-relevant truth while preserving hashes and source references.
+
+Inspect recorded events and exact resolver viewpoints with [Story Timeline](story-timeline.md).
+Its read-only page is an aid to choosing inputs, not a new source of canon.
+

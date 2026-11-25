@@ -334,7 +334,9 @@ def select_upscale(root: Path, authored: dict, out_dir: str, *,
                 task['direction'][field] = purpose
         if not task.get('criteria'):
             task['criteria'] = [{'id': 'requested-result', 'text': purpose,
-                                 'strength': 'hard', 'evidence': 'image'}]
+                                 'strength': 'hard', 'evidence': 'image',
+                                 'origin': {'kind': 'user-request'},
+                                 'observation': {'scope': 'observable'}}]
     if source_image is not None:
         source = Path(source_image)
         if not source.is_absolute():
@@ -401,7 +403,10 @@ AUTHORED_FIELDS = {
         'so the result has no review criterion.',
         'Add each requirement of the commissioned result to authoring.task.criteria as {"id": ID, "strength": '
         '"hard" or "advisory", "text": REQUIREMENT, "evidence": "artifact", "text", "image", "motion" or '
-        '"audio"}, written from the commission independently of the prompt.', DIRECTION_GUIDE),
+        '"audio"}, written from the commission independently of the prompt. For hard criteria, add '
+        'origin {"kind": "user-request"} or {"kind": "adopted-source", "source": ID}, and observation '
+        '{"scope": "observable" or "impression"} for the actual evidence. An agent realization stays advisory.',
+        DIRECTION_GUIDE),
     'delivery.content': (
         'so there is no text to deliver.',
         'Write the delivered text into the file that authoring.delivery.file names (its selected field for '

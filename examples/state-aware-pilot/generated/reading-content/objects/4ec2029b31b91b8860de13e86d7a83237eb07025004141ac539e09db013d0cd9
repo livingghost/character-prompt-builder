@@ -1,0 +1,24 @@
+## Session entry
+
+`scripts/session_entry_points.py` finds the studio the working directory belongs to and prints the open task first: goal, steps done, the next step, and what it is blocked on. It prints them whether or not a pack runtime exists; text authoring resumes without one. A studio it cannot read is named with the problem in one line, and the report goes on. Read that before doing anything else; if a task is open, continue from `next`; if none is open, inspect suspended tasks before the last finished tasks and resolve the intended continuation. Do not reconstruct the state of the work from chat history when the trail is there.
+
+Session entry prioritizes the current goal, unfinished steps, every open
+question and blocker, and a short excerpt of the latest valid checkpoint for
+the current task revision. `note_count` and `omitted` make the retained history
+visible without repeating every note. Its full-history action is
+`work_ledger.py show --studio STUDIO --task-id TASK --view full`; that explicit
+view can inspect active, suspended and closed tasks.
+
+Session entry reads the saved task trail and pack settings without opening the
+Production database, creating operation logs or rebuilding gallery, reference
+or timeline displays. Its printed Production status and input-inspection
+commands read detailed saved choices and continuation state when explicitly run.
+Pending projection receipts remain for
+an explicit `studio.py sync --studio DIR` or an ordinary mutating operation.
+The host uses the already provisioned project interpreter with bytecode disabled;
+it reports missing setup without installing anything. Follow
+[Dependencies](../../DEPENDENCIES.md#uv-project-environment) for that explicit
+setup and the environment's functional check.
+
+Resume in this order: bind the studio, read the trail and the open task, read the applicable originals for the next operation, compare any new instruction with what is saved, then take the next safe operation. Do not repeat an answered question, revive a rejected idea, resend a completed generation, or treat a pending candidate or a held draft choice as adopted. Report what is saved by its actual guarantee: a local checkpoint read back, an export verified, a remote write with an unknown outcome, or a stale resume record. None of these is "backed up"; when writing is unavailable, say what is unsaved and hand over a recoverable export instead of accumulating decisions as if they were safe.
+

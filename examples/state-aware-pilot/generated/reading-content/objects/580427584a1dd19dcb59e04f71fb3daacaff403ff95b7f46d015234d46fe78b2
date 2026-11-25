@@ -1,0 +1,19 @@
+## An image of an action is not the action
+
+When a still needs a particular phase, `action_slice` describes `phase`,
+`before`, `after`, free-form relations (`subject`, `relation`, `object`,
+`note`) and a nonempty `not_verified` list. Use only relations needed to read
+the image: support, contact, overlap, ownership, or other relevant constraints.
+No mandatory anatomy, cast size or universal phase sequence is imposed.
+Leave `action_slice` null when unnecessary; a still request stands apart from
+any video pipeline. Two coherent poses leave the feasibility and timing of the
+motion between them unestablished.
+
+Realize the selected phase through the current actors, action targets and
+relationships that distinguish this instant. A `phase` label alone does not
+establish the event. Identify the visible position, separation, support or
+contact the particular action requires and choose a view that can show it.
+Keep earlier and later conditions outside this instant unless a sequence or
+another presentation is intended. An action word may guide a depiction without
+proving that motion occurred; choose the evidence kind accordingly.
+

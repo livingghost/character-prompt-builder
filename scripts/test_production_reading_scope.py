@@ -131,11 +131,11 @@ class AmendmentScopeTests(unittest.TestCase):
         self.assertFalse(reading_scope.matches({'changes_any': ['controls.render-intent']}, scope))
         resolved = execution_routes.resolve('generation', current['authoring']['task']['features'],
             execution='dispatcher', authoring_scope=scope)
-        for path in ('references/prompt-composition-geometry.md', 'references/camera-framing-contract.md'):
-            source = next(row for row in resolved['reads'] if row['path'] == path)
-            self.assertEqual(sum(row['end'] - row['start'] for row in source['ranges']), source['size'])
+        for path in ('references/prompt-composition-geometry', 'references/camera-framing-contract'):
+            source = next(row for row in resolved['reads'] if row['document_id'] == path)
+            self.assertEqual(source['sections'], [section.metadata() for section in execution_routes.DocumentReader(lambda name: (execution_routes.ROOT / name).read_bytes()).acquire(path).sections])
             self.assertIn('feature:geometry', resolved['read_owners'][path])
-        self.assertIn('references/runtime/image-generation.md', resolved['read_owners'])
+        self.assertIn('references/runtime/image-generation', resolved['read_owners'])
 
     def test_execution_and_artifact_changes_belong_to_the_target_owner(self):
         for key, value in (('execution', 'external'), ('artifact', 'text')):

@@ -1,0 +1,37 @@
+## Begin from the current request
+
+Preserve the actual request in a UTF-8 file. Read supplied material in its
+assigned role and use [Production direction](production-direction.md) to
+establish the character, intended effect and meaningful creative scope. Develop
+open details within delegation. A concise definition can supply everything the
+current depiction needs; elaborate it when a later choice needs more. Use
+[definition wording](prompt-vocabulary.md#define-a-character-with-usable-wording)
+to investigate dictionary terms while developing those details, and retain the
+inspected meanings and authored phrases with their definitions.
+
+Begin a candidate with the available request and sources:
+
+```bash
+python scripts/authoring_work.py begin --operation compose --request request.txt \
+  --source character=definition.md --application "character=character#" \
+  --subject lead=character --out work.json
+```
+
+The files in this command contain this task's actual request and definition.
+The application selects the definition's content; `lead` names the character
+using it. Use the relevant number of subjects and source applications. The
+command can also begin partially resolved work with only the material currently
+available. `inspect` exposes the current content and selections. Add the next actual
+choice through `context` as the work develops:
+
+```bash
+python scripts/authoring_work.py context work.json --source character=definition.md \
+  --application "character=character#" --subject lead=character
+```
+
+Ask the user when a consequential choice needs their decision. Otherwise make
+a coherent provisional choice, show a useful proposal and continue. Complete
+the definition needed for this artifact before its finished export. A character
+may be human, animal, creature, machine, personified matter or another designed
+entity. Use its actual body or functional assembly and expressive channels.
+

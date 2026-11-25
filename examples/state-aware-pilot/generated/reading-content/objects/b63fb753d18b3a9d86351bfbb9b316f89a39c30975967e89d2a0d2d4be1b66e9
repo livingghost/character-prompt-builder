@@ -1,0 +1,33 @@
+## Digests
+
+Every digest is the SHA-256 of canonical JSON or of exact file bytes.
+Canonical JSON sorts object keys, uses `,` and `:` without spaces, writes non-ASCII characters as UTF-8 rather than `\u` escapes, refuses NaN, and ends with one newline.
+Array order and string bytes, including prompt whitespace, are kept.
+A run ID is generated, never computed from a digest, so a derived input that names its run directory forms no cycle.
+The chain therefore runs one way: authored content, input digest, request digest, run envelope, then authorizations and events.
+
+| Digest | Field and where it is recorded | What it covers |
+|---|---|---|
+| Input | `input_sha256`: `prepared.json`, the execution plan, the run registry and every formal event | The task without authority, decisions and costs; the consumer; each pinned file's path and SHA-256; the runtime digest. Approval evidence, grant files, logs, the work ledger tail, operation IDs, dates and credentials stay out. |
+| Request | `request_sha256`: `prepared.compiled`, the execution plan, `request-contract.json`, the submit authorization, `external-step` events | The sealed request: target, execution mode, request fields without transport management fields, output count, media digests in order, reference bindings and semantic context. Local media paths and credentials stay out. |
+| Artifact | `sha256` of a file record: `manifest.json`, `objects/SHA256`, a candidate's `files`, `candidate_sha256` | The exact bytes of one stored file. |
+| Event | `sha256` of a formal event, chained through `previous` | Sequence, previous digest, input digest, event kind, data and creation time. Candidate, review, decision and authorization IDs are event digests. |
+
+The other recorded digests each cover one document:
+
+- `consumer_sha256` (`prepared.json`, the plan's `handoff`, the `handoff` event): `consumer.json`, the prepared authoring context and exact authored delivery.
+- `generation_input_sha256` (`package.json` and its `generation_contract`): the Generation Package projection that the builder and the verifier both hash. It spans prompt texts, transports, parameters, references and the production binding.
+- `package_sha256` (`prepared.compiled`, the submit authorization payload): `package.json`.
+- `plan_sha256` (`prepared.compiled`): `execution-plan.json`.
+- `envelope_sha256` (`prepared.json`, the run registry): `prepared.json` without that field, which holds the input digest, the compiled digests and the dependency list.
+
+A trimmed `prepared.json` of a synthetic run:
+
+```json
+{
+  "input_sha256": "7a8ef918ac9a...",
+  "consumer_sha256": "2f17ce6a0469...",
+  "compiled": {"package_sha256": "ce3a7c8b2743...", "request_sha256": "71bece6826a2...", "plan_sha256": "ae80eb602ada..."},
+  "envelope_sha256": "dc091c4966fd..."
+}
+```

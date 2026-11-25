@@ -581,18 +581,60 @@ class ProductionTests(unittest.TestCase):
         with self.no_hard_links(): key=c.object_store(folder,b'payload'); again=c.object_store(folder,b'payload')
         self.assertEqual((key,c.object_read(folder,key)),(again,b'payload'))
     def test_skill_files_are_pinned_without_copies(self):
-        run=self.prepare(); directory=w.run_dir(self.root,run); prepared=c.load(directory/'prepared.json')
-        skill=[d for d in prepared['dependencies'] if d['space']=='skill']
-        self.assertIn('scripts/production_workflow.py',{d['path'] for d in skill})
+        from knowledge_documents import DocumentReader, markdown_path
+        reading=c.load(self.root/self.spec['route_reading'])
+        reader=DocumentReader(lambda path:(ROOT/path).read_bytes())
+        knowledge={item['path']:{'space':'skill',**item}
+                   for document in reading['documents']
+                   for item in (reader.acquire(document['document_id']).record,)}
+        selected_records=set(knowledge)
+        self.assertTrue(all(set(document)=={'document_id','sections'}
+                            for document in reading['documents']))
+        snapshot=w.snapshot; file_digest=c.file_digest
+        def capture_acquired_knowledge(*args,**kwargs):
+            def digest_other_inputs(base,path):
+                if Path(base)==ROOT:
+                    self.assertNotIn(path,knowledge,'Capture must pin the already acquired document edition.')
+                return file_digest(base,path)
+            with patch.object(c,'file_digest',side_effect=digest_other_inputs):
+                return snapshot(*args,**kwargs)
+        with patch.object(w,'snapshot',side_effect=capture_acquired_knowledge) as capture:
+            run=self.prepare()
+        self.assertEqual(capture.call_count,1)
+        directory=w.run_dir(self.root,run); prepared=c.load(directory/'prepared.json')
+        skill=w.read_run(self.root,run).implementation_dependencies
+        pins={item['path']:item for item in skill}
+        self.assertIn('scripts/production_workflow.py',pins)
+        self.assertEqual({path for path in pins if path.startswith('knowledge/')},selected_records)
+        self.assertFalse({markdown_path(document['document_id']) for document in reading['documents']} & pins.keys())
+        self.assertEqual({path:pins[path] for path in knowledge},knowledge)
+        self.assertFalse(any(path.startswith('knowledge/') for path in w.implementation_files()))
         self.assertEqual({p.name for p in (directory/'objects').iterdir()},
-                         {d['sha256'] for d in prepared['dependencies'] if d['space']!='skill'})
+                         {d['sha256'] for d in prepared['dependencies']} | {prepared['implementation']['sha256']})
         with tempfile.TemporaryDirectory() as temporary:
             copied=Path(temporary)
             for d in skill:
                 target=copied/d['path']; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(ROOT/d['path'],target)
+            unrelated=next(path for path in sorted((ROOT/'knowledge').rglob('*.json'))
+                           if path.relative_to(ROOT).as_posix() not in selected_records)
+            other=copied/unrelated.relative_to(ROOT); other.parent.mkdir(parents=True,exist_ok=True)
+            other.write_bytes(unrelated.read_bytes()+b'\n')
             changed=copied/'scripts/production_workflow.py'
             with patch.object(w,'ROOT',copied):
                 w.assert_current(self.root,run)
+                self.assertEqual(w.freshness(self.root,run),([],[]))
+                selected=sorted(selected_records)[0]
+                record=copied/selected; original=record.read_bytes(); record.write_bytes(original+b'\n')
+                w.read_current(self.root,run)
+                failures,notices=w.freshness(self.root,run)
+                self.assertEqual(failures,[])
+                [notice]=notices
+                self.assertEqual((notice['code'],notice['severity'],notice['file']),
+                                 ('IMPLEMENTATION_CHANGED','warning',selected))
+                self.assertEqual((notice['expected'],notice['actual']),
+                                 (pins[selected]['sha256'],c.digest(original+b'\n')))
+                self.assertNotEqual(w.status(self.root,run)['runs'][0]['readiness'],'blocked')
+                record.write_bytes(original)
                 changed.write_bytes(changed.read_bytes()+b'\n')
                 # A changed installation is reported and leaves the prepared run usable.
                 w.read_current(self.root,run)

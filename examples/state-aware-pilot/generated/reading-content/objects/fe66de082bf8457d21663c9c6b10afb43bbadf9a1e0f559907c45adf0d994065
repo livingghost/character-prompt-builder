@@ -1,0 +1,48 @@
+## Edit and produce the requested artifact
+
+`draft-inputs --operation compose|amend` creates the editing source from the
+current request and, when selected, a saved task or run. Supply the actual new
+request with `--request-file FILE`. Continuing the same request can use the
+saved authoring work. `compose` builds a candidate from the current sources and
+retained requirements; `amend` applies scoped changes to the actual baseline.
+Both seed meaningful current content from the selected source. An amend retains
+the complete identity source set, including its bytes, subjects, scope and
+authority; a compose owns a new current selection. Use
+`draft-inputs --choices CURRENT_CHOICES --out-dir NEW_DIRECTORY` to carry the
+current edits into that compose. The selected choices supply the request and
+content, so no separate reuse or edit-replay arguments are needed.
+The registered work goal locates the task, while the supplied request establishes
+what the user commissioned. Edit the directly accessible text files and selected
+structured documents. Keep one meaningful choice at one owner. Preserve
+independent criteria and applicable source authority. A detailed specification,
+adopted plot or other specialist source remains available when the work uses
+it; ordinary work needs no unused placeholder documents.
+
+Select the `prepare` authoring stage for finished input, complete its current
+reading and inspect the whole candidate. Use `save --choices FILE` for an authored revision, or `prepare --choices FILE`
+for a model request. `save --draft` preserves unfinished content and unresolved
+choices. Completed target-specific text applies the target's input contract,
+grammar and required real dictionary search even when no image is generated.
+`check --choices FILE` is the same compiler without publication when a separate
+diagnostic is useful. If authored choices are still incomplete, its next action
+returns to their current stage. When only final binding knowledge remains, it
+offers `prepare`; the final reading requirement remains part of every completed
+check. `build-inputs` is an optional export of derived inputs.
+Direct ProductionTask inputs select their acquired common basis with `work_basis`.
+Their completed checks use the same request, character and actual-source
+relationships as saved choices; [Authoring work](authoring-work.md#save-or-execute-the-same-work)
+owns acquisition and current applications.
+
+Failures point to the editable file and field. Resolve independent reported
+problems there, preserving unsupported or unresolved meaning as such. The
+compiler regenerates paths, reference positions, content hashes and dependent
+inputs. Reassess only the choices whose meaning or applicability changed;
+keep all other valid choices and history.
+
+`acquire-source` and `edit-choices` check retained identity before publishing
+their changes. A mismatch returns an executable compose repair from a captured
+candidate and keeps the original draft intact. The returned source path names
+that specific candidate; the output directory names only its new destination.
+Follow [source changes and structured editing](production-authoring.md#acquire-a-production-source)
+for the source descriptor, field edit and complete A-to-B continuation example.
+

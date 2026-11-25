@@ -77,20 +77,55 @@ class EvidenceToolsTests(unittest.TestCase):
         self.assertFalse(data['completion_recorded'])
 
     def test_review_reuses_the_digest_of_unchanged_installed_files(self):
+        import read_context
+        import shutil
+
         run, _ = self.captured()
-        dependencies = w.load_run(self.root, run)[1]['dependencies']
-        self.assertTrue(any(item['space'] == 'skill' for item in dependencies))
         installed = w.ROOT.resolve()
         original_read = c.read
+        original_decode = c.decode
+        decoded = []
 
         def read(path, *args, **kwargs):
             if Path(path).resolve().is_relative_to(installed):
                 raise AssertionError(f'an unchanged installed file was read again: {path}')
             return original_read(path, *args, **kwargs)
 
-        with patch.object(c, 'read', read):
-            data, _ = ar.build(self.root, run)
+        with read_context.public_call():
+            loaded = w.read_run(self.root, run)
+            pins = loaded.evidence.read(loaded.prepared['implementation']['sha256'])
+
+            def decode(raw, *args, **kwargs):
+                if raw == pins:
+                    decoded.append(raw)
+                return original_decode(raw, *args, **kwargs)
+
+            with patch.object(c, 'read', read), patch.object(c, 'decode', decode):
+                data, files = ar.build(self.root, run)
+                repeated, repeated_files = ar.build(self.root, run)
+            dependencies = loaded.implementation_dependencies
+            self.assertTrue(dependencies)
+            self.assertTrue(all(item['space'] == 'skill' for item in dependencies))
+        self.assertEqual(len(decoded), 1)
+        self.assertEqual((repeated, repeated_files), (data, files))
         self.assertTrue(data['current'], data['changed_dependencies'])
+
+        # A later installation edit still changes review freshness, while the
+        # exported source and candidate bytes remain the saved observations.
+        copied = self.root / 'installed-fixture'
+        for item in dependencies:
+            target = copied / item['path']
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(installed / item['path'], target)
+        changed = 'scripts/production_operations.py'
+        path = copied / changed
+        path.write_bytes(path.read_bytes() + b'\n')
+        with patch.object(w, 'ROOT', copied):
+            current, current_files = ar.build(self.root, run)
+        self.assertFalse(current['current'])
+        self.assertEqual(current['changed_dependencies'],
+                         [{'space': 'skill', 'path': changed, 'reason': 'content changed'}])
+        self.assertEqual(current_files, files)
 
     def test_no_artifact_is_not_a_generated_result(self):
         run = self.fixture.prepare()

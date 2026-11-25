@@ -345,7 +345,8 @@ def reference_retarget_case(case: dict) -> dict:
         'identity_review': ['robot'], 'identity_bindings': [{'source': 'reference:character-source',
             'subject_ids': ['robot'], 'selectors': [''], 'treatment': 'preserve',
             'reason': 'Both synthetic trials retain the same original identity source.', 'variation': None,
-            'carriers': [{'kind': 'reference', 'reference': 'character-source', 'use': 'identity'}]}]})
+            'carriers': [{'kind': 'reference', 'reference': 'character-source', 'use': 'identity'}]}],
+                                                        'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}})
     write(root / authored['choices_file'], choices)
     parent = production_workflow.prepare(root, choices=authored['choices_file'])
 

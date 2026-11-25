@@ -1,0 +1,28 @@
+## Inspect the complete request, not a flattened tag list
+
+```sh
+python scripts/check_tag_prompt.py --dictionary DICTIONARY_JSON --model MODEL_ID --weighting compel --prompt '("solo, blue eyes", "forest, soft lighting").and()' --negative 'lettering+, watermark'
+```
+
+Resolve `DICTIONARY_JSON` with `pack_cli.py resource prompt-vocabulary`; the
+standalone checker takes that file explicitly. Normal Production preparation
+resolves the active dictionary automatically. The standalone `--weighting` must
+match the interface's resolved grammar; inspection alone does not authorize a request.
+
+During normal `prepare`, the syntax comes from the selected mode's declaration,
+the resolved parameter and the actual wire layout. Both positive and negative fields are parsed after model
+recommendations, negative-channel selection and reference instructions. Mixed
+syntax, broken delimiters, ignored trailing text, non-finite weights or invalid
+clause arity stop preparation. The final request bytes are not rewritten by the
+inspector. Dictionary evidence is collected within each conditioning clause, and
+the report keeps `channel`, `clause` and character ranges for inspection.
+A repeated term in two independent clauses is not a duplicate in a single clause.
+Term repetition and dictionary relationships are evidence for the author's review
+of the combined picture, not mechanical acceptance criteria.
+
+`execution_plan.prompt_check` stores the selected syntax, parsed channels,
+findings, dictionary meanings and the verified model-recommendation audit beside
+the full request. A target without a
+learned tag family still receives syntax checks, without pretending prose is
+booru vocabulary. Dictionary evidence is not approval of the combined meaning.
+

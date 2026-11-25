@@ -1,0 +1,34 @@
+## Preserve current acceptance and recorded recovery
+
+Preparation and every new upload/send boundary check the selected slot's current
+artwork and exact adoption. Replacement, withdrawal, altered evidence, an
+incomplete adoption or a different owner stops the new external operation.
+Adding candidates or changing an unrelated slot does not change this reference.
+
+Withdraw a current adoption with `sheet_workflow.py draft-withdrawal --sheet
+SHEET_JSON --slot SLOT --evidence-path AUTHOR_EVIDENCE --evidence-locator LOCATOR
+--evidence-root EVIDENCE_DIR --out DECISION.json`. The evidence path is relative
+to that root; the tool records its hash. Fill the actual author, time and reason,
+then run `sheet_workflow.py withdraw --sheet SHEET_JSON
+--decision-file DECISION.json --evidence-root EVIDENCE_DIR`. The exact adoption
+and its proof remain in history; current canonical reuse ends. The operation
+preserves Studio slot acceptance and does not revoke exported files or registered
+packs. Follow [Adoption Workflow](adoption-workflow.md#withdraw-current-canonical-reuse)
+for the complete decision and re-adoption procedure. A new approval can adopt
+the same retained artwork again, but its new acceptance is a different source;
+an old request never silently follows it.
+
+Materialization stores the selected image, adoption decision, evidence and
+transitive artwork provenance inside the Generation Package's existing reference
+companion. Live verification consults the current Studio; `verify_content` verifies
+those recorded bytes. It is not permission for another send.
+
+A run whose answer was saved before a later adoption change recovers from its
+fixed package and proof archive. Use `production_workflow.py resume`; never remove
+an execution claim or recreate the old source merely to repeat a completed send.
+Keep the package companion with the package when moving or recording it.
+
+The freshness diagnostic `STUDIO_REFERENCE_CHANGED` identifies the affected
+Studio character, slot and artifact. Prepare a new exact request for new work;
+recover already sent work from the original run.
+

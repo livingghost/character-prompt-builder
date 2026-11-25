@@ -34,7 +34,8 @@ def build():
                 'delivery': {'path': 'delivery.txt',
                              'translation_notes': 'Retain the authored synthetic local text.'},
                 'criteria': [{'id': 'output', 'text': 'Inspect the local synthetic result.',
-                              'strength': 'hard', 'evidence': 'text'}]}
+                              'strength': 'hard', 'evidence': 'text',
+                                 'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]}
         task.update(artifact='text', execution='authored', production_id='01900000-0000-7000-8000-000000000010',
                     authority='authority.json', world_views=[], direction={'purpose': 'Synthetic local input assembly.',
                         'intended_effect': 'Inspect local files.', 'basis': [], 'decisions': [], 'source_allowances': [], 'action_slice': None,

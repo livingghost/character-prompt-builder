@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import copy
+import errno
+import os
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
 import execution_contract as c
 import production_case_fixtures as f
+import production_compiler as compiler
 import production_operations as operations
 import production_store as store
 import production_work_plan as plans
@@ -16,6 +21,7 @@ import test_production_adoption as adoption
 import test_production_authored as authored
 import work_ledger
 from production_fixtures import ACTOR
+from production_diagnostics import ProductionError
 
 
 class WorkPlanTests(unittest.TestCase):
@@ -46,19 +52,29 @@ class WorkPlanTests(unittest.TestCase):
         return path
 
     def test_one_answer_completes_selection_adoption_views_and_bound_work(self):
-        path = self.plan()
-        first = plans.advance(self.root, path)
+        with patch.object(compiler, 'acquire_publication', wraps=compiler.acquire_publication) as publication:
+            path = self.plan()
+            self.assertEqual(publication.call_count, 1)
+        with patch.object(compiler, 'acquire_publication', wraps=compiler.acquire_publication) as publication:
+            first = plans.advance(self.root, path)
+            self.assertEqual(publication.call_count, 1)
         self.assertEqual(first['items'][0]['phase'], 'curation', first)
         self.answer(first)
-        report = plans.advance(self.root, path)
+        with patch.object(compiler, 'acquire_publication', wraps=compiler.acquire_publication) as publication:
+            report = plans.advance(self.root, path)
+            self.assertEqual(publication.call_count, 1)
         self.assertEqual(report['state'], 'complete', report)
         self.assertTrue(report['verification']['ok'])
         self.assertIsNone(work_ledger.read_current(self.root))
         events = store.event_rows(self.root, self.run)
         for event in ('selection', 'slot-acceptance', 'completion', 'adoption-result'):
             self.assertEqual(sum(row['event'] == event for row in events), 1)
-        again = plans.advance(self.root, path)
-        self.assertEqual(again['state'], 'complete')
+        for operation in (plans.advance, plans.inspect, plans.refresh):
+            with self.subTest(operation=operation.__name__), \
+                 patch.object(compiler, 'acquire_publication', wraps=compiler.acquire_publication) as publication:
+                again = operation(self.root, path)
+                self.assertEqual(again['state'], 'complete')
+                self.assertEqual(publication.call_count, 1)
         self.assertEqual(events, store.event_rows(self.root, self.run))
 
     def test_existing_unbound_work_is_exposed_and_not_marked_from_guesswork(self):
@@ -132,6 +148,24 @@ class WorkPlanTests(unittest.TestCase):
         self.assertEqual(report['state'], 'complete', report)
         self.assertEqual(before, store.event_rows(self.root, self.run))
 
+    def test_plan_operations_detect_saved_publication_edits_between_calls(self):
+        path = self.plan('prepared-input')
+        self.assertEqual(plans.advance(self.root, path)['state'], 'complete')
+        consumer = operations.run_dir(self.root, self.run) / 'consumer.json'
+        original, before = consumer.read_bytes(), consumer.stat()
+        self.assertTrue(original.endswith(b'\n'))
+        consumer.write_bytes(original[:-1] + b'\t')
+        os.utime(consumer, ns=(before.st_atime_ns, before.st_mtime_ns))
+        request = {'source': {'run': self.run}, 'result': {'scope': 'prepared-input'}}
+        calls = {'create': lambda: plans.create(self.root, request=request),
+                 'inspect': lambda: plans.inspect(self.root, path),
+                 'refresh': lambda: plans.refresh(self.root, path),
+                 'advance': lambda: plans.advance(self.root, path)}
+        for name, operation in calls.items():
+            with self.subTest(operation=name), self.assertRaises(ProductionError) as caught:
+                operation()
+            self.assertEqual(caught.exception.diagnostic.code, 'ARTIFACT_CORRUPT')
+
     def test_plan_definition_change_does_not_retarget_saved_work(self):
         path = self.plan()
         definition = self.root / path
@@ -144,6 +178,9 @@ class WorkPlanTests(unittest.TestCase):
 
     def test_unchanged_answer_returns_normal_continuation_without_authorization_error(self):
         path = self.plan()
+        owner = work_ledger.read_current(self.root)['task_id']
+        owned_paths = (work_ledger.task_path(self.root, owner), self.root / 'work/current.json')
+        owned_before = {file: file.read_bytes() for file in owned_paths}
         before = store.event_rows(self.root, self.run)
         one = plans.advance(self.root, path)
         two = plans.advance(self.root, path)
@@ -155,6 +192,53 @@ class WorkPlanTests(unittest.TestCase):
         self.assertFalse(inspected['continuation_observation']['observed_now'])
         self.assertNotEqual(two['state'], 'blocked')
         self.assertEqual(before, store.event_rows(self.root, self.run))
+        self.assertEqual({file: file.read_bytes() for file in owned_paths}, owned_before)
+
+    def test_interrupted_milestone_replay_restores_the_same_task_and_pointer(self):
+        path = self.plan()
+        plan = c.load(self.root / path)
+        owner = plan['task_id']
+        saved = work_ledger.task_path(self.root, owner)
+        pointer = self.root / 'work/current.json'
+        publish = c.atomic
+
+        def interrupted(file, raw, **kwargs):
+            if file == pointer:
+                raise OSError('Synthetic interruption before current task publication')
+            return publish(file, raw, **kwargs)
+
+        with patch.object(c, 'atomic', side_effect=interrupted), \
+                self.assertRaisesRegex(OSError, 'Synthetic interruption'):
+            work_ledger.record_plan_stage(self.root, owner, 'results', plan['plan_id'], {'run': self.run})
+        retained = c.load(saved)
+        self.assertTrue(all(row['done_at'] for row in retained['steps']))
+        self.assertTrue(all(row['done_at'] is None for row in c.load(pointer)['steps']))
+        ledger = (self.root / 'work/ledger.jsonl').read_bytes()
+        committed = saved.read_bytes()
+
+        repeated = work_ledger.record_plan_stage(self.root, owner, 'results', plan['plan_id'], {'run': self.run})
+        self.assertEqual(repeated, retained)
+        self.assertEqual(saved.read_bytes(), committed)
+        self.assertEqual(pointer.read_bytes(), c.encoded(retained))
+        self.assertEqual((self.root / 'work/ledger.jsonl').read_bytes(), ledger)
+        repaired = pointer.read_bytes()
+        work_ledger.record_plan_stage(self.root, owner, 'results', plan['plan_id'], {'run': self.run})
+        self.assertEqual(saved.read_bytes(), committed)
+        self.assertEqual(pointer.read_bytes(), repaired)
+        self.assertEqual((self.root / 'work/ledger.jsonl').read_bytes(), ledger)
+
+    def test_an_unchanged_milestone_preserves_an_absent_current_pointer(self):
+        path = self.plan()
+        plan = c.load(self.root / path)
+        owner = plan['task_id']
+        saved = work_ledger.task_path(self.root, owner)
+        pointer = self.root / 'work/current.json'
+        pointer.unlink()
+        before = saved.read_bytes()
+        work_ledger.record_plan_stage(self.root, owner, 'prepared', plan['plan_id'], {'run': self.run})
+        self.assertFalse(pointer.exists())
+        self.assertIsNone(work_ledger.read_current(self.root))
+        self.assertEqual(saved.read_bytes(), before)
 
     def test_typed_plan_selects_a_result_without_creating_or_authorizing_an_answer(self):
         import production_workflow
@@ -353,6 +437,68 @@ class WorkPlanTests(unittest.TestCase):
         self.assertEqual(result['state'], 'complete', result)
         self.assertEqual(result['items'][0]['current_use'], 'withdrawn')
         self.assertEqual(before, store.event_rows(self.root, self.run))
+
+
+class WorkPlanDurabilityTests(unittest.TestCase):
+    """A visible replacement does not settle a failed durable publication."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='work-plan-durability-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.task_id = '00000000-0000-4000-8000-000000000001'
+        self.plan = 'work/plans/00000000-0000-4000-8000-000000000002/plan.json'
+        self.steps = {'1': 'prepared'}
+        task = {'task_id': self.task_id, 'work_state': 'active', 'questions': [],
+                'steps': [{'n': 1, 'text': 'Prepare the selected work.', 'done_at': None}]}
+        work_ledger.write_current(self.root, work_ledger.refreshed(task))
+        c.atomic(self.root / self.plan, c.encoded({'status': 'active', 'task_id': self.task_id}))
+        self.ledger = self.root / 'work/ledger.jsonl'
+        c.atomic(self.ledger, b'')
+        self.saved = work_ledger.task_path(self.root, self.task_id)
+        self.pointer = self.root / 'work/current.json'
+        self.original_pointer = self.pointer.read_bytes()
+        self.flush_directory = c.fsync_dir
+
+    def fail_task_flush_after_replacement(self, path):
+        if path == self.saved.parent:
+            retained = c.load(self.saved)
+            self.assertEqual(retained['production_plan'], self.plan)
+            self.assertEqual(retained['plan_steps'], self.steps)
+            raise OSError(errno.EIO, 'Synthetic task directory flush failure after replacement')
+        self.flush_directory(path)
+
+    def test_binding_retry_completes_the_failed_directory_flush_before_updating_current(self):
+        with patch.object(c, 'fsync_dir', side_effect=self.fail_task_flush_after_replacement), \
+                self.assertRaisesRegex(OSError, 'task directory flush failure'):
+            work_ledger.bind_plan(self.root, self.task_id, self.plan, self.steps)
+        retained = self.saved.read_bytes()
+        self.assertEqual(self.pointer.read_bytes(), self.original_pointer)
+        flushed = []
+
+        def flush(path):
+            self.flush_directory(path)
+            flushed.append(path)
+
+        with patch.object(c, 'fsync_dir', side_effect=flush):
+            result = work_ledger.bind_plan(self.root, self.task_id, self.plan, self.steps)
+        self.assertIn(self.saved.parent, flushed)
+        self.assertIn(self.pointer.parent, flushed)
+        self.assertLess(flushed.index(self.saved.parent), flushed.index(self.pointer.parent))
+        self.assertEqual(self.saved.read_bytes(), retained)
+        self.assertEqual(c.load(self.saved), result)
+        self.assertEqual(self.pointer.read_bytes(), c.encoded(result))
+        self.assertEqual(self.ledger.read_bytes(), b'')
+
+    def test_binding_retry_keeps_failing_when_its_directory_flush_still_fails(self):
+        with patch.object(c, 'fsync_dir', side_effect=self.fail_task_flush_after_replacement):
+            with self.assertRaisesRegex(OSError, 'task directory flush failure'):
+                work_ledger.bind_plan(self.root, self.task_id, self.plan, self.steps)
+            self.assertEqual(self.pointer.read_bytes(), self.original_pointer)
+            with self.assertRaisesRegex(OSError, 'task directory flush failure'):
+                work_ledger.bind_plan(self.root, self.task_id, self.plan, self.steps)
+        self.assertEqual(self.pointer.read_bytes(), self.original_pointer)
+        self.assertEqual(self.ledger.read_bytes(), b'')
 
 
 if __name__ == '__main__':

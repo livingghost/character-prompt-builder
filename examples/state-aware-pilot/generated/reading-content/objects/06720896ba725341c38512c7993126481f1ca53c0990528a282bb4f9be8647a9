@@ -1,0 +1,35 @@
+## Rendered-reference identity transfer
+
+A rendered character reference mixes four evidence classes: permanent identity, scene-specific character state, source-render context, and contamination. A request such as `use the same character` does not tell the target model which visible properties are identity. Scene-specific character state is every visible or performance-relevant property that can change while the subject remains the same character unless an approved Identity, Era, Form, or Appearance Contract owns it.
+
+Audit the source into five groups before prompt writing:
+
+1. permanent identity to transfer;
+2. approved scene-specific state to continue because the user or resolved state requires it;
+3. source-only scene-specific state to discard;
+4. source-render context or contamination to discard or rescope, including camera, crop, lighting, environment, finish, readable text, logos, insignia, and watermarks;
+5. target scene state and rendering needed to communicate this image. Select
+   those requirements under [Prompt Composition](prompt-composition.md#select-the-depiction),
+   rather than filling every possible state channel.
+
+Source scene state is unlocked by default. A rendered pixel does not promote a feature into the Identity Contract. Stable hair, mane, ruff, facial hair, and regional covering construction already owned by identity remain stable and must not be discarded as temporary grooming.
+
+Audit scene state through attention and awareness; facial, vocal, gestural, postural, action, contact, and support articulation; physical, physiological, emotional, and surface condition; current appearance and presentation; possession, inventory, equipment, and prop bindings; relationship state, social stance, and viewer awareness; environmental response; and current era, form, transformation, or appearance state.
+
+The audit establishes source scope. The agent expresses the selected target
+and each reference's use through the actual delivered images. Subject IDs,
+lineage and source-state audits remain in their owning records.
+For example, with a synthetic identity source:
+
+```text
+Use Image 1 for the courier's permanent appearance. Depict the courier handing a sealed parcel to the shopkeeper across the counter. The courier holds the parcel out as the shopkeeper reaches to receive it. Both look at the parcel. Follow the selected wardrobe references for their clothing.
+```
+
+Specify additional state or construction when it carries the requested meaning
+or resolves a real source conflict. Unneeded source details and unselected
+alternatives are omitted rather than converted into visibility permissions.
+
+Scope pack sources through the canonical Reference Use Plan and direct sources through their reviewed state bindings. Identity evidence supplies only named permanent identity. Scene and structural evidence supplies only its declared composition, support, contact, prop, camera, environment, light, or other influence. Reject source character identity and source-specific text or insignia from nonidentity references. Review identity drift and source-state leakage as separate failure classes.
+
+Keep complete authority in the reference binding. Prompt brevity does not weaken that binding; the text must communicate the selected target and each source's assigned use.
+

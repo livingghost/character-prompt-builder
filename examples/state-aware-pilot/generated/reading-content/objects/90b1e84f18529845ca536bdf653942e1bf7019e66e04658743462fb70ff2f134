@@ -1,0 +1,105 @@
+### Read an operation without editable choices
+
+Index the complete contract for the current operation with
+`execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`,
+adding applicable features and the selected model or writing family. Take
+`authored`, `external` or `dispatcher` from the task. The index shows selected body
+sizes, required section identities and selection owners; it delivers no source bodies and issues no
+reading. A whole source's declared sections expand with `--snapshot ID --index-source SELECTOR`.
+Each `selection_reason_ids` entry resolves in the shared `selection_reasons` map.
+Select a returned source or section with `--snapshot ID --section SELECTOR`,
+follow `actions.next` or `actions.all` for complete paged delivery. The
+explicit `--all` option also starts a complete read directly.
+
+Read every returned JSON `body`, or add `--view text` to show the exact bodies
+with original line breaks, section identities and body-local byte ranges. Text view retains the complete
+JSON response in a new `response_file`; its short `next_action` continues that
+view and keeps the current context. It displays required, reused, delivered and
+remaining bytes, `same_context_required`, the issued reading and choices binding.
+Warnings, diagnostics and failed bindings remain visible. Use the saved JSON
+for complete metadata, alternate actions and source indexes. `--response-dir`
+selects its directory; the default is `reading-responses` beside the ledger.
+
+Follow `actions.continue` through a selected
+section or full delivery, then use `actions.next` for all remaining material.
+Individual section navigation remains optional.
+Text pages show the current continuation, replay, index and fresh-context
+restart actions. Their `selection_summary.action_ref` opens `actions.index`
+for the complete source-selection reasons and optional `actions.all` command;
+those details are not repeated with each page. A response without source text
+has no page to replay. Inspect the non-null `reading` before treating delivery
+as complete.
+Completion requires non-null `reading`; a null continuation can mean only that
+one section ended. The required operation, route and specialist contracts remain
+complete, and the record is issued only after exact complete coverage and current
+source checks. [Production authoring](production-authoring.md#select-and-read-the-current-knowledge)
+owns the index, section, replay and recovery contract.
+
+`--page-bytes` and `--host-page-bytes` count UTF-8 source bytes, not the whole
+JSON response or model tokens. `--page-bytes auto` uses the declared safe
+source capacity, or 16,384 bytes when none is declared. A host capacity caps a
+fixed page too. Reserve separate room in the host tool's output allowance for
+source metadata, escaped text and navigation; a source-byte limit alone cannot
+prevent that tool from truncating its response. Read one complete response
+before following its continuation. If only the tool response was truncated and
+earlier source text remains in the live model context, use `actions.replay` with
+a smaller `--page-bytes` and follow that replay's continuation. The saved receipt
+does not establish that the model saw the text.
+
+After model-context compaction, replacement by a summary or handoff to a new
+agent, use `actions.restart` instead. It keeps the current choices, images,
+prepared runs and completed work. If needed, inspect the current choices and
+reopen their reading action with `--fresh-context`, omitting earlier
+`--reading-context` and `--known-reading` selections. Follow the fresh reading
+actions through every body required for the current stage. Keeping the same
+Studio or conversation does not retain those bodies. Input inspection recovers
+these actions when the controls were cut off. Only knowledge is rebuilt;
+completed authoring and execution remain intact.
+
+An existing record establishes earlier source delivery. A new context still
+needs the complete knowledge required for its present judgment. In the same
+context, append `context_reuse.arguments` to the actual next draft's reading
+action. Saved plan actions carry `--reading-context ID` when that invocation
+explicitly selected the current context, automatically selecting its complete
+readings without retyping keys. That action owns its operation and scope; the
+explicit context or complete reading keys allow the reader to deliver only
+missing or changed bodies. A plan file never supplies a current context ID by
+itself. The reader's `metadata`, `reuse_selection` and `progress` explain the
+current operation, reused knowledge and remaining delivery. The linked index
+retains the complete `selection_summary` and source-selection reasons.
+`context_reuse.operations` offers the current operation's inspection without
+enumerating unrelated future operations. This reuses delivered knowledge,
+not an earlier successful source or permission check.
+
+For several images sharing a character, finish the first item's required
+reading, then follow the other items' own reading actions with the same
+`--reading-context` ID. Each item keeps its own exact input binding; unchanged
+complete material can be reused while additional requirements are delivered.
+Starting several incomplete readings at once provides no complete knowledge
+for those readings to reuse. This reading order does not serialize independent
+image requests once their inputs are ready.
+
+Execution reads the permissions, exact-input interpretation, transport, capture
+and recovery contract for the saved request. Review reads observation, source
+scope, criteria and evidence limits for the actual artifact. Their explicit
+section profiles defer authoring templates and new-depiction procedures to
+reopened input work. Unmanaged selected specialists retain their complete
+delivery. Every required section still receives exact-byte coverage before a
+reading record is issued.
+
+The `execute` and `review` reading actions select the saved task's route,
+features and execution kind. With no new model-family inspection selected,
+they do not reopen every family's prompt-authoring resources. Use the
+workspace's `saved_knowledge` paths for the exact prepared model, offering and
+guide originals. An explicit model or family inspection still delivers its
+selected guidance. Current catalog changes do not redefine a saved request.
+
+| Requested work | Operation and owning result |
+| --- | --- |
+| Write or revise | `author`: edit the commission, expression, source use and independent criteria |
+| Save authored text | `save`: preserve its exact revision and unresolved choices, or validate finished target input |
+| Prepare an image | `prepare`: compile current text, controls and actual references into an inspectable request |
+| Generate or recover | `execute`: perform the authorized external operation or recover that same operation |
+| Assess an artifact | `review`: observe the actual artifact and judge it against the commission and sources |
+| Select or adopt | `adopt`: record the actual decision, intended owner and applicable authority |
+

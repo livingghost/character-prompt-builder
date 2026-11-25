@@ -367,6 +367,79 @@ def _finish(*processes: subprocess.Popen[str]) -> list[int | None]:
     return codes
 
 
+def _refresh_with_transaction_checks(
+    settings: PackSettings,
+) -> tuple[dict[str, Any], int, list[str]]:
+    """Observe a real build, then interrupt its replacement before commit."""
+    checks = 0
+    errors: list[str] = []
+    statements: list[tuple[str, bool]] = []
+    writers: list[Path] = []
+    denied_commits: list[bool] = []
+    interrupt_commit = False
+    real_connect = pack_cache_module.sqlite3.connect
+
+    def connect(database: Any, *args: Any, **kwargs: Any) -> Any:
+        connection = real_connect(database, *args, **kwargs)
+        if kwargs.get("uri"):
+            return connection
+        writers.append(Path(database))
+        connection.set_trace_callback(
+            lambda sql: statements.append(
+                (" ".join(sql.split()[:2]).rstrip(";").upper(), connection.in_transaction)
+            )
+        )
+        if interrupt_commit:
+            def authorize(action: int, argument: str | None, *_: Any) -> int:
+                if action == pack_cache_module.sqlite3.SQLITE_TRANSACTION and argument == "COMMIT":
+                    denied_commits.append(connection.in_transaction)
+                    return pack_cache_module.sqlite3.SQLITE_DENY
+                return pack_cache_module.sqlite3.SQLITE_OK
+            connection.set_authorizer(authorize)
+        return connection
+
+    with patch.object(pack_cache_module.sqlite3, "connect", connect):
+        refreshed = refresh_cache(settings)
+    begins = [index for index, (sql, _) in enumerate(statements) if sql == "BEGIN"]
+    commits = [index for index, (sql, _) in enumerate(statements) if sql == "COMMIT"]
+    tables = [index for index, (sql, _) in enumerate(statements) if sql == "CREATE TABLE"]
+    indexes = [index for index, (sql, _) in enumerate(statements) if sql == "CREATE INDEX"]
+    inserts = [index for index, (sql, _) in enumerate(statements) if sql == "INSERT INTO"]
+    writes = sorted(tables + indexes + inserts)
+    outside = [index for index in writes if not statements[index][1]]
+    if (
+        len(writers) != 1 or len(begins) != 1 or len(commits) != 1
+        or len(tables) != 6 or len(indexes) != 1 or not inserts or outside
+        or not (begins[0] < writes[0] <= writes[-1] < commits[0])
+        or statements[-1] != ("PRAGMA INTEGRITY_CHECK", False)
+    ):
+        errors.append(
+            "catalog schema and rows did not share one complete transaction: "
+            f"writers={len(writers)} begins={begins} commits={commits} "
+            f"tables={len(tables)} indexes={len(indexes)} inserts={len(inserts)} "
+            f"writes_outside_transaction={outside}"
+        )
+    else:
+        checks += 1
+
+    before = _tree_snapshot(settings.cache_dir)
+    interrupt_commit = True
+    interrupted = False
+    with patch.object(pack_cache_module.sqlite3, "connect", connect):
+        try:
+            refresh_cache(settings, force=True)
+        except pack_cache_module.sqlite3.DatabaseError:
+            interrupted = True
+    if not interrupted or denied_commits != [True] or _tree_snapshot(settings.cache_dir) != before:
+        errors.append(
+            "a cache build interrupted before commit changed its published predecessor "
+            f"or left temporary files: interrupted={interrupted} denied_commits={denied_commits}"
+        )
+    else:
+        checks += 1
+    return refreshed, checks, errors
+
+
 def _concurrency_checks(root: Path) -> tuple[int, list[str]]:
     """Two processes on one cache and one state file: nobody is interrupted or lost."""
 
@@ -2544,7 +2617,9 @@ def run() -> dict[str, Any]:
                 default_enabled_packs=(),
             )
             enable_pack(settings, pack_id)
-            refreshed = refresh_cache(settings)
+            refreshed, transaction_checks, transaction_errors = _refresh_with_transaction_checks(settings)
+            checks += transaction_checks
+            errors.extend(transaction_errors)
             catalog = load_runtime_catalog(settings)
             configure_pack_runtime(settings)
             runtime_ids = {entry.record["id"] for entry in load_entries()}

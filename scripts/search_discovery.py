@@ -519,15 +519,23 @@ ANCHOR_FACETS = frozenset(
     | {facet for group in AXIS_FACETS.values() for facet in group}
 )
 
+_NORMALIZE_SEPARATORS = re.compile(r"[^a-z0-9\-]+")
+# Keep the declared replacement order, including any later synonym that can
+# match an earlier replacement. Only the fixed patterns are shared.
+_QUERY_SYNONYM_PATTERNS = tuple(
+    (re.compile(rf"\b{re.escape(source)}\b"), target)
+    for source, target in QUERY_SYNONYMS.items()
+)
+
 
 def normalize(value: Any) -> str:
     raw = unicodedata.normalize("NFKD", str(value or ""))
     text = "".join(ch for ch in raw if not unicodedata.combining(ch)).lower().replace("_", "-")
     text = text.replace("\u2013", "-").replace("\u2014", "-")
-    text = re.sub(r"[^a-z0-9\-]+", " ", text)
+    text = _NORMALIZE_SEPARATORS.sub(" ", text)
     text = " ".join(text.split())
-    for source, target in QUERY_SYNONYMS.items():
-        text = re.sub(rf"\b{re.escape(source)}\b", target, text)
+    for pattern, target in _QUERY_SYNONYM_PATTERNS:
+        text = pattern.sub(target, text)
     return " ".join(text.split())
 
 
@@ -574,6 +582,20 @@ def tokens_of(value: Any) -> list[str]:
     return [token for token in normalize(value).replace("-", " ").split() if len(token) > 1]
 
 
+# These lexical declarations are fixed for the loaded implementation. Query
+# and record text still pass through normalization and extraction on every call.
+_COLOR_TERM_TOKENS = tuple(
+    (term, tuple(normalize(term).replace("-", " ").split()))
+    for term in COLOR_TERMS_SORTED
+)
+_COLOR_MODIFIER_TOKENS = frozenset(
+    token for _term, tokens in _COLOR_TERM_TOKENS for token in tokens if len(token) > 1
+)
+_DOMAIN_MODIFIER_TERMS = frozenset(
+    normalize(term) for term in (*DOMAIN_TERMS.keys(), *DOMAIN_TERMS.values())
+)
+
+
 def color_family(value: Any) -> str:
     normalized = normalize(value).replace("-", " ")
     return COLOR_FAMILY.get(normalized, normalized)
@@ -599,7 +621,7 @@ def _subject_color_terms(value: Any) -> list[str]:
     text = normalize(value).replace("-", " ")
     if not text:
         return []
-    words = text.split()
+    words = tuple(text.split())
     surface_cues = {
         "fur", "coat", "pelt", "fleece", "hide", "skin", "feather",
         "feathers", "plumage", "scale", "scales", "shell", "carapace",
@@ -614,11 +636,7 @@ def _subject_color_terms(value: Any) -> list[str]:
         "canine", "feline", "avian", "reptile", "animal", "creature",
     }
     output: list[str] = []
-    term_tokens = [
-        (term, normalize(term).replace("-", " ").split())
-        for term in COLOR_TERMS_SORTED
-    ]
-    for raw_term, tokens in term_tokens:
+    for raw_term, tokens in _COLOR_TERM_TOKENS:
         width = len(tokens)
         for start in range(0, len(words) - width + 1):
             if words[start:start + width] != tokens:
@@ -1584,13 +1602,6 @@ def _species_modifier_stack(
 ) -> list[tuple[str, str, tuple[int, int]]]:
     """Return contiguous, locally governed physique modifiers for a species."""
     output: list[tuple[str, str, tuple[int, int]]] = []
-    domain_terms = {
-        normalize(term)
-        for term in (*DOMAIN_TERMS.keys(), *DOMAIN_TERMS.values())
-    }
-    color_tokens = {
-        token for color in COLOR_TERMS_SORTED for token in tokens_of(color)
-    }
     normalized_species = normalize(species)
     for species_match in re.finditer(
         rf"\b{re.escape(normalized_species)}\b", query_norm
@@ -1611,7 +1622,7 @@ def _species_modifier_stack(
             token = local_match.group(0)
             if token in _MODIFIER_SCOPE_BARRIERS:
                 break
-            if token in domain_terms or token in color_tokens:
+            if token in _DOMAIN_MODIFIER_TERMS or token in _COLOR_MODIFIER_TOKENS:
                 continue
             associations = index.phrases.get(token, [])
             facets = {

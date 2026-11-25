@@ -1,0 +1,6 @@
+# State-Aware Series Runtime
+
+Use this document for temporal or causal continuity, approved scene-state carry-over, visible consequences of prior or off-screen events, or an arriving shot-request.
+
+Independent scenes that share identity without carrying scene state use the ordinary image route or `batch`, with `recurring-identity`. Repeated appearance requirements can apply to each scene without asserting that one scene inherits another's condition or history. Apply the complete shared definition and per-image review under [Character Identity Contract](../character-identity-contract.md#source-to-input-and-review-coverage); classify an identity reference's retained and discarded content under [rendered-reference transfer](../character-identity-contract.md#rendered-reference-transfer-boundary). Identity reuse alone requires no event ledger, state snapshots or continuity graph. Keep selected Identity, morphology, Era, Form, Appearance and state authorities at their applicable scopes.
+

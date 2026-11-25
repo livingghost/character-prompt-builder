@@ -1,0 +1,18 @@
+## Scene preparation and reusable authoring input
+
+Use [Scene Persona Material](scene-persona.md) to preserve a full-reading result for one scoped scene.
+Add `scene-persona` to the task features and name local selectors as `scene_materials: [{"plan": "scene-plan.json", "bundle": "scene-material"}]`.
+Preparation checks the complete source files and deterministic documents, stores their dependencies, and includes the document in `consumer.authoring_materials`.
+The agent interprets the material into the selected depiction's present
+circumstances, visible state, performance and relationships. Supply the
+contextual premises that make those instructions intelligible in the actual
+model input. Complete authoring material remains available to the author;
+its presence in the consumer does not establish what the renderer receives.
+Source definitions, internal keys and review evidence remain in the authoring context.
+Viewpoint limits and exact submitted inputs keep their own boundaries.
+Public material requires an explicit content hash and accepted-by or basis instead of a search for its producer.
+
+For intake of existing source text, use [Source Material](source-material.md).
+For observed host trials, use [Agent Evaluation](agent-evaluation.md); process success is not proof of task completion or expressive quality.
+For recurring failures, use [Repair Analysis](repair-analysis.md) over actual reviews, then the repair and authorization process.
+None of these commands adopts or sends.

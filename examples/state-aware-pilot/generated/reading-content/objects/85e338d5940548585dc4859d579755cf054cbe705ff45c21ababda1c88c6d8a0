@@ -1,0 +1,62 @@
+## Apply sources to this candidate
+
+The source catalog retains acquired material. `basis.applications` owns which
+parts are active for this candidate. Each application selects a source and a
+JSON Pointer; an empty pointer selects the complete source. Text and binary
+sources use the empty pointer. A JSON source can select one exact value with
+an RFC6901 pointer, as in `--application "design=source#/definition"`.
+
+Use `--subject SUBJECT=APP[,APP...]` to associate a character with its concrete
+source applications. Use `--requirement APP` for a source application that
+carries a retained requirement. Keep the complete source available for context
+while applying the portions that govern this work. An identity application
+carries its adopted character properties; the current construction chooses
+how to depict them. A full-body source can support a close view, and one
+rendered example can support another presentation within its assigned scope.
+
+Use `context --remove-application APP` or `--remove-subject SUBJECT` to update
+those current assignments. Keep subject and requirement references consistent
+within the same update. The acquired source catalog remains available for
+comparison and later selection. Repeated `--requirement APP` arguments replace
+the current requirement selection; its actual ID list can also be edited in
+the basis when clearing that selection within authority.
+
+For saved Production work, `inspect-inputs` reports
+`AUTHORING_WORK_MISMATCH` with cause `protected-requirement-changed` when a
+retained protected requirement differs from the current task criterion.
+`expected` and `actual` show those complete values. `repair_owner` identifies
+the basis's `/requirements`, `/applications/<ID>` and acquired source selection;
+`current_criterion_owner` locates the editable criterion. The report supplies
+`authoring_work.py context --help` and a `context_edit` prefix selecting the
+basis with `--basis-only`, plus source, application and requirement arguments.
+Restore a still-binding criterion, or use an actual instruction
+authorizing change to acquire the current requirement sources and select the
+complete intended requirement set with repeated `--requirement APP`. Then
+inspect the same draft again. The author chooses that scope; inspection changes
+no source, selection, saved history or authority, and a context update retains
+the acquired source catalog without granting execution authority.
+Execution grants keep their own
+[protected-criteria scope](production-permissions.md#protected-criteria-across-runs).
+
+Capture a changed source and update its application when the work adopts that
+change. The owner checks source hashes and pointers against the acquired
+content. Read the actual definitions and their allowed scope; a successful
+binding establishes which material is applied, while the author judges its
+meaning and suitability. Carry the relevant visible definition, bodily
+relationships and researched wording into the candidate's actual prompt or
+selected references.
+
+For a deliberate adaptation, acquire the adapted actual text or JSON under a
+separate source ID and select that source for its intended use. Retain the
+original in the acquired catalog with its applicable requirements and authority.
+This keeps both the original material and the authored adaptation available for
+comparison, with an explicit current application.
+
+The default `focus` is `character`. For an explicitly commissioned supporting
+setting, background or similar artifact, select `--focus supporting-setting`
+from that request. That work can contain no depicted character. This choice
+records the artifact being commissioned; open character work proceeds through
+its character definition. `check` and `export` require the current request and,
+for character work, subjects linked to applied source content. Beginning and
+inspecting work allow these choices to develop progressively.
+

@@ -1,0 +1,10 @@
+#### Inspect target and external fields
+
+Target and external fields expose their child contracts through executable
+explain actions. `target.model` follows the selected `target.kind`; an unselected
+kind remains an explicit choice. `external` shows the runtime-owned editable
+envelope and the existing-plan selector. Its child views distinguish authored
+fields from the model, request paths, media mappings and hashes derived during
+compilation. Follow each `schema_action` for the exact published schema
+fragment, then check the complete current draft after editing its owning fields.
+

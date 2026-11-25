@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Any
+from typing import Any, Mapping, TYPE_CHECKING
 import uuid
 
 import execution_contract as c
@@ -30,6 +30,9 @@ import production_plan as plan
 import runtime_snapshot
 from production_read_model import DecisionRead, DecisionReader, RunReader, RunSnapshot, RunView
 from owned_json import freeze, json_value, mutable
+
+if TYPE_CHECKING:
+    import ast
 
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_CANDIDATE_EVIDENCE = 'candidate'
@@ -123,6 +126,8 @@ def validate_task(task: Any) -> dict:
         if len(keys) != len(set(keys)):
             raise ValueError('duplicate bounded view selector')
     plan.validate(task['direction'], task['sources'], task['criteria'], task_id=task['task_id'])
+    import production_expression
+    production_expression.validate(task)
     import identity_coverage
     identity_coverage.validate_task(task)
     return route
@@ -184,7 +189,6 @@ def authoring_materials(root: Path, task: dict, add) -> list[dict]:
 
 # Entry modules of compile and execute; the implementation pinned by a run is what they import.
 ENTRY_MODULES = ('production_workflow', 'production_compiler', 'production_execution')
-_IMPORTS: dict[tuple[str, int, int], tuple[set[str], set[str]]] = {}
 
 
 def _module_files(scripts: Path, name: str) -> list[Path]:
@@ -202,32 +206,29 @@ def _module_files(scripts: Path, name: str) -> list[Path]:
     return found
 
 
-def _imports(path: Path, package: str) -> tuple[set[str], set[str]]:
+def _imports(path: Path, package: str, tree: ast.Module | None = None) -> tuple[set[str], set[str]]:
     """Module names a source file imports, and the string literals it contains."""
     import ast
-    info = path.stat()
-    key = (str(path), info.st_mtime_ns, info.st_size)
-    if key not in _IMPORTS:
+    if tree is None:
         tree = ast.parse(c.read(path).decode('utf-8'))
-        names, literals = set(), set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                names.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                base = node.module or ''
-                if node.level:
-                    parent = package.split('.')[:len(package.split('.')) - node.level + 1] if package else []
-                    base = '.'.join([*parent, *([base] if base else [])])
-                if base:
-                    names.add(base)
-                names.update(f'{base}.{alias.name}' if base else alias.name for alias in node.names)
-            elif isinstance(node, ast.Call) and getattr(node.func, 'attr', getattr(node.func, 'id', None)) == 'import_module':
-                if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-                    names.add(node.args[0].value)
-            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-                literals.add(node.value)
-        _IMPORTS[key] = (names, literals)
-    return _IMPORTS[key]
+    names, literals = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module or ''
+            if node.level:
+                parent = package.split('.')[:len(package.split('.')) - node.level + 1] if package else []
+                base = '.'.join([*parent, *([base] if base else [])])
+            if base:
+                names.add(base)
+            names.update(f'{base}.{alias.name}' if base else alias.name for alias in node.names)
+        elif isinstance(node, ast.Call) and getattr(node.func, 'attr', getattr(node.func, 'id', None)) == 'import_module':
+            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                names.add(node.args[0].value)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            literals.add(node.value)
+    return names, literals
 
 
 IMPLEMENTATION_INDEX = 'config/implementation-files.json'
@@ -274,10 +275,12 @@ def implementation_files() -> list[str]:
     return sorted(set(files) | {IMPLEMENTATION_INDEX})
 
 
-def implementation_closure() -> list[str]:
+def implementation_closure(*, parsed: Mapping[Path, ast.Module] | None = None) -> list[str]:
     """Compute the implementation list from the source: the modules that compile
     and execute import, the schemas, the data files those modules name, and the
-    route manifest. Tests, smoke tests and release metadata are left out.
+    route manifest. Tests, smoke tests and release metadata are left out. A
+    caller analyzing the same acquired sources can supply their parsed trees;
+    otherwise each source is read once during this computation.
     """
     scripts = ROOT / 'scripts'
     pending = list(ENTRY_MODULES)
@@ -291,7 +294,7 @@ def implementation_closure() -> list[str]:
             modules.add(relative)
             # The package a relative import starts from: the directory holding the file.
             package = '.'.join(path.relative_to(scripts).with_suffix('').parts[:-1])
-            found, strings = _imports(path, package)
+            found, strings = _imports(path, package, parsed.get(path) if parsed is not None else None)
             literals.update(strings)
             pending.extend(found)
     files = set(modules) | {execution_routes.MANIFEST, IMPLEMENTATION_INDEX}
@@ -408,11 +411,9 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     add(root, task_path, 'task-source')
     import route_reading
     reading = c.decode(add(root, task['route_reading']))
-    if 'route-reading' in checked:
-        issuance = checked['route-reading']
-    else:
-        issuance = route_reading.require_task_reading(reading, studio=root, task=task,
-                                                     read_input=lambda path: add(root, path))
+    if 'route-reading' not in checked:
+        route_reading.require_task_reading(reading, studio=root, task=task,
+                                          read_input=lambda path: add(root, path))
     source_hashes = {}
     for source in task['sources']:
         selected = add(root, source['path'])
@@ -503,11 +504,26 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
     if task['execution'] == 'external':
         bounded('external-image-contract', lambda base, value, add:
             image_input.external_documents(base, value, add, inputs=inputs))
-    # The installed implementation is pinned by digest; its bytes stay in the installation.
-    skill_files = set(implementation_files()) | {r['path'] for r in route['reads']}
+    # Keep installation pins as one immutable evidence object. Ordinary saved
+    # operations verify its bytes without repeatedly decoding the whole list;
+    # navigation decodes it through the RunView's evidence owner when needed.
+    # Source bytes themselves stay in the installation.
+    # Each selected knowledge record owns its section bodies. Pin the route
+    # owner's acquired record once, without reading generated Markdown or
+    # acquiring that source again.
+    knowledge = {record['path']: {'space': 'skill', **record}
+                 for record in route['document_records'].values()}
+    skill_files = set(implementation_files()) | set(knowledge)
+    implementation = []
     for path in sorted(skill_files):
+        if path in knowledge:
+            implementation.append(knowledge[path])
+            continue
         key, size = c.file_digest(ROOT, path)
-        dependencies[('skill', path)] = {'space': 'skill', 'path': path, 'sha256': key, 'size': size}
+        implementation.append({'space': 'skill', 'path': path, 'sha256': key, 'size': size})
+    implementation_bytes = c.encoded(implementation)
+    implementation_key = c.digest(implementation_bytes)
+    blobs[implementation_key] = implementation_bytes
     consumer = {'route': task['route'],
                 'instructions': delivery, 'criteria': task['criteria'],
                 'direction': plan.consumer(task['direction']),
@@ -516,11 +532,12 @@ def snapshot(root: Path, task_path: str, *, captured: dict[str, bytes] | None = 
         consumer['image_input'] = inputs
     if semantic_edit is not None:
         consumer['semantic_edit'] = semantic_edit
-    prepared = {'task_path': task_path, 'task': task, 'route': route, 'authority': authority,
-                'route_reading': reading, 'route_reading_sha256': c.content_id(reading), 'reading_issuance': issuance,
+    prepared = {'task_path': task_path, 'task': task, 'authority': authority,
+                'route_reading': reading, 'route_reading_sha256': c.content_id(reading),
+                'implementation': {'sha256': implementation_key, 'size': len(implementation_bytes)},
                 'dependencies': sorted(dependencies.values(), key=lambda x: (x['space'], x['path'])),
                 'consumer_sha256': c.content_id(consumer)}
-    return prepared, consumer, prepared['dependencies'], blobs
+    return prepared, consumer, prepared['dependencies'] + implementation, blobs
 
 
 def production_identifier(value: Any) -> str:
@@ -743,9 +760,10 @@ def _validate_publication_content(run: str, prepared: dict, consumer: dict, read
                                   known: dict[str, int], *, root: Path | None = None) -> None:
     """Check decoded immutable inputs and every saved source dependency."""
     _validate_input_records(run, prepared, consumer)
-    for dependency in prepared['dependencies']:
-        if dependency['space'] == 'skill':
-            continue
+    dependencies = list(prepared['dependencies'])
+    if prepared.get('implementation') is not None:
+        dependencies.append({'space': 'evidence', 'path': 'implementation pins', **prepared['implementation']})
+    for dependency in dependencies:
         key = dependency['sha256']
         if known.get(key) == dependency['size']:
             continue
@@ -961,7 +979,7 @@ def _fixed_runtime(root: Path, prepared: dict, *, force: bool = False,
                                             force_verify=force, previous=previous_runtime)
 
 
-def _current_draft_notices(root: Path, run: str, prepared: dict,
+def _current_draft_notices(root: Path, run: str, loaded: RunView,
                            fixed: runtime_snapshot.FixedRuntimeRead | None) -> list[dict]:
     """Observe current authoring locators for navigation, without changing a run.
 
@@ -972,7 +990,9 @@ def _current_draft_notices(root: Path, run: str, prepared: dict,
     """
     import route_reading
     from live_source_read import LiveSourceRead
-    sources=LiveSourceRead(root,ROOT,prepared['dependencies'])
+    prepared = loaded.prepared
+    dependencies = [*prepared['dependencies'], *loaded.implementation_dependencies]
+    sources=LiveSourceRead(root,ROOT,dependencies)
     notices=[]
     descriptor=prepared.get('runtime_snapshot')
     if fixed is not None:
@@ -998,7 +1018,7 @@ def _current_draft_notices(root: Path, run: str, prepared: dict,
                                 'no longer verifies against the current installation; read the current material before '
                                 'the next preparation.'))
     implementation=[]
-    for dependency in prepared['dependencies']:
+    for dependency in dependencies:
         if dependency['space'] == 'evidence': continue
         try: actual=current_sha256(root,dependency,read=sources)
         except (ValueError,OSError) as exc:
@@ -1065,7 +1085,7 @@ def assert_current(root: Path, run: str, *, force: bool = False,
     return read_current(root,run,force=force,previous_runtime=previous_runtime).view
 
 
-def freshness(root: Path, run: str, *, loaded: tuple | None = None,
+def freshness(root: Path, run: str, *, loaded: RunView | None = None,
               previous_runtime: runtime_snapshot.FixedRuntimeRead | None = None) -> tuple[list[dict], list[dict]]:
     """Report saved-runtime failures and current-draft notices for navigation.
 
@@ -1081,7 +1101,7 @@ def freshness(root: Path, run: str, *, loaded: tuple | None = None,
         fixed=_fixed_runtime(root,loaded[1],previous_runtime=previous_runtime)
     except (ValueError,OSError) as exc:
         failures.append(from_exception(exc,phase='freshness'))
-    notices=_current_draft_notices(root,run,loaded[1],fixed)
+    notices=_current_draft_notices(root,run,loaded,fixed)
     return failures,notices
 
 
@@ -1694,7 +1714,8 @@ def _review_criterion(task: dict, criterion: dict, craft_questions: list[str]) -
         if criterion['id'] not in decision['criteria']:
             continue
         realizations.append({'decision': decision['id'], 'expression': decision['expression'],
-            'instructions': decision['realization']['instructions'], 'basis': decision['basis']})
+            'instructions': decision['realization']['instructions'], 'basis': decision['basis'],
+            'representation': decision.get('representation', {'role': 'visible'})})
     return {**criterion, 'realizations': realizations, 'craft_questions': craft_questions,
             'source_allowances': [allowance for allowance in task['direction']['source_allowances']
                                   if criterion['id'] in allowance['criteria']]}
@@ -1716,6 +1737,9 @@ def review_basis(root: Path, run: str, candidate: str | None = None) -> dict:
     questions = review_questions(root, prepared['task'], directory=directory, dependencies=prepared['dependencies'])
     task = prepared['task']
     result = {'purpose': task['direction']['purpose'], 'intended_effect': task['direction']['intended_effect'],
+              'artifact': task['artifact'],
+              **({'image_format': task['direction'].get('image_format', 'single-still')}
+                 if task['artifact'] == 'image' else {}),
               'criteria': [_review_criterion(task, item, questions.get(item['id'], [])) for item in task['criteria']],
               'evidence': _review_reference_evidence(directory, run, consumer, prepared,
                   artifacts=loaded.artifacts, read_object=loaded.evidence.read)}
@@ -2549,13 +2573,14 @@ def impact(root: Path, run: str) -> dict:
     `implementation`; it reaches no creative decision, and the task is prepared again.
     """
     try:
-        _, prepared, _, rows = read_run(root, run)
+        loaded = read_run(root, run)
+        _, prepared, _, rows = loaded
     except (ValueError, OSError, KeyError, UnicodeError) as exc:
         return {'ok': False, 'run': run, 'integrity_error': str(exc)}
     changes = []
     provenance = []
     implementation = []
-    records = list(prepared['dependencies'])
+    records = [*prepared['dependencies'], *loaded.implementation_dependencies]
     records += [{**f, 'space': 'artifact', 'receipt': row['sha256']}
                 for row in rows for f in row['data'].get('files', []) + row['data'].get('evidence', [])]
     for item in records:
@@ -2615,6 +2640,8 @@ def changed_scopes(before: dict, after: dict, *, before_inputs: dict | None = No
     for field in ('purpose', 'intended_effect', 'basis', 'action_slice', 'limitations'):
         if old['direction'][field] != new['direction'][field]:
             scopes.add('purpose')
+    if old['direction'].get('image_format', 'single-still') != new['direction'].get('image_format', 'single-still'):
+        scopes.add('purpose')
     for field, prefix in (('sources', 'source:'), ('criteria', 'criterion:')):
         a = {x['id']: x for x in old[field]}
         b = {x['id']: x for x in new[field]}
@@ -2785,9 +2812,10 @@ def _claim_dispatch_from(root: Path, loaded: RunView, authority: store.CurrentAu
     # this run. Compare the same sealed input used by execute before any
     # authorization accounting or claim is committed.
     from production_execution import compiled
+    import execution_target
     fixed = compiled(root, run, loaded=loaded)
     fixed_package, fixed_rendered, fixed_plan = fixed[4:7]
-    authentication = validate_dispatch_authentication(authentication, fixed[8], fixed[7]['offering']['service'])
+    authentication = validate_dispatch_authentication(authentication, fixed[8], execution_target.offering(fixed[7])['service'])
     import request_contract as rc
     compare_exact(c.content_id(fixed_package), c.content_id(package),
                   pointer='$.package_sha256', phase='execution')

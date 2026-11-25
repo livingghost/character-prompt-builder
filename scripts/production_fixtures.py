@@ -116,6 +116,8 @@ def task_definition(root: Path, spec: dict, *, artifact: str = 'text',
                          'limitations': ['Synthetic fixture only.']}
     for criterion in spec['criteria']:
         criterion['evidence'] = 'artifact'
+        criterion.setdefault('origin', {'kind': 'user-request'})
+        criterion.setdefault('observation', {'scope': 'observable'})
     spec['authority'] = 'fixture-authority.json'
     current_request(root)
     authority = {'task_id': spec['task_id'], 'issuer': 'SYNTHETIC TEST FIXTURE',

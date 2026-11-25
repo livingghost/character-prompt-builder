@@ -75,20 +75,16 @@ def _target_change(root: Path, run: str, pointer: str, message: str) -> Producti
         required_action='Retarget with a reassessed task: ' + RETARGET.format(root=studio, run=run))
 
 
-def _implementation_notices(root: Path, run: str, prepared: dict, dependencies: list[dict]) -> list[dict]:
+def _implementation_notices(run: str, previous, current) -> list[dict]:
     """Explain a current installation change independently of retained source selection."""
     import production_operations as workflow
     from production_diagnostics import from_exception
-    retained = {(d['space'], d['path']) for d in dependencies}
+    retained = {row['path']: row for row in current}
     installation = []
-    for source in prepared['dependencies']:
-        if ((source['space'], source['path']) not in retained
-                or source['space'] != 'skill'):
+    for source in previous:
+        if source['path'] not in retained:
             continue
-        try:
-            actual = workflow.current_sha256(root, source)
-        except (ValueError, OSError):
-            actual = None
+        actual = retained[source['path']]['sha256']
         if actual != source.get('selection_sha256', source['sha256']):
             installation.append((source, actual, None))
     if not installation:
@@ -379,7 +375,7 @@ def derive(root: Path, run: str, *, changes_file: str | None = None, prepare: bo
     if not compiled.report['publishable']:
         raise CompilationError(compiled.report)
     try:
-        notices = _implementation_notices(root, run, prepared, compiled.prepared['dependencies'])
+        notices = _implementation_notices(run, loaded.implementation_dependencies, compiled.implementation_dependencies)
         if changes_file is None and (compiler.authored_input_digest(compiled.prepared, compiled.consumer)
                                      != compiler.authored_input_digest(prepared, loaded.consumer)):
             raise ProductionError('REPEAT_INPUT_MISMATCH',

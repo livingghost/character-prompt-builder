@@ -284,6 +284,7 @@ class FoundationTests(unittest.TestCase):
             (root/'source.txt').write_text('evidence', encoding='utf-8')
             (root/'credentials.json').write_text('{}', encoding='utf-8')
             cases=[('absent.txt','missing file: absent.txt',store.CAPTURE_MISSING),
+                   ('source.txt/child','missing file: source.txt/child',store.CAPTURE_MISSING),
                    ('folder','directory: folder',store.CAPTURE_DIRECTORY),
                    ('credentials.json','Private Studio credentials',store.CAPTURE_PRIVATE),
                    ('folder\\source.txt','POSIX path required',store.CAPTURE_PATH_REFUSED),
@@ -380,6 +381,115 @@ class FoundationTests(unittest.TestCase):
         with patch.object(compiler.os,'name','nt'), patch.object(compiler,'_windows_pid_active',return_value=True) as query, patch.object(compiler.os,'kill') as kill:
             self.assertTrue(compiler._pid_active(123))
             query.assert_called_once_with(123);kill.assert_not_called()
+
+
+class StableSourceReadTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.source = self.root / 'evidence.txt'
+        self.raw = b'Synthetic source bytes.\n'
+        self.source.write_bytes(self.raw)
+
+    @contextlib.contextmanager
+    def at_read_boundary(self, *, before_open=None, after_close=None, read_source=None):
+        original_open = Path.open
+        source = self.source
+
+        class Reading:
+            def __init__(self, stream):
+                self.stream = stream
+
+            def fileno(self):
+                return self.stream.fileno()
+
+            def read(self):
+                return read_source(self.stream)
+
+        @contextlib.contextmanager
+        def opening(selected, *args, **kwargs):
+            observed = selected == source and (args[0] if args else kwargs.get('mode', 'r')) == 'rb'
+            if observed and before_open:
+                before_open()
+            with original_open(selected, *args, **kwargs) as stream:
+                yield Reading(stream) if observed and read_source else stream
+            if observed and after_close:
+                after_close()
+
+        with patch.object(Path, 'open', opening):
+            yield
+
+    def replace_source(self):
+        before = self.source.stat()
+        self.source.rename(self.root / 'previous.txt')
+        self.source.write_bytes(self.raw)
+        os.utime(self.source, ns=(before.st_atime_ns, before.st_mtime_ns))
+
+    def assert_source_changed(self):
+        with self.assertRaises(ProductionError) as caught:
+            store.stable_read(self.source, 'evidence.txt')
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.code, diagnostic.file, diagnostic.phase),
+                         ('SOURCE_CHANGED', 'evidence.txt', 'input-capture'))
+
+    def test_another_read_observes_changed_bytes_with_the_same_file_metadata(self):
+        self.assertEqual(store.stable_read(self.source, 'evidence.txt'), self.raw)
+        before = self.source.stat()
+        changed = self.raw.upper()
+        self.source.write_bytes(changed)
+        os.utime(self.source, ns=(before.st_atime_ns, before.st_mtime_ns))
+        self.assertEqual(store.stable_read(self.source, 'evidence.txt'), changed)
+
+    def test_replacement_before_open_is_refused_even_when_bytes_and_timestamps_match(self):
+        with self.at_read_boundary(before_open=self.replace_source):
+            self.assert_source_changed()
+
+    def test_replacement_after_read_is_refused_even_when_bytes_and_timestamps_match(self):
+        with self.at_read_boundary(after_close=self.replace_source):
+            self.assert_source_changed()
+
+    def test_linking_to_the_same_read_file_does_not_hide_a_path_replacement(self):
+        probe = self.root / 'link-probe'
+        try:
+            probe.symlink_to(self.source)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(str(exc))
+        probe.unlink()
+
+        def replace_with_link():
+            retained = self.root / 'previous.txt'
+            self.source.rename(retained)
+            self.source.symlink_to(retained)
+
+        with self.at_read_boundary(after_close=replace_with_link):
+            self.assert_source_changed()
+
+    def test_an_inflight_same_length_write_is_refused(self):
+        before = self.source.stat()
+
+        def changing(stream):
+            raw = stream.read()
+            self.source.write_bytes(raw.upper())
+            os.utime(self.source, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+            return raw
+
+        with self.at_read_boundary(read_source=changing):
+            self.assert_source_changed()
+
+    def test_a_short_read_cannot_return_incomplete_evidence(self):
+        with self.at_read_boundary(read_source=lambda stream: stream.read()[:-1]):
+            self.assert_source_changed()
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'This platform does not provide named pipes.')
+    def test_a_named_pipe_is_refused_before_opening_it(self):
+        self.source.unlink()
+        os.mkfifo(self.source)
+        with self.assertRaises(ProductionError) as caught:
+            store.stable_read(self.source, 'evidence.txt')
+        diagnostic = caught.exception.diagnostic
+        self.assertEqual((diagnostic.code, diagnostic.required_action),
+                         ('EVIDENCE_CAPTURE_FAILED', store.CAPTURE_NOT_REGULAR))
 
 
 class PublicationRecoveryTests(ProductionCase):
@@ -860,7 +970,7 @@ class AggregateInputTests(ProductionCase):
         self.assertFalse(report['publishable'])
     def test_reading_retrieval_and_parameters_are_not_hidden_by_recording(self):
         self.break_recording();task=c.load(self.root/'task.json')
-        reading=c.load(self.root/task['route_reading']);reading['documents'][0]['sha256']='0'*64
+        reading=c.load(self.root/task['route_reading']);reading['documents'][0]['sections'][0]['sha256']='0'*64
         self.fixture.write(self.root/task['route_reading'],reading)
         record=c.load(self.root/'retrieval.json');record['settled']=False;self.fixture.write(self.root/'retrieval.json',record)
         parameters=c.load(self.root/'parameters.json');parameters['steps']=-1;self.fixture.write(self.root/'parameters.json',parameters)
@@ -1422,9 +1532,9 @@ class ImplementationPinTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             base=Path(temporary);root=fixtures.create(base/'studio',base/'runtime')['root']
             run=workflow.prepare(root,'task.json')['run']
-            pinned=[d for d in workflow.load_run(root,run)[1]['dependencies'] if d['space']=='skill']
+            pinned=workflow.read_run(root,run).implementation_dependencies
             copied=base/'installation'
-            for item in pinned+[{'path':'scripts/test_production_foundation.py'}]:
+            for item in [*pinned, {'path':'scripts/test_production_foundation.py'}]:
                 target=copied/item['path'];target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(workflow.ROOT/item['path'],target)
             with patch.object(workflow,'ROOT',copied):
                 test_file=copied/'scripts/test_production_foundation.py'

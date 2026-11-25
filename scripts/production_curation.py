@@ -44,7 +44,8 @@ def _identity(operation: str, binding: dict, decision: dict) -> str:
     return c.content_id({'operation': operation, 'binding': binding, 'decision': decision})
 
 
-def _production(root: Path, source: dict) -> tuple[dict, object]:
+def _production(root: Path, source: dict, *, scope: str) -> tuple[dict, object]:
+    """Bind the captured result and the destination required by this use."""
     import production_operations as workflow
     import production_acceptance as acceptance
     import studio_workspace as studio
@@ -55,7 +56,8 @@ def _production(root: Path, source: dict) -> tuple[dict, object]:
     result = {'input_sha256': loaded.prepared['input_sha256'], 'candidate': candidate,
               'review': review['sha256'], 'files': copy.deepcopy(captured['data']['files']),
               'selection': workflow.replaced_selection(loaded.rows)}
-    if loaded.prepared['task'].get('recording') and loaded.prepared['task']['artifact'] == 'image':
+    if (scope != 'delivery-only' and loaded.prepared['task'].get('recording')
+            and loaded.prepared['task']['artifact'] == 'image'):
         target, row = acceptance._target(root, source['run'], candidate, loaded=loaded)
         read = studio.StudioRead(root)
         current = (read.sheet(target['character'])['slots'].get(target['slot']) or {}).get('current')
@@ -227,7 +229,7 @@ def draft(root: Path, source: dict, destination: dict) -> dict:
     authority = None
     authority_requirements = None
     if kind == 'production':
-        snapshot, loaded = _production(root, source)
+        snapshot, loaded = _production(root, source, scope=scope)
         reviewed = workflow.find(loaded.rows, 'review', snapshot['review'])
         evidence = {'artifacts': [{'path': str(loaded.directory / 'objects' / item['sha256']),
                                    'sha256': item['sha256']} for item in snapshot['files']],
@@ -608,7 +610,7 @@ def _check_authority(root: Path, binding: dict) -> None:
 def _check_source(root: Path, binding: dict, *, selected: bool = False) -> None:
     source, scope, expected = binding['source'], binding['destination']['scope'], binding['snapshot']
     if source['kind'] == 'production':
-        actual, _ = _production(root, source)
+        actual, _ = _production(root, source, scope=scope)
         keys = ['input_sha256', 'candidate', 'review', 'files']
         if not selected:
             keys.append('selection')
@@ -618,7 +620,7 @@ def _check_source(root: Path, binding: dict, *, selected: bool = False) -> None:
     else:
         actual, _ = _sheet(root, source, withdrawal=scope == 'withdraw')
         keys = ['sheet_decision', 'current_acceptance']
-    if 'target' in expected:
+    if scope != 'delivery-only' and 'target' in expected:
         keys += ['target', 'placement', 'canonical']
         if not selected:
             keys.append('slot_acceptance')

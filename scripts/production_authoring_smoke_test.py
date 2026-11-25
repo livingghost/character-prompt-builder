@@ -613,7 +613,8 @@ class DuplicateDependencyTests(unittest.TestCase):
             'sources': [{'id': 'owner-direction', 'path': 'owner-direction.json', 'role': 'design',
                 'disposition': 'applied', 'locator': 'whole', 'reason': 'Synthetic shared source and authority.'}],
             'delivery': {'path': 'delivery.txt', 'translation_notes': 'Synthetic duplicate dependency test.'},
-            'criteria': [{'id': 'output', 'text': 'Preserve the declared source.', 'strength': 'hard', 'evidence': 'text'}],
+            'criteria': [{'id': 'output', 'text': 'Preserve the declared source.', 'strength': 'hard', 'evidence': 'text',
+                             'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}],
             'world_views': []}
         (self.root / 'delivery.txt').write_bytes(b'Synthetic shared delivery.')
         sources, self.task['sources'] = self.task['sources'], []

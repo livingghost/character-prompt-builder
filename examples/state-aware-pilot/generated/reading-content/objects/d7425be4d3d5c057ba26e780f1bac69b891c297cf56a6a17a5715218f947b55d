@@ -1,0 +1,16 @@
+### Select the delivered target knowledge
+
+Choose the model with `--model MODEL_ID` and its offering with `--service SERVICE_ID`
+when already selected. Without a service, the read delivers that model's complete
+offering guidance for selection. With `prompt-dialect`, `--dialect ID` instead
+selects a known writing family without claiming a selected model. Unknown targets
+use the neutral guidance. Each selected card and writing scope arrives through
+the same complete, paged snapshot. A current operation may use an already delivered
+superset only when the required current source editions and model scope match.
+
+Keep reasons for expression and source use at those actual choices. The delivery
+receipt records which source bytes reached this context; it is not an exercise
+in quoting instructions and does not certify comprehension or artistic quality.
+For a new agent or lost context, read the complete contract for the current work
+again using the status action. A prior delivery record alone supplies no knowledge.
+

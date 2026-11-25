@@ -3,7 +3,7 @@
 
 CI runs it once per operating system, and a contributor runs it the same way:
 
-    python scripts/run_checks.py               every command, up to four workers
+    python scripts/run_checks.py               every command, up to eight workers
     python scripts/run_checks.py --jobs 2      every command, two workers
     python scripts/run_checks.py --only pack   the commands whose label or command contains "pack"
     python scripts/run_checks.py --list        print the commands without running them
@@ -20,13 +20,13 @@ with the source-control checks retained when present. Only the release packs
 are copied, so discovery cannot read an owner's other packs. ``CPB_HOME`` is
 ``<out>/home``, one scratch configuration directory whose pack state is
 ``config/default-pack-state.json``. Each command writes its output to
-``<out>/<index>.log``. The automatic worker count is the smaller of four and
+``<out>/<index>.log``. The automatic worker count is the smaller of eight and
 the available CPU count. This limits contention; ``--jobs`` selects an explicit
 count. Nested CLI-help batches share the available CPU capacity across those
 workers, with up to four helpers per suite. The runner prints
-the chosen workers, Python, platform and CPU context
+the chosen workers, Python, platform, CPU context and copied source identity
 before starting commands, then one line per finished command, the slowest ten
-and the log tail of every failure:
+and the log tail of every failure. Illustrative output with ``--jobs 4``:
 
     [ 63/109]    58.5s  exit 0  python scripts/production_resume_smoke_test.py
     ...
@@ -35,20 +35,25 @@ and the log tail of every failure:
         157.1s  cd scripts && python -m unittest test_production_execution
     ...
     109 commands: 105 passed, 4 failed in 379.7s with 4 workers
-    elapsed phases: setup 0.100s; copy 0.800s; commands 378.000s; cleanup 0.800s
+    elapsed phases: setup 0.100s; copy 0.800s; bytecode 1.000s; commands 377.000s; cleanup 0.800s
 
 It writes ``<out>/summary.json`` and exits 1 when any command failed. The report
-includes the same execution context, elapsed time from setup through source
-cleanup, and separate setup, source-copy, command and cleanup durations. Each
-command's duration is elapsed subprocess time under that concurrent workload.
+includes the same execution context and source identity, elapsed time from setup through source
+cleanup, and separate setup, source-copy, bytecode, command and cleanup durations.
+The copied Python sources receive checked-hash bytecode once. Child commands
+reuse it without writing caches, and still detect source content changes.
+Each command's duration is elapsed subprocess time under that concurrent workload.
 """
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
+import importlib.util
 import json
 import os
 import platform
+import py_compile
 import shlex
 import shutil
 import subprocess
@@ -90,33 +95,34 @@ VALIDATORS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("knowledge discovery", ("scripts/sparse_discovery_eval.py", "--no-write", *RUNTIME_ARGUMENTS)),
 )
 
-# The longest commands of a full run start first, so none of them starts last
-# and holds the run open alone.
+# The longest commands measured in a complete four-worker run start first,
+# so none of them starts last and holds the run open alone.
 LONGEST_FIRST = (
-    "scripts/production_workflow_smoke_test.py",
-    "scripts/test_production_execution.py",
+    "scripts/character_sheet_smoke_test.py",
+    "scripts/test_production_revision.py",
+    "scripts/test_production_work_plan_cases.py",
+    "scripts/test_production_reading_scope.py",
+    "scripts/semantic_edit_plan_smoke_test.py",
+    "scripts/craft_consultation_smoke_test.py",
+    "scripts/documentation_contract_smoke_test.py",
+    "scripts/test_authored_continuation.py",
     "scripts/test_production_foundation.py",
     "scripts/test_production_review.py",
-    "scripts/state_generation_smoke_test.py",
-    "scripts/execution_lifecycle_smoke_test.py",
-    "scripts/dispatch_recovery_smoke_test.py",
-    "scripts/test_production_variation.py",
-    "scripts/test_production_boundaries.py",
-    "scripts/test_runtime_snapshot.py",
-    "scripts/test_model_observation.py",
-    "scripts/reimplementation_smoke_test.py",
-    "scripts/test_production_adoption.py",
+    "scripts/route_reading_smoke_test.py",
     "scripts/test_production_retarget.py",
-    "scripts/production_direction_smoke_test.py",
-    "scripts/image_edit_smoke_test.py",
-    "scripts/production_resume_smoke_test.py",
-    "scripts/craft_consultation_smoke_test.py",
-    "scripts/character_sheet_smoke_test.py",
-    "scripts/generation_payload_smoke_test.py",
+    "scripts/dispatch_recovery_smoke_test.py",
+    "scripts/production_input_model_smoke_test.py",
+    "scripts/production_workflow_smoke_test.py",
+    "scripts/test_production_status_view.py",
+    "scripts/test_runtime_snapshot.py",
+    "scripts/test_production_adoption.py",
+    "scripts/test_production_variation.py",
+    "scripts/production_authoring_smoke_test.py",
 )
 
 TAIL_LINES = 40
-AUTOMATIC_JOB_LIMIT = 4
+AUTOMATIC_JOB_LIMIT = 8
+CLI_HELP_JOB_LIMIT = 4
 
 
 def cpu_context() -> dict[str, Any]:
@@ -143,7 +149,7 @@ def execution_context(jobs: int | None) -> dict[str, Any]:
     return {**context,
             "jobs": selected_jobs,
             "jobs_source": "automatic" if jobs is None else "explicit",
-            "child_command_workers": min(AUTOMATIC_JOB_LIMIT, max(1, context["available_cpus"] // selected_jobs)),
+            "child_command_workers": min(CLI_HELP_JOB_LIMIT, max(1, context["available_cpus"] // selected_jobs)),
             "temporary_directory": tempfile.gettempdir(),
             "python": platform.python_version(), "python_implementation": platform.python_implementation(),
             "python_executable": sys.executable, "platform": platform.platform()}
@@ -157,6 +163,14 @@ def print_context(context: dict[str, Any]) -> None:
     print(f"temporary files: {context['temporary_directory']}", flush=True)
     print(f"runtime: {context['python_implementation']} {context['python']}; {context['platform']}", flush=True)
     print(f"python: {context['python_executable']}", flush=True)
+
+
+def source_identity(root: Path) -> dict[str, str]:
+    """Identify the copied release and runner whose commands are about to run."""
+    metadata = load_package_metadata(root)
+    return {"release": metadata.version,
+            "runner_sha256": hashlib.sha256((root / "scripts/run_checks.py").read_bytes()).hexdigest(),
+            "inventory_sha256": hashlib.sha256((root / "MANIFEST.json").read_bytes()).hexdigest()}
 
 
 def _python(*arguments: str) -> list[str]:
@@ -264,12 +278,36 @@ def copy_check_tree(source: Path, destination: Path) -> Path:
     return destination.resolve()
 
 
+def prepare_bytecode(root: Path) -> int:
+    """Prepare content-checked import caches inside the disposable source copy.
+
+    ``-B`` and ``PYTHONDONTWRITEBYTECODE`` prohibit writes, but still read these
+    caches. Checked hashes detect edits even when source size and mtime agree.
+    Cache preparation is an optimization: a source that cannot be compiled is
+    still exercised by the selected commands, which retain their own failures.
+    """
+    compiled = 0
+    for source in sorted(root.rglob("*.py")):
+        # An inherited cache prefix must not send artifacts outside this copy.
+        cache = source.parent / "__pycache__" / Path(importlib.util.cache_from_source(str(source))).name
+        try:
+            py_compile.compile(str(source), cfile=str(cache), doraise=True,
+                               invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH)
+        except (OSError, py_compile.PyCompileError) as exc:
+            print(f"bytecode not prepared for {source.relative_to(root)}: {exc}", flush=True)
+        else:
+            compiled += 1
+    return compiled
+
+
 def run_one(index: int, label: str, argv: Sequence[str], out: Path, root: Path, *, child_workers: int) -> dict[str, Any]:
     """Run one command with CPB_HOME at the scratch home and record its exit status, time and log."""
     runtime = str(out / "pack-runtime")
     resolved = [argument.replace(PACK_RUNTIME, runtime) for argument in argv]
     environment = {**os.environ, "CPB_HOME": str(out / "home"), "PYTHONDONTWRITEBYTECODE": "1",
                    "CPB_CHECK_CHILD_WORKERS": str(child_workers)}
+    # Use the source copy's caches and the interpreter's existing stdlib caches.
+    environment.pop("PYTHONPYCACHEPREFIX", None)
     log = out / f"{index:03d}.log"
     started = time.monotonic()
     with log.open("wb") as handle:
@@ -305,15 +343,23 @@ def run(selected: Sequence[tuple[str, list[str]]], *, jobs: int | None, out: Pat
     with tempfile.TemporaryDirectory(prefix="source-", dir=out) as temporary:
         setup_finished = time.monotonic()
         root = copy_check_tree(ROOT, Path(temporary) / ROOT.name)
+        source = source_identity(root)
+        print(f"source: {source['release']}; runner {source['runner_sha256'][:12]}; "
+              f"inventory {source['inventory_sha256'][:12]}", flush=True)
         copy_finished = time.monotonic()
+        compiled = prepare_bytecode(root)
+        bytecode_finished = time.monotonic()
         results = _run(selected, jobs=context["jobs"], child_workers=context["child_command_workers"], out=out, root=root)
         commands_finished = time.monotonic()
     finished = time.monotonic()
     timings = {"setup": setup_finished - started, "copy": copy_finished - setup_finished,
-               "commands": commands_finished - copy_finished, "cleanup": finished - commands_finished}
+               "bytecode": bytecode_finished - copy_finished,
+               "commands": commands_finished - bytecode_finished, "cleanup": finished - commands_finished}
     failed = [item for item in results if item["exit"] != 0]
     summary = {"jobs": context["jobs"], "context": context, "seconds": round(finished - started, 3),
+               "source": source,
                "timings_seconds": {name: round(seconds, 3) for name, seconds in timings.items()},
+               "bytecode_files": compiled,
                "passed": len(results) - len(failed), "failed": len(failed), "commands": results}
     (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print_summary(summary, out)
@@ -382,7 +428,7 @@ def print_summary(summary: dict[str, Any], out: Path) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run every test suite and check command once, in parallel.")
     parser.add_argument("--jobs", type=int,
-                        help="commands run at once (default: available CPU count, capped at 4; an explicit value overrides the cap)")
+                        help=f"commands run at once (default: available CPU count, capped at {AUTOMATIC_JOB_LIMIT}; an explicit value overrides the cap)")
     parser.add_argument("--out", type=Path, help="folder for the logs and summary.json (default: a new temporary folder)")
     parser.add_argument("--only", metavar="SUBSTRING",
                         help="run the commands whose label or command contains SUBSTRING")

@@ -159,6 +159,49 @@ class Contracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'template byte hash mismatch: '+row['path']):pc.verify_installation(value,root)
     def test_sealed_manifest_is_current(self):
         raw=(ROOT/pc.MANIFEST_PATH).read_text(encoding='utf-8');self.assertEqual(pc.seal_registry(raw),raw)
+    def test_seal_updates_its_canonical_section_and_hashes_distributed_protocol_documents(self):
+        import seal_contract
+        from knowledge_documents import decode_document, markdown_path, record_path
+        from knowledge_document_build import render_document
+        root,_=self.installation()
+        source={'sections':[
+            {'id':'opening','body':'# Narrative contract\n\nPreserved opening detail.\n\n'},
+            {'id':'published-files','body':'## Published files\n\n```text\n'
+                +'scripts/narrative.py  '+'0'*64+'\n'
+                +'scripts/published-reader.py  '+'0'*64+'\n```\n\n'},
+            {'id':'conclusion','body':'## Further requirements\n\nPreserved [reference](detail.md).\n'}]}
+        canonical=root/record_path(seal_contract.CONTRACT)
+        canonical.parent.mkdir(parents=True,exist_ok=True)
+        canonical.write_bytes(exchange.encoded(source))
+        generated=root/markdown_path(seal_contract.CONTRACT)
+        generated.parent.mkdir(parents=True,exist_ok=True)
+        generated.write_bytes(b'Stale generated output belongs to the document builder.\n')
+        carrier=root/seal_contract.CARRIER
+        carrier.write_text('CONTRACT_SHA256 = "'+'0'*64+'"\n',encoding='utf-8')
+        published=root/'scripts/published-reader.py';published.write_bytes(b'# Published reader fixture.\n')
+        distributed=root/'protocols/README.md'
+        distributed.write_bytes(distributed.read_bytes()+b'\nDistributed document hash fixture.\n')
+        manifest=root/pc.MANIFEST_PATH
+        before={path:path.read_bytes() for path in (canonical,generated,carrier,manifest,distributed)}
+        with mock.patch.object(seal_contract,'ROOT',root),mock.patch('sys.stdout',io.StringIO()):
+            self.assertEqual(seal_contract.main(['--check']),1)
+            self.assertEqual({path:path.read_bytes() for path in before},before)
+            self.assertEqual(seal_contract.main([]),0)
+            self.assertEqual(seal_contract.main(['--check']),0)
+        sealed=json.loads(canonical.read_bytes())
+        self.assertEqual(sealed['sections'][0],source['sections'][0])
+        self.assertEqual(sealed['sections'][2],source['sections'][2])
+        self.assertNotEqual(sealed['sections'][1],source['sections'][1])
+        self.assertEqual(generated.read_bytes(),before[generated])
+        rendered=render_document(decode_document(seal_contract.CONTRACT,canonical.read_bytes())).decode('utf-8')
+        expected=exchange.digest(seal_contract.PUBLISHED.sub('',rendered).encode('utf-8'))
+        self.assertIn('CONTRACT_SHA256 = "'+expected+'"',carrier.read_text(encoding='utf-8'))
+        self.assertIn(exchange.digest(published.read_bytes()),sealed['sections'][1]['body'])
+        self.assertIn(exchange.digest(carrier.read_bytes()),sealed['sections'][1]['body'])
+        committed=json.loads(manifest.read_bytes())
+        row=next(item for item in committed['documents'] if item['path']=='protocols/README.md')
+        self.assertEqual(row['sha256'],exchange.digest(distributed.read_bytes()))
+        pc.verify_installation(committed,root)
     def test_descriptor_commits_the_validator(self):
         d=pc.contract_descriptor('state-event');self.assertEqual(exchange.describe('state-event'),d)
         self.assertEqual(set(d),{'public_type','schemas','semantics_sha256','validator_sha256','contract_sha256'})

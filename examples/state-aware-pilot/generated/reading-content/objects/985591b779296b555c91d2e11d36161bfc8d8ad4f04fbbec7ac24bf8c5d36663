@@ -1,0 +1,32 @@
+## Bind scene artwork and evidence explicitly
+
+`scene_artwork` maps a timeline and scene to the current accepted image in a named
+Studio character's slot. It does not infer links from filenames, prompts, creation
+times or the most recent generated image. A synthetic mapping is:
+
+```json
+{
+  "timeline_id": "main",
+  "scene_context_id": "SC-workshop",
+  "character": "worker",
+  "slot": "scene.workshop",
+  "label": "Adopted workshop scene"
+}
+```
+
+The owning sheet supplies the exact artifact, image hash, provenance and approval.
+Candidates are not displayed as adopted. Replacing the accepted artifact updates
+this link on the next normal projection refresh without changing story order.
+A missing or damaged image produces a link diagnostic, not a different world state.
+Verification follows the selected artifact's actual image, provenance, attachments,
+package and recursive source artifacts, together with its saved adoption decision
+and evidence. The registered character and sidecar are inputs too. Shared artwork
+verification is reused within the same sheet and projection; another projection
+records its own dependencies. Every read retains the sheet's path boundary.
+
+`evidence_sources` maps explicit `source_id` values to local paths and optional
+SHA-256 commitments. Event evidence can also name an explicit local `path` or
+HTTP(S) `url`. Unbound references remain visible as unbound. Missing files, hash
+mismatches and unsafe URLs are diagnosed; external URLs are not fetched.
+HTML uses text nodes and escaped JSON, so a note cannot become executable markup.
+

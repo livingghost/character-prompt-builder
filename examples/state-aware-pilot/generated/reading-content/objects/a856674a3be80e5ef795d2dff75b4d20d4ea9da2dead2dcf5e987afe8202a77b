@@ -1,0 +1,29 @@
+## 1. Establish scope and evidence before making state authoritative
+
+Read the actual source span and adopted design rather than generated summaries
+alone. Resolve aliases only when they demonstrably refer to the same subject in
+the declared continuity; identical names can denote different subjects, and
+different names can denote one. Unresolved identification stays unresolved
+rather than taking one convenient identity.
+
+Keep source-explicit content, an inference, a creator's design decision and an
+observation of an output apart. Record the actual source and locator,
+uncertainty, adopted scope and affected fields. A plausible completion of an
+underspecified source is a proposal rather than a recovered fact, and a
+consistent sequence propagates a mistaken first interpretation just as
+consistently.
+
+Base state needs a basis as well as events: for a consequential field, retain
+its owning record, source locator or design decision and actual adoption. In a
+structured plan the base provenance binds exact entity/field pointers to
+evidence, while approved event and process evidence lives in its own records,
+not in a second plan-side editable ledger. A hash identifies inspected bytes;
+the source's meaning, semantic applicability, adoption, image identity and the
+creator's consent need evidence beyond a hash or the word approved.
+
+Keep actual conditions, testimony, belief, uncertain inference, narration,
+audience disclosure and creator-only planning distinct. An unknown stays
+unknown, a missing value missing and an occluded part occluded; a confidence
+threshold leaves a hypothesis a hypothesis. Purposeful ambiguity needs a scoped
+design basis; an unexamined field is still a gap.
+

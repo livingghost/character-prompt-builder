@@ -360,6 +360,7 @@ class StatusViewTests(unittest.TestCase):
         self.assertEqual([row['directory'] for row in authoring['inputs']], ['work/second'])
 
     def test_changed_guidance_stays_future_work_until_the_saved_source_is_selected_or_edited(self):
+        from knowledge_documents import record_path
         import production_authoring_state
         import production_report_view
         import route_reading
@@ -377,15 +378,18 @@ class StatusViewTests(unittest.TestCase):
         choices_bytes = (self.root / path).read_bytes()
         reading_bytes = (self.root / 'work/reads.jsonl').read_bytes()
         document = next(item for item in loaded.prepared['route_reading']['documents']
-                        if item['path'] == 'references/runtime/production-preparation.md')
-        original = (route_reading.ROOT / document['path']).read_bytes()
-        offset = original.index(b'\n', document['ranges'][0]['start']) + 1
-        changed = self.base / 'changed-current-guidance.md'
-        changed.write_bytes(original[:offset] + b'\nCurrent synthetic preparation guidance changed.\n' + original[offset:])
+                        if item['document_id'] == 'references/runtime/production-preparation')
+        canonical_path = record_path(document['document_id'])
+        original = c.load(route_reading.ROOT / canonical_path)
+        selected = next(section for section in original['sections']
+                        if section['id'] == document['sections'][0]['section_id'])
+        selected['body'] += '\nCurrent synthetic preparation guidance changed.\n'
+        changed = self.base / 'changed-current-guidance.json'
+        changed.write_bytes(c.encoded(original))
         require = route_reading.require_route_reading
 
         def current_source(name):
-            return (changed if name == document['path'] else route_reading.ROOT / name).read_bytes()
+            return (changed if name == canonical_path else route_reading.ROOT / name).read_bytes()
 
         def verify_current(record, **arguments):
             return require(record, **{**arguments, 'read_source': current_source})
@@ -401,8 +405,8 @@ class StatusViewTests(unittest.TestCase):
             self.assertEqual(row['prepared_run'], run)
             future = row['future_authoring']
             self.assertEqual([item['code'] for item in future['unresolved']], ['TARGET_GUIDANCE_REQUIRED'])
-            self.assertEqual([item['path'] for item in future['unresolved'][0]['source_changes']['changes']],
-                             [document['path']])
+            self.assertEqual([item['document_id'] for item in future['unresolved'][0]['source_changes']['changes']],
+                             [document['document_id']])
             self.assertEqual(future['authoring_stage']['stage'], 'prepare')
             self.assertIn(path, future['fresh_context_action']['argv'])
             self.assertEqual(full['runs'][0]['readiness'], before['runs'][0]['readiness'])

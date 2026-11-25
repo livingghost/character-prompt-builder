@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import stat
 import time
 import uuid
 from typing import Any, Iterator
@@ -216,8 +217,9 @@ class _StoreSession:
 
 
 def _session(root: Path) -> _StoreSession:
-    return read_context.resource(('production-store', str(root.resolve())),
-                                 lambda: _StoreSession(root.resolve()))
+    """Reuse the operation's session for its already resolved Studio root."""
+    return read_context.resource(('production-store', str(root)),
+                                 lambda: _StoreSession(root))
 
 
 def refresh_observation(root: Path) -> None:
@@ -228,7 +230,8 @@ def refresh_observation(root: Path) -> None:
 
 @contextlib.contextmanager
 def transaction(root: Path) -> Iterator[sqlite3.Connection]:
-    identity = str(root.resolve())
+    root = root.resolve()
+    identity = str(root)
     independent = identity in _READERS.get() and identity not in _CONNECTIONS.get()
     with read_context.public_call(isolated=independent):
         with _transaction(root) as connection:
@@ -237,7 +240,7 @@ def transaction(root: Path) -> Iterator[sqlite3.Connection]:
 
 @contextlib.contextmanager
 def _transaction(root: Path) -> Iterator[sqlite3.Connection]:
-    root = root.resolve()
+    """Open a writer for the root acquired at the transaction boundary."""
     key = str(root)
     existing = _CONNECTIONS.get().get(key)
     if existing is not None:
@@ -288,7 +291,8 @@ def reader(root: Path) -> Iterator[sqlite3.Connection | None]:
 
 @contextlib.contextmanager
 def _reader(root: Path) -> Iterator[sqlite3.Connection | None]:
-    identity = str(root.resolve())
+    root = root.resolve()
+    identity = str(root)
     connection = _CONNECTIONS.get().get(identity) or _READERS.get().get(identity)
     if connection is not None:
         yield connection; return
@@ -641,25 +645,33 @@ def stable_read(selected: Path, path: str) -> bytes:
     try:
         assert_public_path(selected)
         assert_public_path(path)
-        if selected.is_symlink():
+        try:
+            entry = selected.lstat()
+        except OSError as exc:
+            if exc.errno in c._ABSENT_ERRNOS or getattr(exc, 'winerror', None) in c._ABSENT_WINERRORS:
+                raise _NotEvidence('missing file: ' + path, CAPTURE_MISSING) from exc
+            raise
+        except ValueError as exc:
+            raise _NotEvidence('missing file: ' + path, CAPTURE_MISSING) from exc
+        if stat.S_ISLNK(entry.st_mode):
             raise _NotEvidence('symbolic link: ' + path, CAPTURE_LINK)
-        if not selected.exists():
-            raise _NotEvidence('missing file: ' + path, CAPTURE_MISSING)
-        if selected.is_dir():
+        if stat.S_ISDIR(entry.st_mode):
             raise _NotEvidence('directory: ' + path, CAPTURE_DIRECTORY)
-        if not selected.is_file():
+        if not stat.S_ISREG(entry.st_mode):
             raise _NotEvidence('not a regular file: ' + path, CAPTURE_NOT_REGULAR)
         with selected.open('rb') as stream:
             before = os.fstat(stream.fileno())
             data = stream.read()
             after = os.fstat(stream.fileno())
-        current = selected.stat()
+        current = selected.lstat()
     except (OSError, ValueError) as exc:
         raise _capture_failed(path, exc) from exc
-    # File identity, size and last write. Windows reports different change times
-    # for a handle and a path, so the change time is not part of the identity.
-    identity = lambda s: (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns)
-    if identity(before) != identity(after) or identity(after) != identity(current) or len(data) != after.st_size:
+    # Include the classified entry and the final nonfollowing path check, so
+    # replacing a file before opening or linking to it after reading is refused.
+    # Windows reports different change times for handles and paths; exclude it.
+    identity = lambda s: (s.st_dev,s.st_ino,stat.S_IFMT(s.st_mode),s.st_size,s.st_mtime_ns)
+    if (identity(entry) != identity(before) or identity(before) != identity(after)
+            or identity(after) != identity(current) or len(data) != after.st_size):
         raise ProductionError('SOURCE_CHANGED', 'Source changed during capture.', file=path, phase='input-capture',
                               required_action='Finish the source write, then capture the complete evidence again.')
     if path.endswith('.jsonl'):
@@ -764,36 +776,38 @@ def read_authority(root: Path, task_id: str, *, required: bool = True) -> Curren
             if previous is not None and previous[0] == observed:
                 return previous[1]
             rows = read_history(root, scope).rows
-    if state is None:
-        if not required: return None
-        raise ProductionError('AUTHORIZATION_REQUIRED','The work task has no registered current authority.',phase='authorization',
-                              required_action='Import an actual authority declaration with its evidence before execution.')
-    matches = [row for row in rows if row['sha256'] == state['event_sha256']]
-    if len(matches) != 1 or matches[0] != rows[-1]:
-        raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority state is not the terminal committed event.',phase='integrity')
-    data = matches[0]['data']
-    if c.content_id(data['authority']) != state['content_sha256']:
-        raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority content digest does not match.',phase='integrity')
-    objects: dict[str, bytes] = {}
-    evidence = []
-    for item in data['evidence']:
-        assert_public_path(item['path'])
-        key = c.sha(item['sha256'])
-        if key not in objects:
-            objects[key] = verify_evidence(root, item, event=state['event_sha256'],
-                                           impact=AUTHORITY_EVIDENCE_IMPACT)
-        raw = objects[key]
-        # Several locators or purposes may name the same content object. Its
-        # bytes were checked once, while every row still has to name its size.
-        if len(raw) != item['size']:
-            raise evidence_error('EVIDENCE_SNAPSHOT_CORRUPT', 'Stored evidence no longer matches its digest.',
-                file=str(c.local(root, 'production/objects/' + key, exists=False)), event=state['event_sha256'],
-                expected=key, actual=key, impact=AUTHORITY_EVIDENCE_IMPACT, source=item['path'])
-        evidence.append(freeze({**item, 'raw': raw}))
-    held = CurrentAuthority(task_id, freeze(matches[0]), tuple(evidence))
-    if owner is not None:
-        owner[cache_key] = (freeze(observed), held)
-    return held
+        if state is None:
+            if not required: return None
+            raise ProductionError('AUTHORIZATION_REQUIRED','The work task has no registered current authority.',phase='authorization',
+                                  required_action='Import an actual authority declaration with its evidence before execution.')
+        matches = [row for row in rows if row['sha256'] == state['event_sha256']]
+        if len(matches) != 1 or matches[0] != rows[-1]:
+            raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority state is not the terminal committed event.',phase='integrity')
+        data = matches[0]['data']
+        if c.content_id(data['authority']) != state['content_sha256']:
+            raise ProductionError('AUTHORITY_STATE_CORRUPT','Authority content digest does not match.',phase='integrity')
+        objects: dict[str, bytes] = {}
+        evidence = []
+        for item in data['evidence']:
+            assert_public_path(item['path'])
+            key = c.sha(item['sha256'])
+            if key not in objects:
+                objects[key] = verify_evidence(root, item, event=state['event_sha256'],
+                                               impact=AUTHORITY_EVIDENCE_IMPACT)
+            raw = objects[key]
+            # Several locators or purposes may name the same content object. Its
+            # bytes were checked once, while every row still has to name its size.
+            if len(raw) != item['size']:
+                raise evidence_error('EVIDENCE_SNAPSHOT_CORRUPT', 'Stored evidence no longer matches its digest.',
+                    file=str(c.local(root, 'production/objects/' + key, exists=False)), event=state['event_sha256'],
+                    expected=key, actual=key, impact=AUTHORITY_EVIDENCE_IMPACT, source=item['path'])
+            evidence.append(freeze({**item, 'raw': raw}))
+        held = CurrentAuthority(task_id, freeze(matches[0]), tuple(evidence))
+        if owner is not None:
+            # The reader's closing observation invalidates this grant with its
+            # history when another connection committed during acquisition.
+            owner[cache_key] = (freeze(observed), held)
+        return held
 
 
 def authority(root: Path, task_id: str, *, required: bool = True) -> dict | None:

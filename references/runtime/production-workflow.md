@@ -105,6 +105,8 @@ python scripts/execution_routes.py read --root STUDIO --choices work/draft/choic
 `stage-inputs` retains the choices, source files and prior results and returns
 the reading and editing actions for the selected stage. Its reading action starts
 complete bounded delivery with `--all`; follow `actions.continue` to completion.
+Pass `--reading-context` to the returned `read` or `advance` action. Select
+`--view` on `inspect-inputs` when choosing the report's display detail.
 The generated `--bind-choices` action applies the completed reading key to this
 exact unchanged draft. Inspect `choices_binding` if input changed during delivery;
 its named owner and repair action preserve that edit and the completed reading.
@@ -131,6 +133,25 @@ using them; earlier complete ranges can contribute only while their actual text
 remains known in the same context. Never activate an unused specialist merely
 to fill a field or obtain a reading record.
 
+For staged authoring, definition reads the complete selected species and body-plan
+design knowledge needed to establish the subject. Depiction uses that actual
+definition, its view-construction contracts and the complete selected creative
+or finishing specialist. Interface recipes begin when the depiction needs them;
+writing-guide resources serve rendition and final input inspection. A selected
+model supplies its complete guidance card at every stage.
+
+Rendition reads the complete sections for carrying the saved construction into
+supported wording, reference use and controls. Preparation reads the complete
+input-binding, source-authority and inspection sections. Neither stage recreates
+species, craft or picture choices already saved in their owning sources. Inspect
+those actual choices and their source applications, rather than treating an older
+reading record as their meaning. If a missing or changed choice needs definition
+or conception, return to its stage and read that scope before deciding it. A fresh
+context resumes this same division of work; it does not reread all earlier design
+knowledge merely because it must recover the finished decisions. Retained amendments
+instead select knowledge from their declared and actual changes, so a stage label
+does not hide knowledge needed by a changed owner.
+
 After conversation compaction or a new agent, use `inspect-inputs` to recover
 the current editable files and stage, then take its fresh reading action with
 `--fresh-context` and no earlier context ID or `--known-reading` assertion.
@@ -145,16 +166,16 @@ material, so rebuilding context does not repeat earlier authoring or execution.
 Index the complete contract for the current operation with
 `execution_routes.py read ROUTE --operation OPERATION --execution EXECUTION --root STUDIO`,
 adding applicable features and the selected model or writing family. Take
-`authored`, `external` or `dispatcher` from the task. The index shows exact source
-sizes, required sections and selection owners; it delivers no source bodies and issues no
-reading. Whole-source internal headings expand with `--snapshot ID --index-source SELECTOR`.
+`authored`, `external` or `dispatcher` from the task. The index shows selected body
+sizes, required section identities and selection owners; it delivers no source bodies and issues no
+reading. A whole source's declared sections expand with `--snapshot ID --index-source SELECTOR`.
 Each `selection_reason_ids` entry resolves in the shared `selection_reasons` map.
-Select a returned source or heading with `--snapshot ID --section SELECTOR`,
+Select a returned source or section with `--snapshot ID --section SELECTOR`,
 follow `actions.next` or `actions.all` for complete paged delivery. The
 explicit `--all` option also starts a complete read directly.
 
 Read every returned JSON `body`, or add `--view text` to show the exact bodies
-with original line breaks and source ranges. Text view retains the complete
+with original line breaks, section identities and body-local byte ranges. Text view retains the complete
 JSON response in a new `response_file`; its short `next_action` continues that
 view and keeps the current context. It displays required, reused, delivered and
 remaining bytes, `same_context_required`, the issued reading and choices binding.
@@ -164,7 +185,7 @@ selects its directory; the default is `reading-responses` beside the ledger.
 
 Follow `actions.continue` through a selected
 section or full delivery, then use `actions.next` for all remaining material.
-Individual heading navigation remains optional.
+Individual section navigation remains optional.
 Text pages show the current continuation, replay, index and fresh-context
 restart actions. Their `selection_summary.action_ref` opens `actions.index`
 for the complete source-selection reasons and optional `actions.all` command;

@@ -94,6 +94,7 @@ class Compilation:
     artifacts: ArtifactSet | None = None
     runtime_read: Any = None
     retained_inputs: dict[str, bytes] | None = None
+    implementation_dependencies: Any = ()
 
 
 def input_digest(prepared: dict, consumer: dict) -> str:
@@ -106,6 +107,7 @@ def input_digest(prepared: dict, consumer: dict) -> str:
     dependencies=[x for x in prepared['dependencies'] if x['space']!='evidence'
                   and not (x['space']=='task-source' and x['path']==prepared['task_path'])]
     value = {'task':task,'consumer':consumer,'dependencies':dependencies,
+             'implementation': prepared.get('implementation'),
              'runtime':(prepared.get('runtime_snapshot') or {}).get('sha256')}
     if prepared.get('studio_reference_sources'):
         value['studio_reference_sources'] = prepared['studio_reference_sources']
@@ -118,8 +120,7 @@ def authored_input_digest(prepared: dict, consumer: dict) -> str:
     A repeat keeps this identity. The installation and the packs may differ
     between the two preparations; each run pins its own.
     """
-    reduced = {**prepared, 'runtime_snapshot': None,
-               'dependencies': [x for x in prepared['dependencies'] if x['space'] != 'skill']}
+    reduced = {**prepared, 'runtime_snapshot': None, 'implementation': None}
     return input_digest(reduced, consumer)
 
 
@@ -685,7 +686,7 @@ def _runtime_binding(root:Path,prepared:dict,*,runtime_inputs,directory:Path,per
     descriptor,read=runtime_snapshot.capture_compilation(runtime_inputs.runtime,
         directory/'runtime' if persist else None,
         target={'model_id':target.model_id,'offering':target.offering},package=package,
-        reading_resources={name:row for name,row in prepared['reading_issuance'].get('resources',{}).items()
+        reading_resources={name:row for name,row in prepared['route_reading'].get('resources',{}).items()
                            if row.get('status')=='present'},evidence_bytes=evidence_bytes)
     warnings=runtime_snapshot.require_retained(root,runtime_inputs,descriptor)
     prepared['runtime_snapshot']=descriptor
@@ -697,7 +698,6 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
                 runtime_inputs,evidence,persist:bool,retained_inputs=None) -> tuple:
     import generation_payload_builder as builder
     import request_renderer
-    from route_reading import copy_issuance, ledger_candidates
     selected=task['generation']
     inputs=inspected.values['generation-inputs']
     target=inputs.target
@@ -717,8 +717,6 @@ def _generation(root: Path, task: dict, prepared: dict, consumer: dict, director
         visual=from_decisions(selected.get('continuity',{}),production_spec=specification,prepared=reference_set,root=root,
             characters=(task.get('recording') or {}).get('subject_map',{}),sheet_panel=(task.get('recording') or {}).get('sheet_panel',False),
             basis={'path':prepared['task_path'],'locator':'$.generation.continuity and $.recording'})
-    issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
-    artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('package-compilation'):
         with retained_inputs.scope('visual_continuity') if retained_inputs is not None else nullcontext():
             content=builder.acquire_generation(inputs,prepared_reference_root=directory,visual_root=root,
@@ -829,7 +827,7 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
                     target,*,seed:int|None,count:int,fields:dict,artifacts:ArtifactSet,prompt_check:dict)->tuple:
     import production_operations as workflow
     from model_rendition import review_requirements
-    model_id,model_record,offering,service,transport=(target.model_id,target.model,target.offering,target.service,target.transport)
+    model_id,offering,service,transport=(target.model_id,target.offering,target.service,target.transport)
     effects = _external_effects(rendered, count, transport)
     intent=workflow.submission_intent(package,rendered=rendered,seed=seed,count=count,offering=offering,service=service)
     direction={'operation':'direction','targets':workflow.plan.direction_targets(task),
@@ -843,8 +841,8 @@ def _execution_plan(root:Path,task:dict,prepared:dict,package:dict,rendered:dict
           'request':rendered['request'],'validation':package['request_validation'],'mutable_fields':fields,
           'readiness':execution_readiness(prepared,operations=[direction,intent])}
     validate_document(plan,PLAN_SCHEMA,'execution plan')
-    artifacts.write('execution-target.json',c.encoded({'model':model_record,'model_id':model_id,'offering':offering,'service':service,
-                                                      'transport_sha256':target.transport_sha256}))
+    import execution_target
+    artifacts.write('execution-target.json',c.encoded(execution_target.record(target)))
     return package,rendered,plan
 
 
@@ -897,7 +895,6 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
     import request_renderer
     import runtime_evidence
     from input_evidence import InputEvidence
-    from route_reading import copy_issuance,ledger_candidates
     package=copy.deepcopy(inspected.values['upscale-document'])
     import sheet_artifacts
     with retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext():
@@ -938,8 +935,6 @@ def _upscale(root:Path,task:dict,prepared:dict,consumer:dict,directory:Path,iden
             blobs[item['sha256']]=data
     prepared['dependencies']=sorted(dependencies.values(),key=lambda item:(item['space'],item['path']))
     with stage('recording-validation'):validate_recording(root,task,{})
-    issued=copy_issuance(prepared['route_reading'],directory/'reads.jsonl',ledgers=ledger_candidates(studio=root))
-    artifacts.add('reads.jsonl',c.encoded(issued))
     with stage('request-compilation'), (retained_inputs.scope('delivery') if retained_inputs is not None else nullcontext()):
         rendered=request_renderer.upscale(package,model,offering,service,transport,carrier,settings,
             root=root,upload_sources=task.get('upload_sources', []),upload_source_read=lambda path:captured[path],
@@ -1145,7 +1140,12 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                 raise CompilationError(report)
             active_phase='source-validation'
             with stage('source-validation'):
-                prepared,consumer,_,blobs=workflow.snapshot(root,task_path,captured=captured,checked=checks.values)
+                prepared,consumer,source_dependencies,blobs=workflow.snapshot(root,task_path,captured=captured,checked=checks.values)
+            # The input-check owner has already acquired and verified this
+            # complete issuance. Keep it once for every execution mode, outside
+            # the frequently decoded prepared record; later consumers use it
+            # without reopening the author's ledger to recapture the same row.
+            artifacts.write('reads.jsonl', c.encoded(checks.values['route-reading']))
             from sheet_artifacts import dependency
             extra_inputs=dict(source_inputs or {})
             if task.get('execution') == 'authored':
@@ -1263,7 +1263,8 @@ def compile_task(root: Path, task_path: str, *, persist: bool=False, identity: s
                           request_preview=rendered['request'] if rendered else execution_plan.get('request'),execution_plan=execution_plan)
             compiled=Compilation(report,directory,prepared,consumer,package,rendered,execution_plan,identity,artifacts,
                                  runtime_read,retained_inputs.acquired_dependencies(prepared['dependencies'])
-                                 if retained_inputs is not None else None)
+                                 if retained_inputs is not None else None,
+                                 freeze([row for row in source_dependencies if row['space'] == 'skill']))
             if task['execution']=='authored':
                 import production_authored
                 production_authored.finalize_compilation(compiled)
@@ -1733,7 +1734,7 @@ def publish_compilation(root: Path, compiled: Compilation, *, parent: dict | Non
             prepared['predecessor']=store.latest_run(root,prepared['task']['task_id'])
             import production_operations as workflow
             prepared['criteria_predecessor']=workflow.criteria_predecessor(root,prepared['predecessor'],prepared['task'])
-            for dependency in prepared['dependencies']:
+            for dependency in (*prepared['dependencies'], *compiled.implementation_dependencies):
                 if dependency['space'] in {'evidence','task-source'}:continue
                 retained = (compiled.retained_inputs or {}).get(dependency['path'])
                 if dependency['space'] == 'studio' and retained is not None:

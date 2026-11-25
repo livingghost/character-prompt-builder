@@ -128,6 +128,29 @@
           "note": {
             "type": "string",
             "minLength": 1
+          },
+          "representation": {
+            "type": "object",
+            "description": "Ordinary selected image instructions are visible. Mark secondary impressions, necessary context, private author material, or unresolved depiction at the decision that owns them. secondary-figurative means impression assertion and secondary importance; its primary visible decision stands independently.",
+            "properties": {
+              "role": {
+                "enum": [
+                  "visible",
+                  "secondary-figurative",
+                  "context-only",
+                  "author-only",
+                  "unresolved"
+                ]
+              },
+              "primary": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "role"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -323,6 +346,13 @@
       },
       "minItems": 0,
       "description": "Author-approved variation with explicit evidence, task or content-bound source scope, and review criteria."
+    },
+    "image_format": {
+      "enum": [
+        "single-still",
+        "multi-panel"
+      ],
+      "description": "For image artifacts, single-still is the ordinary presentation. Select multi-panel only for an intended panel sequence; panels do not prove elapsed duration."
     }
   },
   "required": [

@@ -1,0 +1,87 @@
+## Synchronization, failure and growth
+
+Ordinary Studio transitions already refresh the gallery and activity display.
+They also refresh the automatic Flow and Axis page, including after image adoption.
+State artifact writers notify this projection when they write a known source or
+referenced scene context. A changed scene, new scene file, deleted file, narrative
+revision or changed accepted image changes the projection identity.
+Files edited in an external editor are not watched by a service:
+run `studio.py sync` after saving. This rechecks the base, events, processes,
+configuration, narrative/scene files in both conventional locations, collection
+membership and explicit artwork/evidence dependencies. The alternative location
+is part of that check even when it has no authored sources, so a newly appearing
+series cannot be silently ignored during publication. Already open pages show
+their printed input revision until reloaded; reloading the page refreshes
+the view, not the source files or the story itself.
+
+The output contains its observed inputs, implementation identity and generated time.
+An input records present bytes with their actual hash, absence, or an access
+failure without a content hash. Optional input reads allow absence; they still
+report access failures. Each path is observed once under each read contract during model
+construction. A sheet-relative read keeps its boundary in that contract, so an
+earlier read under another boundary cannot bypass the sheet's checks.
+
+A current default page's publication receipt keeps its failed source paths known
+to writer notifications. A fatal failure does not retain that input list, and a
+custom view alone does not supply the default notification route. Recover the
+default page with `studio.py sync`; rerun the selected `story_timeline.py --out`
+command to refresh a custom view.
+
+Inputs are freshly rechecked before and after rendering, before atomic HTML
+publication. Present inputs must still have the same bytes; failed access must
+still produce the same refusal. The latter makes no claim about unknown content
+or the identity of a refused filesystem entry. A repaired, removed or newly
+unreadable source changes its observation and prevents publication of the old
+model. Repeating an unchanged sync keeps the same page and does not duplicate
+its activity event.
+
+An unchanged page is reused before compiling the ledger or resolving its views.
+This reuse checks the exact HTML and embedded model against the publication
+receipt, the selected configuration and viewpoint, current installed builder
+sources and schemas, every observed input's actual bytes or refusal, and scene
+collection membership. It does not substitute timestamps, file sizes or an
+event sequence for content equality. Added and removed sources and changes in
+the alternative story location therefore invalidate reuse, including changes
+made outside the Studio commands. The installed source check covers dynamically
+selected schemas and renderer templates; it does not scan the user's packs or
+other workspaces.
+
+The view schema and HTML templates are read from that acquired implementation.
+Publication rechecks the installed source identity alongside the Studio inputs,
+so an implementation edit during rendering cannot publish a page with an
+earlier fingerprint describing later template bytes.
+
+Missing or damaged derived publication data is rebuilt from those sources.
+An unrelated file at an output or receipt path remains protected. Reuse is
+local to this display: a cached page supplies no event-validation result,
+adoption approval or permission to a generation or canonical change. Those
+operations acquire and verify their own current evidence.
+Projection actions enter the operator activity journal, never `state/events.jsonl`.
+
+An unreadable scene, referenced context, local evidence or declared artwork can
+remain a source notice on a current page when its observed failure is unchanged.
+Malformed JSON or other invalid content still carries the hash of the bytes
+that were read. No unavailable source supplies a guessed link or world state.
+If required configuration or ledger inputs cannot be loaded, series selection
+fails, an input changes during publication, or rendering fails, the current page
+becomes an explicit unavailable view. The prior successful view is retained as `timeline.last-good.html`
+with a visible STALE banner. An inaccessible output path may prevent even that
+warning from being written; the operation diagnostic and pending-projection marker
+then require `studio.py sync`. A story-view failure does not undo an image adoption
+or prevent an independent gallery/activity refresh.
+
+One compiled ledger validates artifact structure once and indexes IDs, timelines
+and revisions. Flow reads each scene source once and does not request a new replay per
+card. Scene IDs, participants, associations and relation directions are indexed.
+A corrupt draft remains visible as a source notice; it supplies no guessed scene link.
+Duplicate scene IDs are shown without choosing the newest file as canonical.
+
+The browser filters recorded data and creates a bounded page: 24 Flow records,
+40 Axis records and 40 state fields. Full source data remains embedded in the HTML;
+paging limits DOM work, not total file size or parsing memory. A single very large
+scene can still be expensive to inspect. No unbounded scalability is claimed.
+Image verification follows explicit bindings, not a recursive scan of all outputs.
+Replay work grows with selected/checkpoint queries and their applicable history;
+large diagnostic histories can still take time. No history is truncated or silently
+removed to make a view appear successful.
+

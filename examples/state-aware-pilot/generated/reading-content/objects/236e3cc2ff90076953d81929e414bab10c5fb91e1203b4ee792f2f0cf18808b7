@@ -1,0 +1,33 @@
+### Create or reopen editable work
+
+- `inspect-inputs` gathers the current task, authored content, source roles, recorded candidates and unresolved choices.
+- `compare-inputs` reads selected editable candidates together through the common authoring comparison owner, including their current delivery, selected documents and source applications.
+- `draft-inputs` creates `choices.json` for the actual candidate and `work-basis.json` for the acquired request, sources and current applications. `context.json` registers those owners and the starting point. `choices.target` owns the model and service; `choices.authoring` holds current task decisions, selectors for editable delivery and selected documents, and reference-use choices. Each selected file owns its content.
+- `save --choices FILE` saves an authored revision; `prepare --choices FILE` compiles the current editable sources and prepares a model request. Both use the same input owners. `build-inputs` exports the derived files when a separate input package is wanted; it is not a required step before saving or preparation.
+
+Start a new authored text task without first constructing a production-task file:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route prompt-only --artifact text --execution authored --out-dir work/first-draft
+python scripts/production_workflow.py save --root STUDIO --choices work/first-draft/choices.json
+```
+
+Between those calls, author the commission's selected depiction, delivery,
+source roles, independent criteria and current knowledge selections. The open
+work task supplies its identity. Select the actual execution kind and route;
+new image work additionally needs its target, rendering and input evidence.
+Unresolved choices stay explicit. `save --draft` preserves them with unfinished text. A completed target-specific prompt and an executable request apply their required input and vocabulary contracts; a saved draft does not certify either.
+
+To edit existing work, select `--task FILE` or `--from-run RUN` and the current
+`--operation compose|amend`. Supply a changed request with `--request-file FILE`;
+continuation under the same request can use its saved authoring work.
+Add `--model MODEL_ID` and `--service SERVICE_ID` when
+selecting another target for that draft. Edit the same source files, then save
+or prepare that draft.
+Reopening a run restores editable source copies and reference media from its
+captured inputs. Original working files may have changed or been removed.
+Validation sources use automatic `@run/RUN/STUDIO_PATH` selectors; nested source
+locators stay within that captured revision. Each new package retains the
+qualified evidence it used for the next continuation. Select a current Studio
+file explicitly when replacing a source, policy or evidence document. That
+choice acquires its current contents and preserves the earlier run separately.

@@ -125,7 +125,8 @@ class ActualWorkProjectionTests(unittest.TestCase):
     def test_recomposition_keeps_the_original_protected_requirement_evidence(self):
         task, choices = plain_choices()
         original = {'id': 'connection', 'strength': 'hard', 'evidence': 'artifact',
-                    'text': 'The shells remain connected.'}
+                    'text': 'The shells remain connected.',
+                       'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}
         task['criteria'] = [original]
         choices['authoring'] = authoring.blank(task)
         current, basis, _ = adapter.begin(choices, task=task, operation='compose',
@@ -147,7 +148,8 @@ class ActualWorkProjectionTests(unittest.TestCase):
         from production_diagnostics import ProductionError
         task, choices = plain_choices()
         criterion = {'id': 'connection', 'strength': 'hard', 'evidence': 'artifact',
-                     'text': 'The two shells remain connected.'}
+                     'text': 'The two shells remain connected.',
+                        'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}
         task['criteria'] = [criterion]
         choices['authoring'] = authoring.blank(task)
         current, basis, _ = adapter.begin(choices, task=task, operation='compose',
@@ -217,8 +219,10 @@ class ActualWorkProjectionTests(unittest.TestCase):
         task['sources'] = [source_row('definition', 'definition.json'), source_row('method', 'method.txt'),
                            source_row('allowance', 'allowance.txt', 'approval')]
         task['sources'][0]['identity'] = {'subject_ids': ['shell'], 'selectors': ['']}
-        task['criteria'] = [{'id': 'connection', 'strength': 'hard', 'text': 'The shells stay connected.', 'evidence': 'artifact'},
-                            {'id': 'old-view', 'strength': 'advisory', 'text': 'Old complete view.', 'evidence': 'artifact'}]
+        task['criteria'] = [{'id': 'connection', 'strength': 'hard', 'text': 'The shells stay connected.', 'evidence': 'artifact',
+                                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}},
+                            {'id': 'old-view', 'strength': 'advisory', 'text': 'Old complete view.', 'evidence': 'artifact',
+                                'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         allowance = {'id': 'overlap', 'source': 'allowance', 'locator': 'whole text', 'author': fixtures.ACTOR,
                      'scope': {'kind': 'source', 'source': 'definition', 'sha256': c.digest(raw)},
                      'allowance': 'The shells can overlap.', 'limits': ['The connection stays intact.'],
@@ -372,7 +376,8 @@ class SavedAuthoringWorkTests(unittest.TestCase):
         task['direction'].update(purpose='Make the requested shell relation readable.', intended_effect='A clear connection.')
         if not task['criteria']:
             task['criteria'] = [{'id': 'current-connection', 'strength': 'hard', 'evidence': 'artifact',
-                                 'text': 'The text states the connection.'}]
+                                 'text': 'The text states the connection.',
+                                    'origin': {'kind': 'user-request'}, 'observation': {'scope': 'observable'}}]
         self.write(choices['authoring']['delivery']['file'], text)
         reading = fixture_reading(route=task['route'], execution=task['execution'], features=task['features'],
             studio=self.root, ledger=self.root / 'work/reads.jsonl', operation='author')

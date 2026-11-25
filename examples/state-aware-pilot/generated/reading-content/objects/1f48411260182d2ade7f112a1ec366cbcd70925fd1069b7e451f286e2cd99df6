@@ -1,0 +1,99 @@
+## Read the current stage
+
+For saved work, begin with the structural `draft-inputs` command and follow its
+reading action before following runtime-document links. It has made no creative
+decision; the delivered contracts inform the actual authorship that follows.
+This supplies the complete selected originals once, with delivery evidence,
+instead of requiring an initial direct read and then a second route read.
+Direct file reads made earlier remain ordinary knowledge, not issued receipts.
+
+New character drafts begin at `definition`; enlargement begins at `prepare`.
+Reopened unfinished work retains its saved stage. `draft-inputs --stage STAGE`
+selects another current scope. `choices.authoring_stage` records the work
+currently in progress. Keep the definition, selected depiction and rendition
+in their actual editable files as they develop. Select the stage whose choices
+need work; the stages are editing scopes, not a requirement to repeat completed
+decisions or an automatic verdict that a picture is finished.
+
+For a retained amendment, declare `--retain` and `--change` owners with `plan`
+or `draft-inputs` under [amendment scope](production-authoring.md#declare-a-retained-amendment).
+The declaration lives in `work-basis.json.change_scope`. Its current structural
+differences select operation profiles independently of the stage label. The plan
+starts with the changed work and reports `remaining_stages` and `next_stage`;
+it does not repeat an unchanged definition before a view, parameter or recording
+edit. Changed definitions automatically select definition knowledge, and a
+conflicting retained owner requires an explicit correction. Final preparation
+still checks actual source bytes, identity, current model and the exact request.
+
+| Stage | Work and complete source knowledge |
+| --- | --- |
+| `definition` | Establish or revise the concrete character, acquired sources, their applications and usable wording. |
+| `depiction` | Develop the intended construction and actual candidate with independent assessment criteria. Apply image contributions and retained requirements at their selected scopes. |
+| `rendition` | Carry that construction into the actual prompt, supported negative text, references and rendering controls. Apply complete selected model guidance; changed wording or target also requires writing guidance. |
+| `prepare` | Bind the saved content, references and evidence into the exact native request, or complete the input for saving authored text. Inspect the whole resulting input without inventing new creative decisions. |
+
+```bash
+python scripts/production_workflow.py inspect-inputs --root STUDIO --choices work/draft/choices.json
+python scripts/production_workflow.py stage-inputs --root STUDIO --choices work/draft/choices.json --stage depiction
+python scripts/execution_routes.py read --root STUDIO --choices work/draft/choices.json
+```
+
+`stage-inputs` retains the choices, source files and prior results and returns
+the reading and editing actions for the selected stage. Its reading action starts
+complete bounded delivery with `--all`; follow `actions.continue` to completion.
+Pass `--reading-context` to the returned `read` or `advance` action. Select
+`--view` on `inspect-inputs` when choosing the report's display detail.
+The generated `--bind-choices` action applies the completed reading key to this
+exact unchanged draft. Inspect `choices_binding` if input changed during delivery;
+its named owner and repair action preserve that edit and the completed reading.
+Use `actions.index` when inspecting the source scope or choosing an exact section.
+Use the returned invocation with its complete runtime selection. Read the required original
+sections before making that stage's decisions. Finish its authored work, then
+select the next needed stage. Return to an earlier stage when a changed request
+reopens its definition, construction or expression; retain all applicable
+choices outside that change. A stage's structural readiness establishes neither
+artistic completion nor final request readiness.
+
+The summary preserves `next_stage` and `remaining_stages`. Its current diagnostic
+IDs identify blockers for this stage; `pending_summary` counts final-input fields
+assigned to later stages. Those pending fields remain required before preparation,
+but do not mean every field must be authored during definition. Assess the current
+stage's actual content, then select the next needed stage through `stage_actions`.
+
+The choices-based reader derives the actual route, execution, features, target,
+composition and source conditions. Adding an image, changing source applications
+or introducing accepted variation can change required knowledge even when the
+stage name stays the same. Inspect the current choices and follow their current
+reading action after such edits. Read newly required or changed bodies before
+using them; earlier complete ranges can contribute only while their actual text
+remains known in the same context. Never activate an unused specialist merely
+to fill a field or obtain a reading record.
+
+For staged authoring, definition reads the complete selected species and body-plan
+design knowledge needed to establish the subject. Depiction uses that actual
+definition, its view-construction contracts and the complete selected creative
+or finishing specialist. Interface recipes begin when the depiction needs them;
+writing-guide resources serve rendition and final input inspection. A selected
+model supplies its complete guidance card at every stage.
+
+Rendition reads the complete sections for carrying the saved construction into
+supported wording, reference use and controls. Preparation reads the complete
+input-binding, source-authority and inspection sections. Neither stage recreates
+species, craft or picture choices already saved in their owning sources. Inspect
+those actual choices and their source applications, rather than treating an older
+reading record as their meaning. If a missing or changed choice needs definition
+or conception, return to its stage and read that scope before deciding it. A fresh
+context resumes this same division of work; it does not reread all earlier design
+knowledge merely because it must recover the finished decisions. Retained amendments
+instead select knowledge from their declared and actual changes, so a stage label
+does not hide knowledge needed by a changed owner.
+
+After conversation compaction or a new agent, use `inspect-inputs` to recover
+the current editable files and stage, then take its fresh reading action with
+`--fresh-context` and no earlier context ID or `--known-reading` assertion.
+The saved plan accepts the same `--fresh-context` option and carries its new
+context through the returned reading and continuation actions. Read the complete requirements for that stage
+and inspect its actual saved content. An older receipt, stage name or successful
+check supplies no retained knowledge. Completed work remains available as source
+material, so rebuilding context does not repeat earlier authoring or execution.
+

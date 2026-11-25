@@ -1,0 +1,39 @@
+### Answers, returning to an earlier step, and temporary task switches
+
+`block` returns a unique `question_id`. Read the actual answer and record it with
+`respond` before taking the next action that depends on it. Keep the question,
+answer, speaker and applicable candidate identities together; an ordinary `note`
+does not resolve the question. A revised choice uses a new question rather than
+rewriting the earlier answer.
+
+```bash
+python scripts/work_ledger.py respond --studio STUDIO --question-id QUESTION_ID --answer "Actual answer" --actor "Actual speaker"
+python scripts/work_ledger.py reopen --studio STUDIO --from-step 1 --reason "Actual reason to revisit design" --actor "Actual decision maker"
+python scripts/work_ledger.py suspend --studio STUDIO --reason "Await another choice while independent work proceeds"
+python scripts/work_ledger.py begin --studio STUDIO --goal "Independent work" --step "Plan"
+python scripts/work_ledger.py suspend --studio STUDIO --reason "Return to the earlier character"
+python scripts/work_ledger.py resume-task --studio STUDIO --task-id PREVIOUS_TASK_ID
+```
+
+`respond` may additionally bind `--evidence STUDIO_RELATIVE_FILE` and repeated `--candidate ID` values. It records an answer, not generation or adoption approval. `reopen` snapshots the previous revision, including completed steps, linked run and bound production plan, before resetting the chosen and later steps. It detaches that earlier plan and its milestone bindings from the active revision; the archived plan and results remain available. `suspend` preserves questions, notes and the next step; only one task is active, and `resume-task` does not implicitly suspend a different task. `show` includes suspended task IDs and open question IDs so the next session need not reconstruct these from chat. Terminal tasks cannot be resumed as active work.
+
+For characters with independent commissions, criteria and authority, keep
+separate work tasks, `production_id` values and editable draft directories.
+Switch them with `suspend` and `resume-task`, preserving each task's inputs and
+history. A Studio can retain several characters while one ledger task is active.
+Two characters commissioned together in one image belong to that scene's work:
+declare each subject and its source applications, reference uses and criteria
+explicitly. Organize work by its actual scope and authority, not subject count.
+
+The ledger's `at` records when the entry was written. If an answer is recovered
+later, append its record at the current time and bind the original instruction
+with `--evidence`. Identify the original message or passage, including its source
+timestamp when available, in the answer. Preserve uncertainty when the decision
+time is unavailable; do not backdate the ledger or infer the answer time from a
+later action. The recovered answer remains distinct from any required generation
+or adoption approval.
+
+The prior run in the same explicit production series is still a protected-criteria dependency. Neither reopening a work step nor switching tasks is a means to discard that authority history.
+
+A checkpoint is a `note` or a `step` written at a boundary where loss would cost work: after a relevant instruction or correction arrives, when a draft or decision is ready and before it is presented, before a switch of task or route, and before and after an external operation. It records what was decided, where it was written, and the next safe operation; a candidate awaiting the author's answer is written down here with the question. Written is not saved: read the files back before a cumulative reply claims them. A checkpoint is neither a production result nor an adoption nor permission to publish.
+

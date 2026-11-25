@@ -218,13 +218,16 @@ LIMITATIONS=[
 def capture(root:Path,run:str)->dict:
     """Read one existing run. The caller decides where local observation data is saved."""
     import production_operations as w
-    directory,prepared,consumer,rows=w.read_run(root,run)
-    claim=w.find(rows,'dispatch-claim');journal=_journal(directory,rows,claim)
-    keys={d['sha256'] for d in prepared['dependencies'] if d['space']!='skill'}
+    loaded=w.read_run(root,run)
+    _,prepared,consumer,rows=loaded
+    claim=w.find(rows,'dispatch-claim');journal=_journal(loaded.evidence.read,rows,claim)
+    keys={d['sha256'] for d in prepared['dependencies']}
+    implementation=prepared.get('implementation')
+    if implementation is not None:keys.add(implementation['sha256'])
     for row in rows:
         for item in row['data'].get('files',[])+row['data'].get('evidence',[]):keys.add(item['sha256'])
     source={'artifact_type':'model-observation-source','run':run,'prepared':prepared,'consumer':consumer,'records':rows,
-        'objects':{key:_object(c.object_read(directory,key)) for key in sorted(keys)},
+        'objects':{key:_object(loaded.evidence.read(key)) for key in sorted(keys)},
         'journal':{name:_object(raw) for name,raw in journal.items()}}
     _derive(source)
     return source
@@ -284,7 +287,7 @@ def _inspect_output(raw:bytes,item:dict,prepared:dict)->None:
     production_evidence.inspect(raw,prepared['task']['artifact'])
 
 
-def _journal(directory, rows, claim) -> dict:
+def _journal(read_object, rows, claim) -> dict:
     """The dispatch journal files the run's formal events hold as evidence, by file name.
 
     Execution registers the request contract, the request, the answer, the
@@ -299,7 +302,7 @@ def _journal(directory, rows, claim) -> dict:
                 name = item['path'][len(base) + 1:]
                 if '/' in name:
                     continue
-                raw = c.object_read(directory, item['sha256'])
+                raw = read_object(item['sha256'])
                 if name in witnesses and witnesses[name] != raw:
                     raise ValueError('conflicting committed dispatch journal bytes')
                 witnesses[name] = raw

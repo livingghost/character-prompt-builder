@@ -54,9 +54,10 @@ class TextReadingOutput:
             start, end = source.get('start', 0), source.get('end', len(raw))
             if len(raw) != end - start:
                 raise ValueError('The displayed reading body differs from its declared byte range.')
-            origin = source.get('source_start', 0)
-            self.stream.write('\n=== ' + source.get('path', source['kind'])
-                + ' | source bytes ' + str(origin + start) + ':' + str(origin + end) + ' ===\n')
+            identity = (source['document_id'] + '#' + source['section_id']
+                        if source['kind'] == 'document-section' else source.get('path', source['kind']))
+            self.stream.write('\n=== ' + identity
+                + ' | body bytes ' + str(start) + ':' + str(end) + ' ===\n')
             self.stream.write(text)
         # Successful delivery still depends on the actual host output, not
         # merely the retained response file accepting these bytes.
@@ -100,9 +101,9 @@ class TextReadingOutput:
         failed = (visible.get('ok') is False or visible.get('error') is not None
                   or (visible.get('choices_binding') or {}).get('bound') is False)
         if visible.get('mode') == 'index':
-            fields = ('selector', 'path', 'kind', 'source_start', 'source_end', 'size',
+            fields = ('selector', 'document_id', 'path', 'kind', 'size',
                       'selected_by', 'selection_reason_ids', 'selection_scope')
-            sections = ('selector', 'heading', 'source_start', 'source_end', 'bytes', 'selection_reason_ids')
+            sections = ('selector', 'section_id', 'heading', 'bytes', 'selection_reason_ids')
             sources = [{**{key: row[key] for key in fields if key in row},
                         'sections': [{key: part[key] for key in sections if key in part}
                                      for part in row.get('sections', [])]}

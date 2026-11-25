@@ -1,0 +1,31 @@
+### Prepare an enlargement
+
+For a plain enlargement, select `--route upscale --source-image IMAGE --scale N
+--purpose TEXT`. Upscale defaults to image output and dispatcher execution.
+An external absolute source is imported into the draft; a Studio source retains
+its path. An explicit purpose opens a work task only when none is open and fills
+unanswered purpose and criteria. The task opens when the draft is produced; a
+refused command, such as one naming an unreadable image, opens no work and can
+be corrected and run again. Current authority and existing judgments remain
+selected. Follow [Upscale Adapter](../adapters/upscale.md) for the complete flow.
+
+To enlarge an image already captured by Production, select its run and exact
+candidate directly. `status` and the review workspace identify all candidates;
+choose the intended result even when several came from one request:
+
+```bash
+python scripts/production_workflow.py draft-inputs --root STUDIO --operation compose --request-file request.txt --route upscale --source-run RUN --source-candidate CANDIDATE --scale 2 --purpose "Enlarge the selected image while preserving its content." --model MODEL_ID --service SERVICE_ID --out-dir work/enlargement
+```
+
+The input owner verifies and selects the retained image bytes, records the
+originating run and candidate, and creates the ordinary upscale choices. The
+upscale has its own requested result, scale and assessment. The earlier prompt,
+generation criteria, review and completion remain with the earlier image;
+they are available as evidence and are not reinterpreted as upscale controls.
+Preparation records the selected candidate as the parent basis while the
+actual source image still matches it. Selecting another source later changes
+that binding. Nothing is sent, selected or adopted by drafting or preparation.
+Use `--source-image` instead for an explicit local image; it cannot be combined
+with the captured-candidate selector. These upscale selectors, `--scale` and
+`--purpose` apply only to `--route upscale`.
+

@@ -1,0 +1,21 @@
+#### Read an input summary
+
+`draft-inputs`, `stage-inputs`, `inspect-inputs`, `build-inputs`, `check`, `save` and `prepare`
+accept `--view summary`. The summary retains unresolved choices, owning files
+and actions, and gives `full_report` for the complete JSON snapshot. The
+complete view remains available with `--view full`. Summarizing changes
+neither the checks performed nor the command's exit status.
+`inspect-inputs` applies the [current-work navigation contract](production-workflow.md#open-the-current-work):
+bounded input, reading and decision lists retain `total`, `omitted` and the
+complete report location in their `<name>_summary`. Its `diagnostics` owns each
+unresolved finding once; input rows and `context.input` use `diagnostic_ids`.
+Repeated reading commands use `action_ref` to their executable summary location.
+Every distinct unresolved finding in the selected work scope remains visible
+even when its branch is outside the displayed list. Retained comparison inputs
+have explicit inspection actions; their unresolved choices do not become
+current-work findings. Complete source changes, hashes and historical
+notes remain available in the saved report.
+With `--choices PATH`, inspection acquires that exact registered editable
+branch. Other retained paths remain available as `comparison_inputs` without
+their content or diagnoses becoming current blockers.
+

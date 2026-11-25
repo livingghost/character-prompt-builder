@@ -1,0 +1,10 @@
+# Authoring work
+
+Compose and amend actual candidates through
+[`authoring_work.py`](../../scripts/authoring_work.py) for a
+prompt delivered in conversation, a saved artifact or a model request. The work
+contains the current request, acquired source material, its applications and
+the actual content being authored. The same author develops the character,
+chooses the construction and judges the result. Studio provides saving and
+execution when those operations are requested.
+

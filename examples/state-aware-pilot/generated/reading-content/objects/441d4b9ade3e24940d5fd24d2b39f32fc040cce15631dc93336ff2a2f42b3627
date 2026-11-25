@@ -1,0 +1,60 @@
+## Resolve the active guide
+
+Each model family reads a prompt its own way: rating terms, multi-word tag spellings, working weights, and the blocks of a rendition and their order all differ. A rule proven on one family and handed to another can change the request without the intended effect.
+
+Select the model; the script derives its writing guidance from the record's
+`prompt_input`, `prompt_style`, ordering and applicable family knowledge.
+The author does not first classify the model as prose-only, tags-only or mixed.
+Ordinary selected-model route reading and `draft-inputs` deliver this guidance.
+Inspect it directly in one step:
+
+```bash
+python scripts/prompt_dialect.py --model <model-id>
+```
+
+It returns:
+
+- `prompt_authoring`, with composition instructions, preferred and available
+  wording, vocabulary work and the known text-surface status;
+- the original input declaration, forms, vocabulary IDs and basis;
+- that family's tag grammar, block order, and quality, rating, period, and inert vocabulary;
+- the guide sections that apply, and the sections withheld because they belong to another family;
+- the record's own recommended text, parameters, and sizes.
+
+Follow `prompt_authoring.composition` and its vocabulary action. The script
+retains the declared natural-language and structured-caption forms, tag
+vocabulary and any documented combination without treating an authoring
+preference as an exhaustive capability list. Unknown forms are reported as
+unknown and do not require a classification decision before writing or
+finalizing text. A declared absent text surface still rejects a text request.
+`--list` names available families; `--dialect <id>` supplies a family's guidance
+for inspection or a family-oriented text draft. A requested tag rendition still
+uses the actual dictionary search described in [Vocabulary](prompt-vocabulary.md).
+Family guidance establishes no individual model's input contract or execution
+readiness. An unlisted external target uses its acquired identity and interface
+evidence through the ordinary model-file or external-target selection. Missing
+form metadata produces unspecified writing guidance; it neither certifies nor
+rejects a prose, tag or mixed rendition. Reading a family section supplies no
+unsupported parser syntax.
+
+Add a family by adding a dialect entry with its sources; the scripts stay unchanged. Its regression test is `scripts/prompt_dialect_smoke_test.py`. `schemas/prompt-dialect.schema.json` validates the dialect resource, and `schemas/prompt-writing-guide.schema.json` validates the guide.
+
+Read the complete `guide.universal` and `guide.dialect` sections returned by the
+resolver before writing the final model-facing rendition. The `withheld` list
+identifies sections for other families and needs
+no further read for this rendition. The selected model report also supplies its
+guidance card; catalog execution fields need inspection when the requested
+handoff or execution uses them. Reuse complete applicable guidance already read
+in the current context.
+
+Resolve the guide on its own through the same explicit pack state when its
+resource is needed for direct inspection:
+
+```bash
+python scripts/pack_cli.py resource prompt-writing-guide
+```
+
+When reading the resource directly, read its universal sections and the complete
+sections belonging to the selected family. When no enabled pack binds a guide,
+continue under the selected adapter and exact model or provider evidence.
+

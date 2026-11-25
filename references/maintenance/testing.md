@@ -38,11 +38,27 @@ python scripts/run_checks.py
 
 In a source checkout, check the changed files with `git diff --check`.
 
+The runner prints the copied release version, runner digest and source inventory
+digest, and retains them in `summary.json`. Compare elapsed times with the worker
+count, interpreter, platform and source identity attached. Console counters count
+completed commands; they do not identify submission order. A module duration
+includes all of its tests under that concurrent workload. Selected-case profiles
+identify call owners separately and do not replace complete-suite timings or
+measure another operating system's I/O latency.
+
 ### Keep the tested revision reproducible
 
 Regenerate host guides, manifests and implementation indexes from their declared
 source owners. After changing implementation, run `scripts/rebuild_metadata.py`
 before checks or sample builders that enforce the installed module index.
+When knowledge or public contract sources change, first run
+`scripts/knowledge_document_build.py`, then `scripts/seal_contract.py`, then
+`scripts/rebuild_metadata.py`. The source-only document builder works before
+public outputs exist. Catalog generation consumes those sealed outputs.
+Capability generation derives
+capability declarations without requiring completed public contract outputs.
+`scripts/validate_integration.py` checks every produced profile against the
+sealed installation and real synthetic payloads in the runner and release gate.
 An `IMPLEMENTATION_CHANGED` refusal identifies stale installation metadata; retain
 that failed attempt and correct the source/index relationship before assessing
 the behavior. Do not patch captured hashes or relax the refusal to make it pass.
@@ -140,9 +156,17 @@ packs stay outside that copy. It starts the commands with `CPB_HOME` at one scra
 - every `examples/*/*.py` script that offers `--check`, such as an example's `build_example.py --check`;
 - the validators and the default pack audit.
 
+The runner compiles the copied Python sources once into checked-hash import
+caches inside that disposable tree. Commands use `PYTHONDONTWRITEBYTECODE=1`
+and the default cache location, so they can read those caches without creating
+new ones. Existing standard-library caches remain available. An edited source
+is compiled again even if its size and modification time did not change.
+The release inventory excludes bytecode, and cleanup removes these temporary
+caches with the copied tree. Cache preparation does not replace any command.
+
 `--only SUBSTRING` keeps the commands whose label or command contains SUBSTRING,
 such as the suites of one subsystem. `--list` prints the commands without running
-them. The automatic concurrency is the smaller of four and the available CPU
+them. The automatic concurrency is the smaller of eight and the available CPU
 count. Availability comes from the process CPU count when supported, then
 process affinity, then the reported CPU count. This cap limits contention
 between independent suites; it is not a measured optimum or a memory budget.
@@ -165,10 +189,10 @@ The runner first prints its worker selection, CPU counts, Python, platform and
 default temporary directory. Fixtures using the system's default temporary
 location create their work there; I/O costs also depend on its filesystem. It prints one
 line per finished command, then the slowest ten and the log tail of each failure,
-and exits 1 when any command failed. Illustrative output:
+and exits 1 when any command failed. Illustrative output with `--jobs 4`:
 
 ```
-workers: 4 (automatic); available CPUs: 8 (os.sched_getaffinity); logical CPUs: 8
+workers: 4 (explicit); available CPUs: 8 (os.sched_getaffinity); logical CPUs: 8
 CLI-help workers per suite: 2
 temporary files: <temporary directory>
 runtime: CPython 3.12.14; <platform>
@@ -182,11 +206,12 @@ slowest:
 FAILED (exit 1): python scripts/release_management_smoke_test.py  log <out>/061.log
 ...
 109 commands: 105 passed, 4 failed in 379.7s with 4 workers
-elapsed phases: setup 0.100s; copy 0.800s; commands 378.000s; cleanup 0.800s
+elapsed phases: setup 0.100s; copy 0.800s; bytecode 1.000s; commands 377.000s; cleanup 0.800s
 ```
 
 `summary.json` retains that execution `context`, the selected `jobs`, total
-`seconds` and `timings_seconds` for `setup`, `copy`, `commands` and `cleanup`.
+`seconds` and `timings_seconds` for `setup`, `copy`, `bytecode`, `commands` and
+`cleanup`, plus the count of prepared `bytecode_files`.
 Total elapsed time starts with configuration and context setup and ends after
 the temporary source copy is removed; final summary writing and printing follow
 that measurement. The command phase includes pack runtime preparation and all
@@ -194,6 +219,13 @@ selected commands. Each command's own `seconds` measures its subprocess while
 the selected workload is running, including time waiting for CPU or storage.
 Compare timings with the same command selection, worker count and execution
 environment; the slowest-command list alone does not identify a bottleneck.
+
+The diagnostic documentation check acquires each script's AST once. Import
+bindings, diagnostic sites and guidance share one traversal; the implementation
+closure consumes those same parsed sources. The check retains its code and
+guidance observations after setup and releases the source trees. A separate
+closure computation acquires current source content without trusting file size
+or modification time as content identity.
 
 A test that needs a configuration directory of its own takes it from `production_fixtures.scratch_home(folder)` or `scratch_home_dir(folder)`.
 
@@ -423,8 +455,8 @@ python scripts/narrative_contract_smoke_test.py
 python scripts/scene_plot_contract_smoke_test.py
 ```
 
-`runtime_read_footprint.py` counts the selected original document ranges, rather
-than every byte in their containing files. It reports `selected_bytes`, full
+`runtime_read_footprint.py` counts the selected complete section bodies, rather
+than every section in their containing records. It reports `selected_bytes`, full
 `source_bytes`, complete-source versus section selection and static lexical
 words. Model cards, pack resources, command metadata and host tokens are outside
 that measurement; the route reader's `progress` includes its actual delivered
@@ -439,6 +471,18 @@ recording, complete union coverage and stage-independent retained knowledge.
 `test_production_reading_scope.py` checks the actual editable and final-task
 owners. `route_reading_smoke_test.py` checks content delivery, current section
 reuse, fresh-context reading and exact model knowledge separately.
+
+`test_knowledge_document_build.py` checks exact Markdown rendering, record
+discovery, route declarations and complete native front-matter bodies.
+`test_knowledge_documents.py` checks canonical-record admission, unique section
+IDs, immutable bodies, exact byte identity, invalid POSIX and Windows paths,
+isolated acquisitions, and generated-file checks and removal. Run both from `scripts/` with
+`python -m unittest test_knowledge_document_build test_knowledge_documents` when
+changing this contract. Runtime reading tests also cover renamed headings,
+reordered sections, document identity and retained navigation without current
+records. Runtime reading acquires canonical JSON sections directly and remains
+independent of generated Markdown. Generated repository
+guides retain every template requirement within the enforced 32,000-byte limit.
 
 Do not make reference transport files mandatory when no reference is selected. Do not replace semantic camera or anatomy validation with prose alone.
 

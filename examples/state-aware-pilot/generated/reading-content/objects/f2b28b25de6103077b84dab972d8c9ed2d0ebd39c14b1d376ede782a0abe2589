@@ -1,0 +1,56 @@
+## Open the current work
+
+Use [Authoring work](authoring-work.md) to compose or amend the actual candidate.
+Retain the current request as supplied text and select the source applications
+needed for this work. The agent develops the character and open construction
+choices to the depth the current artifact needs. A conversational delivery uses
+that candidate directly.
+
+For saving or execution, initialize or reopen its Studio and work task. Use
+`production_workflow.py status --root STUDIO`, `studio.py status --studio STUDIO`
+or session entry to locate existing editing sources and an active execution.
+Status exposes current authoring sources; session entry reads the saved task
+trail without opening the Production database or refreshing Studio displays.
+Continue the actual files and recover an uncertain external operation from its
+saved run.
+
+Default status begins with the selected run, current blocker locations and its
+executable next action. Each historical list shows at most eight entries;
+its `<name>_summary` gives `total`, `omitted` and `full_report`, where total minus
+the displayed count equals omitted. The report path and JSON Pointer locate
+the complete original list. A run-specific view shows its decision drafts with
+`relation: selected-run`; unrelated task history remains in the counts and
+complete report. This ordering makes no author choice. When several branches
+remain, select the intended `inspect-inputs --choices FILE` action, including
+alternatives in the full report.
+
+Authoring findings appear once in `current_task.authoring.diagnostics`.
+The standalone `inspect-inputs` summary keeps the same indexed findings in its
+top-level `diagnostics`.
+Inputs and their context name those findings through `diagnostic_ids`, including
+findings for branches outside the displayed prefix. `blockers` locates every
+current blocking finding. Repeated identical commands use an `action_ref`
+JSON Pointer to the executable action already in the summary, with the primary
+next action first. Different decision reasons or scopes retain their own actions. Reading changes
+show source paths; complete before/after hashes remain in `full_report`.
+`full_report_action` reads the exact saved JSON snapshot; `details_action` and
+`status --view full` acquire complete current evidence. Presentation changes no
+event, ledger, draft, review or permission decision.
+
+When an unchanged editable source exactly matches a prepared run, later reading
+requirements alone do not reopen that saved input as pending authoring. Status
+retains them under that input's `future_authoring`, with complete diagnostics,
+stage and reading actions in the full report. They establish no current
+knowledge and do not change runtime or authorization checks. To edit again,
+select `inspect-inputs --choices FILE`; its current reading requirements become
+active authoring findings. An actual change to the editable files also restores
+the current stage, gaps and reading actions.
+
+Session entry and `work_ledger.py show --view summary` show the current goal, unfinished steps, every open question and
+blocker, and the latest checkpoint still present in the current task revision.
+It excerpts the latest note and reports `note_count` and `omitted`. Its
+`work_ledger.py show --studio STUDIO --task-id TASK_ID --view full` action reads
+the complete saved task and ledger history, including suspended or closed work;
+omit `--task-id` to inspect the complete Studio work trail. Session startup
+does not execute these inspection or refresh commands.
+

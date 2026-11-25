@@ -61,6 +61,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import execution_contract  # noqa: E402
+import execution_target  # noqa: E402
 import studio_workspace as studio  # noqa: E402
 import transport_contract  # noqa: E402
 from catalog_api import configure_pack_runtime  # noqa: E402
@@ -281,7 +282,7 @@ def show_preview(*, sealed: tuple, rendered: dict[str, Any], negative: str, revi
                  preview_out: str | None) -> None:
     """A few plain lines a person can check, then the exact request; the long trace goes to --preview-out."""
     _, prepared, _, _, _, _, plan, target, _ = sealed
-    offering, service = target["offering"], target["service"]
+    offering, service = execution_target.offering(target), target["service"]
     lines = [
         f"model: {target['model_id']} as {offering['model_identifier']} (offering observed {offering.get('observed_at')})",
         f"service: {offering['service']} at {(service.get('endpoint') or {}).get('base_url')} (record observed {service.get('observed_at')})",
@@ -788,7 +789,7 @@ def dispatch_generation(args: argparse.Namespace, root: Path) -> int:
         runtime_evidence.reader(root, snapshots=copy.deepcopy(stored["input_snapshots"]),source=source), rendered)
     write_preview_outputs(args, root, rendered, validation)
     print(render_summary(stored["render_contract"]))
-    show_preview(sealed=sealed, rendered=rendered, negative=negative_line(stored, rendered, target["offering"]),
+    show_preview(sealed=sealed, rendered=rendered, negative=negative_line(stored, rendered, execution_target.offering(target)),
                  review=sealed[6]['review_requirements'], preview_out=args.preview_out)
     return 0
 

@@ -201,6 +201,87 @@
           "identity_review": {
             "description": "Subjects compared with their complete applicable retained identity sources. The image establishes only what its view and evidence support; this does not require a whole-figure composition.",
             "$ref": "#/$defs/identitySubjects"
+          },
+          "origin": {
+            "description": "Authority for this criterion, independent of the agent's chosen realization. Hard criteria require an actual user request or applied adopted source. No declaration proves source meaning or user identity.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "user-request"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "adopted-source"
+                  },
+                  "source": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "agent-realization"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "decision"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "observation": {
+            "type": "object",
+            "description": "What the selected evidence can establish. Medium follows task.artifact and criterion.evidence; the author does not repeat a medium or type hashes. Hard criteria require this scope.",
+            "properties": {
+              "scope": {
+                "enum": [
+                  "observable",
+                  "impression",
+                  "sequence",
+                  "duration",
+                  "comparison",
+                  "context-only",
+                  "author-only",
+                  "unresolved"
+                ]
+              },
+              "decision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseline": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "scope"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

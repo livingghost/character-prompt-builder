@@ -146,14 +146,13 @@ def resolve_target(model:str,service:str|None,*,source)->ResolvedTarget:
 
 def resolve_execution_target(value:dict,*,source)->ResolvedTarget:
     """Reacquire a published target from its exact fixed execution inputs."""
-    import execution_contract as execution
-    execution.exact(value,{'model','model_id','offering','service','transport_sha256'},'execution target')
+    import execution_target
+    offering=execution_target.offering(value)
     records=[record for record,_ in _source_models(source) if record.get('id')==value['model_id']]
     if len(records)!=1 or records[0]!=value['model']:
         raise ValueError('published model differs from its acquired execution source')
-    offering=select_offering(records[0],value['offering']['service'])
-    if offering!=value['offering']:
-        raise ValueError('published offering differs from its acquired model')
+    # The selected offering is part of that complete checked model. There is
+    # no independent saved offering whose contents could disagree with it.
     resolved=_resolved_target(value['model_id'],records[0],offering,source,
                               execution_inputs=_execution_inputs(offering,source))
     if resolved.service!=value['service'] or resolved.transport_sha256!=value['transport_sha256']:
