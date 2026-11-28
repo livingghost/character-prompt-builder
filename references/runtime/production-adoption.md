@@ -47,7 +47,12 @@ the decision was captured; authors enter no machine timestamps or event digests.
 
 `delivery-only`, `studio-slot`, `sheet`, `catalog` and `withdraw` share this
 continuation. Imported iterations name their original character and iteration;
-Production images keep their original run and candidate. A later Studio-slot
+Production images keep their original run and candidate. Their prepared task
+need not declare a recording destination when an existing Studio iteration
+links that exact run and candidate. The runtime finds the unique link across
+the Studio's registered characters and uses that iteration's current placement.
+A missing or ambiguous link requires repair rather than a guessed character or
+slot. A later Studio-slot
 use of an already completed delivery records its own exact slot receipt and
 preserves the completed run's scope. The relevant owner always verifies the
 actual image and current placement.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026.11.28.1
+
+- Resolve a Production candidate's existing Studio iteration when its prepared
+  task declares no recording destination. Match the exact run and candidate
+  across registered characters, and require one verified iteration before
+  Studio-slot or canonical use. Keep delivery-only selection independent of
+  that iteration, and reject ambiguous links or changed image bytes.
+- Offer Studio-slot acceptance for image candidates, and protect an accepted
+  candidate from disposition when no recording destination was declared.
+  Preserve the selected iteration and its current placement without importing
+  the image again.
+
 ## 2026.11.25.6
 
 - Resolve the copy source and temporary fixture roots before comparing paths,

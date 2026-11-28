@@ -2289,11 +2289,14 @@ def disposition(root: Path, run: str, decision_file: str) -> dict:
 def _studio_accepted(root: Path, prepared: dict, run: str, candidate: str) -> list[str]:
     """The iterations a Studio at this root holds as accepted images of this candidate."""
     import studio_workspace as studio
-    character = (prepared['task'].get('recording') or {}).get('character')
-    if not (root / studio.MANIFEST).is_file() or not studio.valid_character_id(character):
+    if not (root / studio.MANIFEST).is_file():
         return []
-    rows = studio.StudioRead(root).placed_iterations(character)
-    return [row['iteration_id'] for row in rows
+    read = studio.StudioRead(root)
+    recording = prepared['task'].get('recording')
+    if recording is not None and not studio.valid_character_id(recording.get('character')):
+        return []
+    characters = [recording['character']] if recording is not None else read.characters
+    return [row['iteration_id'] for character in characters for row in read.placed_iterations(character)
             if row.get('production') == {'run': run, 'candidate': candidate} and row.get('adoption_status') == 'accepted']
 
 

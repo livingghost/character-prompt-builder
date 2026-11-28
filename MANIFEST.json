@@ -1,9 +1,9 @@
 {
   "package": "character-prompt-builder",
-  "version": "2026.11.25.6",
+  "version": "2026.11.28.1",
   "version_scheme": "YYYY.MM.DD.N",
   "release_timezone": "UTC",
-  "generated_at": "2026-11-25",
+  "generated_at": "2026-11-28",
   "license": "GPL-3.0-only",
   "language": "English project content and canonical English retrieval; user-language interpretation belongs to the calling agent",
   "purpose": "state-aware expansion of character ideas into coherent model-aware image prompts",
@@ -82,7 +82,7 @@
     "included_in_archive": false
   },
   "file_count_excluding_manifest": 1474,
-  "total_bytes_excluding_manifest": 27280096,
+  "total_bytes_excluding_manifest": 27288574,
   "files": [
     {
       "path": ".agents/plugins/marketplace.json",
@@ -97,12 +97,12 @@
     {
       "path": ".claude-plugin/plugin.json",
       "bytes": 513,
-      "sha256": "ef117136962aa852dc3c80d74850b5b5261f6766a05422f3b8a20badb32d4cd1"
+      "sha256": "cdc7b970b4a66d9a943cb7882ce02cb133eb17442cc27c8d26bd2aa9ed2d4950"
     },
     {
       "path": ".codex-plugin/plugin.json",
       "bytes": 564,
-      "sha256": "08e4e3000d294ef252eaef4e840ba6992ce407056bc96c25ea91d731d798b6a8"
+      "sha256": "fac45fcfccc86ec5cd2f7fb65020dc9399bdb7c132b72d6c01779696fc0d8ac4"
     },
     {
       "path": ".python-version",
@@ -116,8 +116,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 163163,
-      "sha256": "e8bbd3449ef987c2c8a54c61316b5de3788000f3aaad4677737320cb0bbe0b97"
+      "bytes": 163802,
+      "sha256": "4b19f7d2361b2dbe876f74413775885e33da5e19d8a4c592bce2c689aa4aa548"
     },
     {
       "path": "CLAUDE.md",
@@ -172,7 +172,7 @@
     {
       "path": "config/implementation-files.json",
       "bytes": 38160,
-      "sha256": "eda758aa6cfc1bf93d60525fc51e8d88c6d22ad3704ffa6f496c9f8406bdafc4"
+      "sha256": "21a76b4fbe66f6974513750bd11d300b72eacb1eef7384ddddb122bf42c2c79d"
     },
     {
       "path": "config/integration-capabilities.json",
@@ -2706,8 +2706,8 @@
     },
     {
       "path": "knowledge/references/runtime/production-adoption.json",
-      "bytes": 29724,
-      "sha256": "4eee2ec3ff5e88f9ad2339de85b93f9afe6148e06a9cafd0809f98e6c86eeeec"
+      "bytes": 30066,
+      "sha256": "daef7208e6131fe0ec80da8ca2426cdca935c86990b7c90a9d61f0dbec6318fa"
     },
     {
       "path": "knowledge/references/runtime/production-authored-storage.json",
@@ -2927,7 +2927,7 @@
     {
       "path": "package-manifest.toml",
       "bytes": 2145,
-      "sha256": "8add2d866d20a22595d16057cbc630c7882d60c7f078d98d8191b42a5f96a1c3"
+      "sha256": "dc6084550c4732d552daef1494f6067d82ffb8d9f35fa9e9d8f902b1c9750ec4"
     },
     {
       "path": "packs/commons/pack.json",
@@ -3772,7 +3772,7 @@
     {
       "path": "pyproject.toml",
       "bytes": 825,
-      "sha256": "afe379d147067b71545cea2be194d6dade526b3046ff7fe7368502c5a2bac58d"
+      "sha256": "d89ece5a5515f0786b9f97670a2a25fbd36eb98ef59a7a214969d9a917287c58"
     },
     {
       "path": "references/adapters/gpt-image.md",
@@ -4151,8 +4151,8 @@
     },
     {
       "path": "references/runtime/production-adoption.md",
-      "bytes": 27780,
-      "sha256": "ece630bd759afc119560e9a09bb517d590e6babae3d00c60ace7e524fed95a3c"
+      "bytes": 28117,
+      "sha256": "6539786ce0820de7fdf6ee188aeba3236a46b4eb426b1247e3935cbd2b40034c"
     },
     {
       "path": "references/runtime/production-authored-storage.md",
@@ -4171,8 +4171,8 @@
     },
     {
       "path": "references/runtime/production-diagnostics.md",
-      "bytes": 58291,
-      "sha256": "d66482a34aed96842f3e82a4eead3116214084bdab82b6f37454dbd575db432f"
+      "bytes": 58576,
+      "sha256": "2780a44fedc283534c0c1043a088beb5bd03a977b734f93eddb1402c6933dc46"
     },
     {
       "path": "references/runtime/production-direction.md",
@@ -5621,8 +5621,8 @@
     },
     {
       "path": "scripts/production_acceptance.py",
-      "bytes": 23352,
-      "sha256": "95fb84adfaccd5a4d8de34c1961ac13cf288be1b6986818e0384328e82cdd348"
+      "bytes": 23955,
+      "sha256": "2d352b11cf449e644d7117ab7a2a9d4343d17debca37b4cf7750f1145d0739d5"
     },
     {
       "path": "scripts/production_adoption.py",
@@ -5706,8 +5706,8 @@
     },
     {
       "path": "scripts/production_curation.py",
-      "bytes": 75390,
-      "sha256": "0c67698f4b4d95273cbcfd065bd88bf3b18dfc0d89aeea7ae1a0730ac9e0bb59"
+      "bytes": 75280,
+      "sha256": "ebe44f7932daf05f9aa725fb4606dde4d7064def19d3b2c9e40e9993ec0d81ed"
     },
     {
       "path": "scripts/production_curation_assessments.py",
@@ -5751,8 +5751,8 @@
     },
     {
       "path": "scripts/production_execution.py",
-      "bytes": 149736,
-      "sha256": "84c11c2e9611e5b9b820e90b7f13d2f4bea8f71dbc5258e5c6bffe1bb77116ac"
+      "bytes": 149742,
+      "sha256": "4554ebab7b53812b2295511d5d9d13dde9c61b544320dfb6364f91caba8144e7"
     },
     {
       "path": "scripts/production_expression.py",
@@ -5821,8 +5821,8 @@
     },
     {
       "path": "scripts/production_operations.py",
-      "bytes": 197080,
-      "sha256": "9e8767ea3b44a188bb2c0ac8b32151689a37824c6f11f23a0e0e7afc345ed10c"
+      "bytes": 197237,
+      "sha256": "ac3590ab5c1e47d5048c94eaf2ffb729e1f1ac81fb44563a1fbf087197e89c8e"
     },
     {
       "path": "scripts/production_permissions.py",
@@ -6811,8 +6811,8 @@
     },
     {
       "path": "scripts/test_production_curation.py",
-      "bytes": 49587,
-      "sha256": "c11392276b6440bd485bf584158faf1c45efd464e081642b7d2c63c1db891a5d"
+      "bytes": 55806,
+      "sha256": "8f9db887da792739c3ac3e71c8b12e266f69faaab3b7ba425268d8d5141bcdd4"
     },
     {
       "path": "scripts/test_production_document_contracts.py",
@@ -7452,7 +7452,7 @@
     {
       "path": "uv.lock",
       "bytes": 113758,
-      "sha256": "7694f48adc5ee9b748fddcb9efc4e13a7d700a254853755cd401e5d9039c0790"
+      "sha256": "4d67269b7e94d24b2ff3731ea26d82afdc80095f31f24e56cf9c82fd9ca00bf3"
     }
   ]
 }

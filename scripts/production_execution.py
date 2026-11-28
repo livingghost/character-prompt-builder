@@ -1728,7 +1728,7 @@ def _candidate_action(root: Path, run: str, candidate: dict, prepared: dict,
         actions = [selection_update_action(root, run, candidate['candidate'], authority)]
         phases = ['review']
     else:
-        scopes = ['delivery-only', 'studio-slot'] if prepared['task'].get('recording') else ['delivery-only']
+        scopes = ['delivery-only', 'studio-slot'] if prepared['task']['artifact'] == 'image' else ['delivery-only']
         previous = [row['data']['selection']['scope'] for row in rows if row['event'] == 'selection'
                     and row['data']['selection']['candidate'] == candidate['candidate']]
         if previous and previous[-1] in scopes:

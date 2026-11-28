@@ -715,6 +715,112 @@ class CurationTests(unittest.TestCase):
         self.assertEqual(result['result']['approval']['by'], decision['approval']['actor'])
 
 
+class IndependentCandidateCurationTests(unittest.TestCase):
+    """A later exact Studio record supplies an independent candidate's destination."""
+
+    setUpClass = classmethod(baseline.AdoptionTests.setUpClass.__func__)
+    setUp = baseline.AdoptionTests.setUp
+    draft = CurationTests.draft
+    decide = CurationTests.decide
+    apply = CurationTests.apply
+
+    def independent_candidate(self, *, record=True):
+        import production_execution as execution
+        from test_production_execution import decisions
+        self.task.pop('recording')
+        f.write(self.root / 'task.json', self.task)
+        self.run = workflow.prepare(self.root, 'task.json')['run']
+        output = execution.execute(self.root, self.run, decisions_file=decisions(self.root, self.run))
+        self.candidate = output['runs'][0]['candidates'][0]
+        loaded = workflow.read_run(self.root, self.run)
+        self.assertIsNone(loaded.prepared['task'].get('recording'))
+        captured = workflow.find(loaded.rows, 'candidate', self.candidate)
+        if record:
+            self.row = studio.iterate(self.root, 'robot', 'base.front',
+                loaded.directory / 'objects' / captured['data']['files'][0]['sha256'],
+                package=loaded.directory / 'package.json', request=None, response=None,
+                note='Exact later Studio record of the independently generated synthetic candidate.')
+            self.assertEqual(self.row['production'], {'run': self.run, 'candidate': self.candidate})
+        review = workflow.draft_review(self.root, self.run, self.candidate)
+        review.update(reviewer='Synthetic test reviewer', observations=[{'evidence': 'candidate', 'locator': {'kind': 'whole'},
+            'observation': 'The independent synthetic candidate was captured and recorded exactly.',
+            'interpretation': 'Protocol fixture only.',
+            'limitations': ['No generative quality or user approval is asserted.']}], conclusion='Synthetic test decision.')
+        for check in review['checks']:
+            check.update(verdict='pass', observation_indices=[0], reason='Explicit synthetic fixture assessment.')
+        f.write(self.root / 'review.json', review)
+        workflow.review(self.root, self.run, 'review.json')
+        return captured
+
+    def test_candidate_without_prepared_recording_adopts_its_recorded_iteration(self):
+        self.independent_candidate()
+        drafted = self.draft()
+        self.assertEqual(drafted['binding']['snapshot']['target'],
+            {'character': 'robot', 'iteration_id': self.row['iteration_id'], 'slot': 'base.front'})
+        result = self.apply(drafted)
+        self.assertTrue(result['ok'])
+        self.assertIsNotNone(studio.StudioRead(self.root).sheet('robot')['slots']['base.front']['current'])
+        verified = curation.verify(self.root, self.root / 'work/one-use', binding=drafted['binding'])
+        self.assertTrue(verified['verified'])
+        self.assertEqual(verified['current_use'], 'current')
+
+    def test_candidate_without_prepared_recording_requires_an_exact_iteration(self):
+        self.independent_candidate(record=False)
+        with self.assertRaises(ProductionError) as caught:
+            self.draft()
+        self.assertEqual(caught.exception.diagnostic.code, 'STUDIO_CANDIDATE_REQUIRED')
+        self.assertIn('studio.py iterate', caught.exception.diagnostic.required_action)
+
+    def test_candidate_without_prepared_recording_rejects_multiple_iterations(self):
+        self.independent_candidate()
+        rows = studio.read_iteration_records(studio.character_home(self.root, 'robot'))
+        duplicate = copy.deepcopy(next(row for row in rows if row['iteration_id'] == self.row['iteration_id']))
+        duplicate['iteration_id'] = 'it-duplicate'
+        studio.write_iterations(studio.character_home(self.root, 'robot'), [*rows, duplicate])
+        with self.assertRaises(ProductionError) as caught:
+            self.draft()
+        self.assertEqual(caught.exception.diagnostic.code, 'STUDIO_CANDIDATE_REQUIRED')
+
+    def test_candidate_without_prepared_recording_rejects_changed_studio_bytes(self):
+        self.independent_candidate()
+        (self.root / self.row['result']['path']).write_bytes(b'Synthetic changed Studio bytes.')
+        with self.assertRaises(ProductionError) as caught:
+            self.draft()
+        self.assertEqual(caught.exception.diagnostic.code, 'SLOT_ACCEPTANCE_MISMATCH')
+
+    def test_candidate_action_offers_studio_slot_for_recorded_iteration(self):
+        self.independent_candidate()
+        import production_execution as execution
+        import production_store as store
+        loaded = workflow.read_run(self.root, self.run)
+        report = execution.status(self.root, self.run)
+        candidate = report['runs'][0]['candidate_states'][0]
+        authority = store.read_authority(self.root, loaded.prepared['task']['task_id'])
+        action = execution._candidate_action(self.root, self.run, candidate, loaded.prepared, loaded.rows, authority)
+        def arguments(value):
+            if isinstance(value, dict):
+                yield from value.get('argv', [])
+                for child in value.values():
+                    yield from arguments(child)
+            elif isinstance(value, list):
+                for child in value:
+                    yield from arguments(child)
+        values = list(arguments(action))
+        self.assertIn(('--scope', 'studio-slot'), list(zip(values, values[1:])))
+
+    def test_accepted_candidate_cannot_be_dispositioned(self):
+        self.independent_candidate()
+        self.apply(self.draft())
+        loaded = workflow.read_run(self.root, self.run)
+        self.assertEqual(workflow._studio_accepted(self.root, loaded.prepared, self.run, self.candidate),
+                         [self.row['iteration_id']])
+        decision = workflow.draft_disposition(self.root, self.run, self.candidate)
+        decision.update(actor='Synthetic reviewer', reason='The accepted image must retain its selection.')
+        with self.assertRaises(ProductionError) as caught:
+            workflow.disposition_value(self.root, self.run, decision)
+        self.assertEqual(caught.exception.diagnostic.code, 'SELECTED_CANDIDATE')
+
+
 class ExternalCurationTests(unittest.TestCase):
     """A captured host image can complete delivery without a Studio iteration."""
 

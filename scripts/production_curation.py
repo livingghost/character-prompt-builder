@@ -56,8 +56,7 @@ def _production(root: Path, source: dict, *, scope: str) -> tuple[dict, object]:
     result = {'input_sha256': loaded.prepared['input_sha256'], 'candidate': candidate,
               'review': review['sha256'], 'files': copy.deepcopy(captured['data']['files']),
               'selection': workflow.replaced_selection(loaded.rows)}
-    if (scope != 'delivery-only' and loaded.prepared['task'].get('recording')
-            and loaded.prepared['task']['artifact'] == 'image'):
+    if scope != 'delivery-only':
         target, row = acceptance._target(root, source['run'], candidate, loaded=loaded)
         read = studio.StudioRead(root)
         current = (read.sheet(target['character'])['slots'].get(target['slot']) or {}).get('current')

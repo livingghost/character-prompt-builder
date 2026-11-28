@@ -31,25 +31,32 @@ def _target(root: Path, run: str, candidate: str, *, loaded: tuple | None = None
     _, prepared, _, rows = loaded
     chosen = workflow.find(rows, 'candidate', candidate)
     recording = prepared['task'].get('recording')
-    if prepared['task']['artifact'] != 'image' or not recording:
+    if prepared['task']['artifact'] != 'image':
         raise ProductionError('SLOT_ACCEPTANCE_NOT_APPLICABLE',
-            'Slot acceptance needs an image run with its existing Studio recording.',
+            'Slot acceptance needs an image run.',
             phase='acceptance', run=run, candidate=candidate,
             required_action='Use draft-acceptance --scope delivery-only for delivery without a Studio slot.')
     origin = {'run': run, 'candidate': candidate}
     read = studio.StudioRead(root)
-    matches = [row for row in read.placed_iterations(recording['character']) if row.get('production') == origin]
+    characters = [recording['character']] if recording is not None else read.characters
+    matches = [(character, row) for character in characters
+               for row in read.placed_iterations(character) if row.get('production') == origin]
     if len(matches) != 1:
+        repair = ('Resume the existing run to recover its recorded candidate; do not import its image again.'
+            if recording is not None else
+            'If no iteration exists, use studio.py iterate once with the retained package and exact candidate image. '
+            'If several iterations claim this Production origin, restore a verified Studio record with one exact link. '
+            'Do not import unattributed pixels or create another Production run.')
         raise ProductionError('STUDIO_CANDIDATE_REQUIRED',
             'The exact Production candidate needs its one existing Studio iteration.',
-            phase='acceptance', run=run, candidate=candidate,
-            required_action='Resume the existing run to recover its recorded candidate; do not import its image again.')
-    row = matches[0]
-    recorded = {'character': recording['character'], 'iteration_id': row['iteration_id'], 'slot': recording['slot']}
-    if row.get('character') != recorded['character'] or row.get('slot') != recorded['slot']:
-        raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The iteration differs from its prepared recording destination.',
-                              phase='acceptance', run=run, expected=recorded)
-    target = {**recorded, 'slot': studio.placement_slot(row)}
+            phase='acceptance', run=run, candidate=candidate, required_action=repair)
+    character, row = matches[0]
+    if row.get('character') != character or (recording is not None and row.get('slot') != recording['slot']):
+        expected = {'character': character, 'iteration_id': row['iteration_id'],
+                    'slot': recording['slot'] if recording is not None else row.get('slot')}
+        raise ProductionError('SLOT_ACCEPTANCE_MISMATCH', 'The iteration differs from its recorded character or prepared destination.',
+                              phase='acceptance', run=run, expected=expected)
+    target = {'character': character, 'iteration_id': row['iteration_id'], 'slot': studio.placement_slot(row)}
     result = row.get('result')
     expected = chosen['data']['files'][0]['sha256']
     if not result or result.get('sha256') != expected:
